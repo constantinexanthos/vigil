@@ -1,27 +1,28 @@
-import AgentCard from "./AgentCard";
+import AgentOrb from "./AgentOrb";
 import type { AgentStat, Collision } from "../types";
+import type { AgentActivity } from "../hooks";
 
 interface ActiveAgentsProps {
   agentStats: AgentStat[];
   collisions: Collision[];
+  agentActivity: Map<string, AgentActivity>;
+  selectedAgent: string | null;
+  onSelectAgent: (agent: string) => void;
 }
 
-const PLACEHOLDER_SCORES: Record<string, number> = {
-  "claude-code": 82,
-  cursor: 71,
-  codex: 65,
-  conductor: 78,
-};
-
-function getConfidence(agent: string): number {
-  return PLACEHOLDER_SCORES[agent] ?? 60;
-}
-
-export default function ActiveAgents({ agentStats, collisions }: ActiveAgentsProps) {
+export default function ActiveAgents({
+  agentStats,
+  collisions,
+  agentActivity,
+  selectedAgent,
+  onSelectAgent,
+}: ActiveAgentsProps) {
   if (agentStats.length === 0) {
     return (
       <div className="px-4 py-3 border-b border-border">
-        <p className="text-[10px] text-text-muted uppercase tracking-widest mb-2">Active Agents</p>
+        <p className="text-[10px] text-text-muted uppercase tracking-widest mb-2">
+          ACTIVE AGENTS
+        </p>
         <p className="text-xs text-text-secondary">No agents detected</p>
       </div>
     );
@@ -29,15 +30,17 @@ export default function ActiveAgents({ agentStats, collisions }: ActiveAgentsPro
 
   return (
     <div className="px-4 py-3 border-b border-border">
-      <p className="text-[10px] text-text-muted uppercase tracking-widest mb-2">Active Agents</p>
+      <p className="text-[10px] text-text-muted uppercase tracking-widest mb-2">ACTIVE AGENTS</p>
       <div className="flex gap-2 overflow-x-auto pb-1">
         {agentStats.map((stat) => (
-          <AgentCard
+          <AgentOrb
             key={stat.agent}
             agent={stat.agent}
             fileCount={stat.count}
-            confidence={getConfidence(stat.agent)}
+            activity={agentActivity.get(stat.agent)}
             collisions={collisions}
+            selected={selectedAgent === stat.agent}
+            onSelect={onSelectAgent}
           />
         ))}
       </div>
