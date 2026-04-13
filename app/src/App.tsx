@@ -5,7 +5,8 @@ import ErrorState from "./components/ErrorState";
 import { useDaemonData } from "./hooks";
 
 export default function App() {
-  const { events, collisions, agentStats, eventCount, connected, error } = useDaemonData();
+  const { events, activeAgents, collisions, agentStats, eventCount, connected, error } =
+    useDaemonData();
 
   if (error && !connected) {
     return (
@@ -20,7 +21,7 @@ export default function App() {
     <div className="h-screen bg-bg flex flex-col font-mono">
       <Header eventCount={eventCount} connected={connected} />
       <ActiveAgents agentStats={agentStats} collisions={collisions} />
-      <EventTimeline events={events} agentStats={agentStats} />
+      <EventTimeline events={events} activeAgents={activeAgents} />
     </div>
   );
 }

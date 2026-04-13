@@ -56,7 +56,7 @@ export default function EventRow({ event }: EventRowProps) {
           {kindLabel(event.kind)}
         </span>
         <span className="text-[10px] text-text-primary truncate ml-auto">
-          {truncatePath(event.file_path)}
+          {event.file_path ? truncatePath(event.file_path) : "-"}
         </span>
       </div>
       {expanded && event.diff && (

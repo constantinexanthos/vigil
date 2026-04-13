@@ -7,7 +7,7 @@
   <meta name="description" content="Monitor every AI coding agent on your machine. See what they're doing, what they're costing, and whether you should trust their output." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
   <style>
     @property --border-angle {
       inherits: false;
@@ -16,28 +16,28 @@
     }
 
     :root {
-      --bg: #0a0a0a;
-      --bg-elevated: #111111;
-      --bg-overlay: #1a1a1a;
-      --border: #1a1a1a;
-      --border-bright: #2a2a2a;
-      --text: #c8c8c8;
-      --text-dim: #555;
-      --text-bright: #e8e8e8;
-      --green: #00ff41;
-      --green-dim: #00cc33;
-      --green-glow: rgba(0, 255, 65, 0.06);
-      --cyan: #00d9ff;
-      --amber: #ffb800;
-      --red: #ff3333;
-      --mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+      --bg: #07080a;
+      --bg-elevated: #0d0f12;
+      --border: #1a1d23;
+      --border-bright: #2a2e37;
+      --text: #e4e4e7;
+      --text-dim: #6b7084;
+      --text-muted: #3d4150;
+      --cyan: #22d3ee;
+      --cyan-dim: #1bb5cc;
+      --cyan-glow: rgba(34, 211, 238, 0.06);
+      --amber: #fbbf24;
+      --red: #ef4444;
+      --green: #4ade80;
+      --mono: 'IBM Plex Mono', 'SF Mono', 'Fira Code', monospace;
+      --sans: 'IBM Plex Sans', -apple-system, sans-serif;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html { scroll-behavior: smooth; }
 
     body {
-      font-family: var(--mono);
+      font-family: var(--sans);
       background: var(--bg);
       color: var(--text);
       font-size: 14px;
@@ -46,12 +46,12 @@
     }
 
     ::selection {
-      background: var(--green);
+      background: var(--cyan);
       color: var(--bg);
     }
 
     a { color: var(--cyan); text-decoration: none; }
-    a:hover { color: var(--green); }
+    a:hover { color: #67e8f9; }
 
     .container {
       max-width: 780px;
@@ -70,28 +70,23 @@
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 600'%3E%3Cfilter id='a'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23a)'/%3E%3C/svg%3E");
       background-repeat: repeat;
       background-size: 182px;
-      opacity: 0.05;
+      opacity: 0.04;
     }
 
-    /* ── CRT SCANLINES + RGB SUB-PIXELS ── */
+    /* ── SCANLINE OVERLAY ── */
     body::after {
       content: '';
       position: fixed;
       top: 0; left: 0;
       width: 100%; height: 100%;
       pointer-events: none;
-      background:
-        linear-gradient(
-          rgba(18, 16, 16, 0) 50%,
-          rgba(0, 0, 0, 0.12) 50%
-        ),
-        linear-gradient(
-          90deg,
-          rgba(255, 0, 0, 0.02),
-          rgba(0, 255, 0, 0.01),
-          rgba(0, 0, 255, 0.02)
-        );
-      background-size: 100% 2px, 3px 100%;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 0, 0, 0.03) 2px,
+        rgba(0, 0, 0, 0.03) 4px
+      );
       z-index: 9999;
     }
 
@@ -101,7 +96,7 @@
       padding: 16px 0;
       position: sticky;
       top: 0;
-      background: rgba(10, 10, 10, 0.88);
+      background: rgba(7, 8, 10, 0.88);
       backdrop-filter: blur(16px);
       z-index: 100;
     }
@@ -113,25 +108,16 @@
     }
 
     .logo {
+      font-family: var(--mono);
       font-weight: 700;
       font-size: 15px;
-      color: var(--green);
+      color: var(--cyan);
       letter-spacing: 0.12em;
       text-transform: uppercase;
       text-shadow:
-        0 0 7px rgba(0, 255, 65, 0.6),
-        0 0 20px rgba(0, 255, 65, 0.25),
-        0 0 42px rgba(0, 255, 65, 0.1);
-      animation: logo-glitch 8s ease-in-out infinite;
-    }
-
-    .logo:hover {
-      text-shadow:
-        -1px 0 rgba(255, 0, 80, 0.6),
-        1px 0 rgba(0, 217, 255, 0.6),
-        0 0 7px rgba(0, 255, 65, 0.6),
-        0 0 20px rgba(0, 255, 65, 0.25);
-      transition: text-shadow 0.15s;
+        0 0 7px rgba(34, 211, 238, 0.6),
+        0 0 20px rgba(34, 211, 238, 0.25),
+        0 0 42px rgba(34, 211, 238, 0.1);
     }
 
     .logo .cursor {
@@ -142,44 +128,10 @@
       50% { opacity: 0; }
     }
 
-    @keyframes logo-glitch {
-      0%, 92%, 100% {
-        transform: translateX(0);
-        filter: none;
-      }
-      93% {
-        transform: translateX(-2px);
-        text-shadow:
-          2px 0 var(--cyan),
-          -2px 0 var(--red),
-          0 0 7px rgba(0, 255, 65, 0.6);
-      }
-      94% {
-        transform: translateX(2px);
-        text-shadow:
-          -2px 0 var(--cyan),
-          2px 0 var(--red),
-          0 0 7px rgba(0, 255, 65, 0.6);
-      }
-      95% {
-        transform: translateX(-1px);
-        text-shadow:
-          1px 0 var(--cyan),
-          -1px 0 var(--red),
-          0 0 7px rgba(0, 255, 65, 0.6);
-      }
-      96% {
-        transform: translateX(0);
-        text-shadow:
-          0 0 7px rgba(0, 255, 65, 0.6),
-          0 0 20px rgba(0, 255, 65, 0.25),
-          0 0 42px rgba(0, 255, 65, 0.1);
-      }
-    }
-
     nav .links {
       display: flex;
       gap: 24px;
+      font-family: var(--mono);
       font-size: 12px;
     }
 
@@ -190,34 +142,48 @@
       transition: color 0.2s;
     }
 
-    nav .links a:hover { color: var(--green); text-decoration: none; }
+    nav .links a:hover { color: var(--cyan); }
 
     /* ── HERO ── */
     .hero {
       padding: 120px 0 100px;
       border-bottom: 1px solid var(--border);
       text-align: center;
-      background-image: radial-gradient(
-        circle,
-        rgba(0, 255, 65, 0.05) 1px,
-        transparent 1px
+      background-image:
+        linear-gradient(rgba(34, 211, 238, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(34, 211, 238, 0.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+      background-position: center;
+      position: relative;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: radial-gradient(
+        ellipse 60% 50% at 50% 0%,
+        rgba(34, 211, 238, 0.06) 0%,
+        transparent 70%
       );
-      background-size: 24px 24px;
+      pointer-events: none;
     }
 
     .hero .label {
+      font-family: var(--mono);
       font-size: 11px;
       text-transform: uppercase;
       letter-spacing: 0.15em;
-      color: var(--green);
+      color: var(--cyan);
       margin-bottom: 24px;
-      text-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
+      text-shadow: 0 0 10px rgba(34, 211, 238, 0.3);
     }
 
     .hero h1 {
+      font-family: var(--mono);
       font-size: 28px;
       font-weight: 700;
-      color: var(--text-bright);
+      color: var(--text);
       line-height: 1.4;
       margin-bottom: 24px;
       max-width: 620px;
@@ -231,46 +197,55 @@
       margin-left: auto;
       margin-right: auto;
       margin-bottom: 48px;
-      font-size: 13px;
+      font-size: 14px;
     }
 
-    /* ── INSTALL BLOCK (rotating border) ── */
+    /* ── INSTALL BLOCK ── */
     @keyframes rotate-border {
       to { --border-angle: 360deg; }
     }
 
     .install-block {
+      font-family: var(--mono);
       background:
         linear-gradient(var(--bg-elevated), var(--bg-elevated)) padding-box,
         conic-gradient(
           from var(--border-angle),
           transparent 25%,
-          var(--green) 50%,
+          var(--cyan) 50%,
           transparent 75%
         ) border-box;
       border: 1px solid transparent;
+      border-radius: 4px;
       padding: 14px 24px;
       display: inline-flex;
       align-items: center;
       gap: 12px;
       cursor: pointer;
       animation: rotate-border 4s linear infinite;
-      box-shadow: 0 0 20px rgba(0, 255, 65, 0.06);
+      box-shadow: 0 0 20px rgba(34, 211, 238, 0.06);
+      position: relative;
     }
 
     .install-block:hover {
       box-shadow:
-        0 0 12px rgba(0, 255, 65, 0.2),
-        0 0 40px rgba(0, 255, 65, 0.08);
+        0 0 12px rgba(34, 211, 238, 0.2),
+        0 0 40px rgba(34, 211, 238, 0.08);
     }
 
     .install-block .prompt {
-      color: var(--green);
-      text-shadow: 0 0 8px rgba(0, 255, 65, 0.5);
+      color: var(--cyan);
+      text-shadow: 0 0 8px rgba(34, 211, 238, 0.5);
     }
-    .install-block .cmd { color: var(--text-bright); }
+    .install-block .cmd { color: var(--text); }
     .install-block .hint {
       color: var(--text-dim);
+      font-size: 11px;
+      margin-left: 12px;
+      transition: opacity 0.15s;
+    }
+    .install-block .copied {
+      color: var(--cyan);
       font-size: 11px;
       margin-left: 12px;
     }
@@ -282,37 +257,19 @@
     }
 
     .terminal {
+      font-family: var(--mono);
       background: var(--bg-elevated);
       border: 1px solid var(--border-bright);
+      border-radius: 6px;
       overflow: hidden;
       position: relative;
       box-shadow:
-        0 0 30px rgba(0, 255, 65, 0.03),
+        0 0 30px rgba(34, 211, 238, 0.03),
         0 4px 60px rgba(0, 0, 0, 0.4);
     }
 
-    .terminal::before {
-      content: '';
-      position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(18, 16, 16, 0.1);
-      opacity: 0;
-      pointer-events: none;
-      animation: flicker 0.15s infinite;
-      z-index: 2;
-    }
-
-    @keyframes flicker {
-      0%  { opacity: 0.02; }
-      10% { opacity: 0.018; }
-      30% { opacity: 0.05; }
-      50% { opacity: 0.07; }
-      70% { opacity: 0.04; }
-      100%{ opacity: 0.018; }
-    }
-
     .terminal-bar {
-      background: #0d0d0d;
+      background: #0a0b0d;
       padding: 10px 16px;
       display: flex;
       align-items: center;
@@ -341,27 +298,33 @@
       font-size: 13px;
       line-height: 1.8;
       overflow-x: auto;
-      position: relative;
-      z-index: 1;
     }
 
-    .terminal-body .prompt-line { color: var(--text-dim); }
+    .terminal-line {
+      opacity: 0;
+      animation: type-in 0.3s ease-out forwards;
+    }
+
+    @keyframes type-in {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
     .terminal-body .prompt-char {
-      color: var(--green);
-      text-shadow: 0 0 6px rgba(0, 255, 65, 0.4);
+      color: var(--cyan);
+      text-shadow: 0 0 6px rgba(34, 211, 238, 0.4);
     }
     .terminal-body .output { color: var(--text); }
-    .terminal-body .highlight { color: var(--green); }
-    .terminal-body .warn {
-      color: var(--amber);
-      text-shadow: 0 0 8px rgba(255, 184, 0, 0.3);
-    }
     .terminal-body .agent-name {
-      color: var(--green);
+      color: var(--cyan);
       font-weight: 600;
-      text-shadow: 0 0 5px rgba(0, 255, 65, 0.15);
     }
     .terminal-body .dim { color: var(--text-dim); }
+    .terminal-body .warn {
+      color: var(--amber);
+      text-shadow: 0 0 8px rgba(251, 191, 36, 0.3);
+    }
+    .terminal-body .separator { color: var(--text-muted); }
 
     /* ── SECTIONS ── */
     section {
@@ -370,26 +333,63 @@
     }
 
     .section-label {
+      font-family: var(--mono);
       font-size: 11px;
       text-transform: uppercase;
       letter-spacing: 0.15em;
-      color: var(--green);
+      color: var(--cyan);
       margin-bottom: 12px;
-      text-shadow: 0 0 10px rgba(0, 255, 65, 0.25);
+      text-shadow: 0 0 10px rgba(34, 211, 238, 0.25);
     }
 
     section h2 {
+      font-family: var(--mono);
       font-size: 20px;
       font-weight: 700;
-      color: var(--text-bright);
+      color: var(--text);
       margin-bottom: 12px;
     }
 
     section .subtitle {
       color: var(--text-dim);
       margin-bottom: 40px;
-      font-size: 13px;
+      font-size: 14px;
       max-width: 520px;
+    }
+
+    /* ── FEATURES GRID ── */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2px;
+    }
+
+    .feature-card {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      padding: 24px;
+      transition: border-color 0.2s, box-shadow 0.3s;
+    }
+
+    .feature-card:hover {
+      border-color: var(--cyan);
+      box-shadow:
+        0 0 8px rgba(34, 211, 238, 0.1),
+        inset 0 0 8px rgba(34, 211, 238, 0.02);
+    }
+
+    .feature-card .feature-title {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+
+    .feature-card .feature-desc {
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.6;
     }
 
     /* ── ARCHITECTURE ── */
@@ -417,24 +417,26 @@
     .arch-layer:nth-child(3) { animation-delay: 0.3s; }
 
     .arch-layer:hover {
-      border-color: var(--green);
-      background: var(--green-glow);
+      border-color: var(--cyan);
+      background: var(--cyan-glow);
       box-shadow:
-        0 0 8px rgba(0, 255, 65, 0.12),
-        0 0 24px rgba(0, 255, 65, 0.04),
-        inset 0 0 8px rgba(0, 255, 65, 0.02);
+        0 0 8px rgba(34, 211, 238, 0.12),
+        0 0 24px rgba(34, 211, 238, 0.04),
+        inset 0 0 8px rgba(34, 211, 238, 0.02);
     }
 
     .arch-layer .layer-num {
-      color: var(--green);
+      font-family: var(--mono);
+      color: var(--cyan);
       font-weight: 700;
       font-size: 12px;
       min-width: 24px;
-      text-shadow: 0 0 6px rgba(0, 255, 65, 0.3);
+      text-shadow: 0 0 6px rgba(34, 211, 238, 0.3);
     }
 
     .arch-layer .layer-name {
-      color: var(--text-bright);
+      font-family: var(--mono);
+      color: var(--text);
       font-weight: 600;
       font-size: 13px;
       flex: 1;
@@ -442,6 +444,7 @@
     }
 
     .arch-layer .layer-tech {
+      font-family: var(--mono);
       color: var(--text-dim);
       font-size: 11px;
       text-align: right;
@@ -454,47 +457,27 @@
       }
     }
 
-    /* ── AGENTS TABLE ── */
-    .agents-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 13px;
+    /* ── INTEGRATIONS ── */
+    .integrations-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
     }
 
-    .agents-table th {
-      text-align: left;
+    .integration-chip {
+      font-family: var(--mono);
+      font-size: 12px;
       color: var(--text-dim);
-      font-weight: 500;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      padding: 10px 16px;
-      border-bottom: 1px solid var(--border-bright);
+      border: 1px solid var(--border);
+      padding: 6px 14px;
+      border-radius: 4px;
+      transition: border-color 0.2s, color 0.2s;
     }
 
-    .agents-table td {
-      padding: 12px 16px;
-      border-bottom: 1px solid var(--border);
-      transition: background 0.15s;
+    .integration-chip:hover {
+      border-color: var(--border-bright);
+      color: var(--text);
     }
-
-    .agents-table tr:hover td {
-      background: var(--green-glow);
-    }
-
-    .agents-table .agent-col { color: var(--text-bright); font-weight: 500; }
-    .agents-table .method-col { color: var(--text-dim); }
-    .agents-table .depth-col { font-size: 12px; }
-
-    .depth-deep {
-      color: var(--green);
-      text-shadow: 0 0 6px rgba(0, 255, 65, 0.3);
-    }
-    .depth-rich {
-      color: var(--cyan);
-      text-shadow: 0 0 6px rgba(0, 217, 255, 0.3);
-    }
-    .depth-moderate { color: var(--text-dim); }
 
     /* ── HOW IT WORKS ── */
     .steps {
@@ -522,95 +505,133 @@
     .step:nth-child(4) { animation-delay: 0.4s; }
 
     .step:hover {
-      border-color: var(--green);
+      border-color: var(--cyan);
       box-shadow:
-        0 0 8px rgba(0, 255, 65, 0.1),
-        inset 0 0 8px rgba(0, 255, 65, 0.02);
+        0 0 8px rgba(34, 211, 238, 0.1),
+        inset 0 0 8px rgba(34, 211, 238, 0.02);
     }
 
     .step-num {
-      color: var(--green);
+      font-family: var(--mono);
+      color: var(--cyan);
       font-weight: 700;
       font-size: 18px;
       min-width: 28px;
-      text-shadow: 0 0 8px rgba(0, 255, 65, 0.4);
+      text-shadow: 0 0 8px rgba(34, 211, 238, 0.4);
     }
 
     .step-content .step-cmd {
-      color: var(--text-bright);
+      font-family: var(--mono);
+      color: var(--text);
       font-weight: 600;
       margin-bottom: 4px;
     }
 
     .step-content .step-desc {
       color: var(--text-dim);
-      font-size: 12px;
+      font-size: 13px;
     }
 
-    /* ── NOT ── */
-    .not-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 2px;
+    /* ── AGENTS TABLE ── */
+    .agents-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
     }
 
-    .not-card {
-      background: var(--bg-elevated);
-      border: 1px solid var(--border-bright);
-      padding: 20px 24px;
-      transition: border-color 0.2s;
-    }
-
-    .not-card:hover {
-      border-color: var(--red);
-    }
-
-    .not-card .not-label {
-      color: var(--red);
+    .agents-table th {
+      font-family: var(--mono);
+      text-align: left;
+      color: var(--text-dim);
+      font-weight: 500;
       font-size: 11px;
       text-transform: uppercase;
       letter-spacing: 0.08em;
-      margin-bottom: 8px;
-      text-shadow: 0 0 8px rgba(255, 51, 51, 0.2);
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border-bright);
     }
 
-    .not-card .not-desc {
-      color: var(--text-dim);
+    .agents-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+
+    .agents-table tr:hover td {
+      background: var(--cyan-glow);
+    }
+
+    .agents-table .agent-col {
+      font-family: var(--mono);
+      color: var(--text);
+      font-weight: 500;
+    }
+    .agents-table .method-col { color: var(--text-dim); }
+    .agents-table .depth-col {
+      font-family: var(--mono);
       font-size: 12px;
     }
+
+    .depth-deep {
+      color: var(--cyan);
+      text-shadow: 0 0 6px rgba(34, 211, 238, 0.3);
+    }
+    .depth-rich {
+      color: var(--green);
+      text-shadow: 0 0 6px rgba(74, 222, 128, 0.3);
+    }
+    .depth-moderate { color: var(--text-dim); }
 
     /* ── FOOTER ── */
     footer {
-      padding: 60px 0;
-      text-align: center;
+      padding: 40px 0;
+      border-top: 1px solid var(--border);
     }
 
-    footer .tagline {
+    footer .container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    footer .footer-left {
+      font-family: var(--mono);
+      font-size: 13px;
       color: var(--text-dim);
+    }
+
+    footer .footer-right a {
+      font-family: var(--mono);
       font-size: 12px;
-      margin-bottom: 8px;
+      color: var(--text-dim);
+      transition: color 0.2s;
     }
 
-    footer .copyright {
-      color: var(--text-dim);
-      font-size: 11px;
-      opacity: 0.4;
+    footer .footer-right a:hover {
+      color: var(--cyan);
     }
 
     /* ── RESPONSIVE ── */
-    @media (max-width: 640px) {
+    @media (max-width: 768px) {
       .hero h1 { font-size: 22px; }
-      .not-grid { grid-template-columns: 1fr; }
+      .features-grid { grid-template-columns: 1fr; }
       nav .links { gap: 16px; }
       .install-block { flex-wrap: wrap; }
-      .install-block .hint { margin-left: 0; }
+      .install-block .hint,
+      .install-block .copied { margin-left: 0; }
+      .arch-layer { flex-direction: column; align-items: flex-start; gap: 4px; }
+      .arch-layer .layer-tech { text-align: left; }
+      footer .container { flex-direction: column; gap: 12px; }
+    }
+
+    @media (min-width: 769px) and (max-width: 1024px) {
+      .features-grid { grid-template-columns: repeat(2, 1fr); }
     }
 
     @media (prefers-reduced-motion: reduce) {
-      .logo { animation: none; }
-      .terminal::before { animation: none; }
+      .terminal-line { animation: none; opacity: 1; transform: none; }
       .arch-layer, .step { animation: none; opacity: 1; transform: none; }
-      .install-block { animation: none; border: 1px solid var(--green); }
+      .install-block { animation: none; border: 1px solid var(--cyan); }
     }
   </style>
 </head>
@@ -621,9 +642,10 @@
     <div class="container">
       <div class="logo">vigil<span class="cursor">_</span></div>
       <div class="links">
+        <a href="#features">Features</a>
         <a href="#how">How</a>
         <a href="#agents">Agents</a>
-        <a href="https://github.com/vigil-dev/vigil">GitHub</a>
+        <a href="https://github.com/constantinexanthos/vigil">GitHub</a>
       </div>
     </div>
   </nav>
@@ -634,10 +656,10 @@
       <div class="label">// the control plane for coding agents</div>
       <h1>Monitor every AI agent on your machine. See what they're doing, what they're costing, and whether you should trust their output.</h1>
       <p>Your agents are writing code faster than you can review it. Vigil watches all of them &mdash; Claude Code, Cursor, Codex, Conductor, Aider &mdash; in one place. Local-first. Zero config. No cloud.</p>
-      <div class="install-block" onclick="navigator.clipboard.writeText('brew install vigil')">
+      <div class="install-block" id="install-btn">
         <span class="prompt">$</span>
         <span class="cmd">brew install vigil</span>
-        <span class="hint">click to copy</span>
+        <span class="hint" id="copy-hint">click to copy</span>
       </div>
     </div>
   </div>
@@ -653,29 +675,58 @@
           <span class="terminal-title">vigil status</span>
         </div>
         <div class="terminal-body">
-<span class="prompt-line"><span class="prompt-char">$</span> vigil status</span>
-<br><br>
-<span class="dim">AGENTS</span>
-<br>
-<span class="dim">----------------------------------------</span>
-<br>
-<span class="agent-name">  claude-code</span><span class="dim">    pid 41823   ~/projects/vigil      12 events</span>
-<br>
-<span class="agent-name">  cursor</span><span class="dim">          pid 9102    ~/projects/vigil      8 events</span>
-<br>
-<span class="agent-name">  aider</span><span class="dim">           pid 55201   ~/projects/api        3 events</span>
-<br><br>
-<span class="dim">COLLISIONS (last 5 min)</span>
-<br>
-<span class="dim">----------------------------------------</span>
-<br>
-<span class="warn">  src/store.rs</span><span class="dim"> -- [</span><span class="agent-name">claude-code</span><span class="dim">, </span><span class="agent-name">cursor</span><span class="dim">]</span>
-<br><br>
-<span class="prompt-line"><span class="prompt-char">$</span> <span class="cursor">_</span></span>
+          <div class="terminal-line" style="animation-delay: 0.2s"><span class="prompt-char">$</span> vigil status</div>
+          <div class="terminal-line" style="animation-delay: 0.8s">&nbsp;</div>
+          <div class="terminal-line" style="animation-delay: 1.0s"><span class="dim">AGENTS</span></div>
+          <div class="terminal-line" style="animation-delay: 1.2s"><span class="separator">----------------------------------------</span></div>
+          <div class="terminal-line" style="animation-delay: 1.6s"><span class="agent-name">  claude-code</span><span class="dim">    pid 41823   ~/projects/vigil      12 events</span></div>
+          <div class="terminal-line" style="animation-delay: 2.0s"><span class="agent-name">  cursor</span><span class="dim">          pid 9102    ~/projects/vigil      8 events</span></div>
+          <div class="terminal-line" style="animation-delay: 2.4s"><span class="agent-name">  codex</span><span class="dim">           pid 55201   ~/projects/api        3 events</span></div>
+          <div class="terminal-line" style="animation-delay: 3.0s">&nbsp;</div>
+          <div class="terminal-line" style="animation-delay: 3.2s"><span class="dim">COLLISIONS (last 5 min)</span></div>
+          <div class="terminal-line" style="animation-delay: 3.4s"><span class="separator">----------------------------------------</span></div>
+          <div class="terminal-line" style="animation-delay: 3.8s"><span class="warn">  src/api/auth.ts</span><span class="dim"> -- [</span><span class="agent-name">claude-code</span><span class="dim">, </span><span class="agent-name">cursor</span><span class="dim">]</span></div>
+          <div class="terminal-line" style="animation-delay: 4.4s">&nbsp;</div>
+          <div class="terminal-line" style="animation-delay: 4.6s"><span class="prompt-char">$</span> <span class="cursor">_</span></div>
         </div>
       </div>
     </div>
   </div>
+
+  <!-- FEATURES -->
+  <section id="features">
+    <div class="container">
+      <div class="section-label">// features</div>
+      <h2>See everything your agents do</h2>
+      <p class="subtitle">Six capabilities that give you full visibility and control over AI-generated code.</p>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-title">Universal Capture</div>
+          <div class="feature-desc">Watches every file change, git operation, and process on your machine. Any agent, any terminal, zero config.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-title">Collision Detection</div>
+          <div class="feature-desc">Alerts when two agents modify the same file within 5 minutes. Catches conflicts before PRs exist.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-title">Confidence Scoring</div>
+          <div class="feature-desc">Scores agent output 0-100 based on file count, import resolution, test coverage, and self-correction patterns.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-title">Cost Intelligence</div>
+          <div class="feature-desc">Tracks token usage and spend across providers. See burn rate per agent, per session, per day.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-title">Hallucination Detection</div>
+          <div class="feature-desc">Verifies every import and require resolves to a real module. Catches phantom dependencies before they ship.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-title">Selective Rollback</div>
+          <div class="feature-desc">Accept or reject changes per-file after any agent session. Interactive TUI for surgical undo.</div>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <!-- HOW IT WORKS -->
   <section id="how">
@@ -724,56 +775,40 @@
       <p class="subtitle">Works with everything out of the box. Gets smarter with each integration.</p>
       <div class="arch-layers">
         <div class="arch-layer">
-          <span class="layer-num">L1</span>
-          <span class="layer-name">Universal Capture</span>
-          <span class="layer-tech">FS events + git + process scan</span>
+          <span class="layer-num">L3</span>
+          <span class="layer-name">Trust Intelligence</span>
+          <span class="layer-tech">Confidence + Hallucination + Collision</span>
         </div>
         <div class="arch-layer">
           <span class="layer-num">L2</span>
           <span class="layer-name">Deep Hooks</span>
-          <span class="layer-tech">Claude hooks + Cursor API + OTLP</span>
+          <span class="layer-tech">Claude Code + Cursor + OTLP</span>
         </div>
         <div class="arch-layer">
-          <span class="layer-num">L3</span>
-          <span class="layer-name">Trust Intelligence</span>
-          <span class="layer-tech">Confidence scores + collision detection</span>
+          <span class="layer-num">L1</span>
+          <span class="layer-name">Universal Capture</span>
+          <span class="layer-tech">FS events + Git + Process detection</span>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- WHAT WE'RE NOT -->
-  <section>
-    <div class="container">
-      <div class="section-label">// boundaries</div>
-      <h2>What Vigil is not</h2>
-      <div class="not-grid">
-        <div class="not-card">
-          <div class="not-label">Not a code review tool</div>
-          <div class="not-desc">CodeRabbit reviews PRs after they're opened. We operate during execution, before the PR exists.</div>
-        </div>
-        <div class="not-card">
-          <div class="not-label">Not an orchestrator</div>
-          <div class="not-desc">Conductor spawns agents. We observe and verify them regardless of how they were launched.</div>
-        </div>
-        <div class="not-card">
-          <div class="not-label">Not LLMOps</div>
-          <div class="not-desc">Langfuse tracks API calls. We track code actions: files modified, imports resolved, architecture drift.</div>
-        </div>
-        <div class="not-card">
-          <div class="not-label">Not an AI assistant</div>
-          <div class="not-desc">We don't write code. We watch the things that write code.</div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- SUPPORTED AGENTS -->
+  <!-- INTEGRATIONS -->
   <section id="agents">
     <div class="container">
-      <div class="section-label">// supported agents</div>
+      <div class="section-label">// integrations</div>
       <h2>Works with everything</h2>
       <p class="subtitle">If it modifies your code, Vigil sees it. Zero configuration required.</p>
+      <div class="integrations-row" style="margin-bottom: 40px;">
+        <div class="integration-chip">Claude Code</div>
+        <div class="integration-chip">Cursor</div>
+        <div class="integration-chip">Codex</div>
+        <div class="integration-chip">Conductor</div>
+        <div class="integration-chip">Aider</div>
+        <div class="integration-chip">Claude Squad</div>
+        <div class="integration-chip">Cline</div>
+        <div class="integration-chip">Any Terminal</div>
+      </div>
       <table class="agents-table">
         <thead>
           <tr>
@@ -826,15 +861,31 @@
   <!-- FOOTER -->
   <footer>
     <div class="container">
-      <div class="install-block" onclick="navigator.clipboard.writeText('brew install vigil')" style="margin-bottom: 32px;">
-        <span class="prompt">$</span>
-        <span class="cmd">brew install vigil</span>
-        <span class="hint">click to copy</span>
+      <div class="footer-left">vigil</div>
+      <div class="footer-right">
+        <a href="https://github.com/constantinexanthos/vigil">GitHub</a>
       </div>
-      <div class="tagline">Conductor helps you run more agents. Vigil helps you trust what they produced.</div>
-      <div class="copyright">2026 Vigil</div>
     </div>
   </footer>
+
+  <script>
+    document.querySelectorAll('.install-block').forEach(function(block) {
+      block.addEventListener('click', function() {
+        navigator.clipboard.writeText('brew install vigil');
+        var hint = block.querySelector('.hint');
+        if (hint) {
+          hint.textContent = 'copied';
+          hint.classList.remove('hint');
+          hint.classList.add('copied');
+          setTimeout(function() {
+            hint.textContent = 'click to copy';
+            hint.classList.remove('copied');
+            hint.classList.add('hint');
+          }, 2000);
+        }
+      });
+    });
+  </script>
 
 </body>
 </html>

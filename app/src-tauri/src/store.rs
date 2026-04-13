@@ -22,6 +22,17 @@ impl Store {
         Ok(Self { conn })
     }
 
+    /// Agents with events in the last 10 minutes.
+    pub fn query_active_agents(&self) -> Result<Vec<String>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT DISTINCT agent FROM events
+             WHERE timestamp >= datetime('now', '-10 minutes')
+             ORDER BY agent",
+        )?;
+        let rows = stmt.query_map([], |row| row.get(0))?;
+        rows.collect()
+    }
+
     pub fn query_recent_events(&self, limit: u32) -> Result<Vec<EventRow>> {
         let mut stmt = self.conn.prepare(
             "SELECT id, timestamp, kind, file_path, agent, diff
@@ -34,7 +45,7 @@ impl Store {
                 id: row.get(0)?,
                 timestamp: row.get(1)?,
                 kind: row.get(2)?,
-                file_path: row.get::<_, Option<String>>(3)?.unwrap_or_default(),
+                file_path: row.get::<_, Option<String>>(3)?,
                 agent: row.get(4)?,
                 diff: row.get(5)?,
             })
@@ -42,6 +53,7 @@ impl Store {
         rows.collect()
     }
 
+    /// Files modified by 2+ agents in the last 5 minutes.
     pub fn query_collisions(&self) -> Result<Vec<CollisionRow>> {
         let mut stmt = self.conn.prepare(
             "SELECT file_path, GROUP_CONCAT(DISTINCT agent) as agents
@@ -65,10 +77,12 @@ impl Store {
         rows.collect()
     }
 
+    /// Per-agent event counts for today (since midnight UTC).
     pub fn query_agent_stats(&self) -> Result<Vec<AgentStatRow>> {
         let mut stmt = self.conn.prepare(
             "SELECT agent, COUNT(*) as count
              FROM events
+             WHERE timestamp >= date('now')
              GROUP BY agent
              ORDER BY count DESC",
         )?;
@@ -81,10 +95,10 @@ impl Store {
         rows.collect()
     }
 
+    /// Total event count since midnight UTC today.
     pub fn query_event_count(&self) -> Result<i64> {
         self.conn.query_row(
-            "SELECT COUNT(*) FROM events
-             WHERE timestamp >= datetime('now', '-1 day')",
+            "SELECT COUNT(*) FROM events WHERE timestamp >= date('now')",
             [],
             |row| row.get(0),
         )
@@ -96,7 +110,7 @@ pub struct EventRow {
     pub id: i64,
     pub timestamp: String,
     pub kind: String,
-    pub file_path: String,
+    pub file_path: Option<String>,
     pub agent: String,
     pub diff: Option<String>,
 }

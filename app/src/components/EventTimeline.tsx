@@ -1,26 +1,24 @@
 import { useState, useMemo } from "react";
 import EventRow from "./EventRow";
-import type { AgentEvent, AgentStat } from "../types";
+import type { AgentEvent } from "../types";
 
 interface EventTimelineProps {
   events: AgentEvent[];
-  agentStats: AgentStat[];
+  activeAgents: string[];
 }
 
-export default function EventTimeline({ events, agentStats }: EventTimelineProps) {
+export default function EventTimeline({ events, activeAgents }: EventTimelineProps) {
   const [agentFilter, setAgentFilter] = useState("");
   const [pathFilter, setPathFilter] = useState("");
 
   const filtered = useMemo(() => {
     return events.filter((e) => {
       if (agentFilter && e.agent !== agentFilter) return false;
-      if (pathFilter && !e.file_path.toLowerCase().includes(pathFilter.toLowerCase()))
+      if (pathFilter && !(e.file_path ?? "").toLowerCase().includes(pathFilter.toLowerCase()))
         return false;
       return true;
     });
   }, [events, agentFilter, pathFilter]);
-
-  const agents = agentStats.map((s) => s.agent);
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -32,7 +30,7 @@ export default function EventTimeline({ events, agentStats }: EventTimelineProps
           className="bg-surface border border-border text-text-secondary text-[10px] px-2 py-1 rounded focus:outline-none focus:border-accent"
         >
           <option value="">All agents</option>
-          {agents.map((a) => (
+          {activeAgents.map((a) => (
             <option key={a} value={a}>
               {a}
             </option>

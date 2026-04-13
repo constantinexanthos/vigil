@@ -6,6 +6,17 @@ interface ActiveAgentsProps {
   collisions: Collision[];
 }
 
+const PLACEHOLDER_SCORES: Record<string, number> = {
+  "claude-code": 82,
+  cursor: 71,
+  codex: 65,
+  conductor: 78,
+};
+
+function getConfidence(agent: string): number {
+  return PLACEHOLDER_SCORES[agent] ?? 60;
+}
+
 export default function ActiveAgents({ agentStats, collisions }: ActiveAgentsProps) {
   if (agentStats.length === 0) {
     return (
@@ -25,7 +36,7 @@ export default function ActiveAgents({ agentStats, collisions }: ActiveAgentsPro
             key={stat.agent}
             agent={stat.agent}
             fileCount={stat.count}
-            confidence={Math.round(70 + Math.random() * 25)}
+            confidence={getConfidence(stat.agent)}
             collisions={collisions}
           />
         ))}

@@ -4,6 +4,7 @@ import type { AgentEvent, Collision, AgentStat } from "./types";
 
 interface DaemonState {
   events: AgentEvent[];
+  activeAgents: string[];
   collisions: Collision[];
   agentStats: AgentStat[];
   eventCount: number;
@@ -15,6 +16,7 @@ const POLL_INTERVAL = 2000;
 
 export function useDaemonData(): DaemonState {
   const [events, setEvents] = useState<AgentEvent[]>([]);
+  const [activeAgents, setActiveAgents] = useState<string[]>([]);
   const [collisions, setCollisions] = useState<Collision[]>([]);
   const [agentStats, setAgentStats] = useState<AgentStat[]>([]);
   const [eventCount, setEventCount] = useState(0);
@@ -23,13 +25,15 @@ export function useDaemonData(): DaemonState {
 
   const fetchAll = useCallback(async () => {
     try {
-      const [evts, cols, stats, count] = await Promise.all([
+      const [evts, agents, cols, stats, count] = await Promise.all([
         invoke<AgentEvent[]>("get_recent_events", { limit: 50 }),
+        invoke<string[]>("get_active_agents"),
         invoke<Collision[]>("get_collisions"),
         invoke<AgentStat[]>("get_agent_stats"),
         invoke<number>("get_event_count"),
       ]);
       setEvents(evts);
+      setActiveAgents(agents);
       setCollisions(cols);
       setAgentStats(stats);
       setEventCount(count);
@@ -49,5 +53,5 @@ export function useDaemonData(): DaemonState {
     return () => clearInterval(interval);
   }, [fetchAll]);
 
-  return { events, collisions, agentStats, eventCount, connected, error };
+  return { events, activeAgents, collisions, agentStats, eventCount, connected, error };
 }

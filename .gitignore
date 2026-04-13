@@ -4,3 +4,4 @@ dist/
 .DS_Store
 *.db
 *.sqlite
+app/src-tauri/gen/

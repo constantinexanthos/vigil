@@ -2,7 +2,7 @@ export interface AgentEvent {
   id: number;
   timestamp: string;
   kind: string;
-  file_path: string;
+  file_path: string | null;
   agent: string;
   diff: string | null;
 }
