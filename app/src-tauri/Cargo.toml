@@ -3,17 +3,15 @@ name = "vigil-app"
 version = "0.1.0"
 edition = "2021"
 
-[build-dependencies]
-tauri-build = { version = "2", features = [] }
-
 [dependencies]
 chrono = { version = "0.4", features = ["serde"] }
 home = "0.5"
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.39", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-shell = "2"
+tokio = { version = "1", features = ["full"] }
 
-[features]
-custom-protocol = ["tauri/custom-protocol"]
+[build-dependencies]
+tauri-build = { version = "2", features = [] }

@@ -4,6 +4,8 @@ use std::sync::{Arc, Mutex};
 use chrono::{Duration, Utc};
 use clap::{Parser, Subcommand};
 
+use crate::git::GitEventKind;
+use crate::hooks::claude;
 use crate::process::ProcessScanner;
 use crate::store::{AgentEvent, EventKind, EventQuery, Store};
 use crate::watcher::FsEventKind;
@@ -37,6 +39,13 @@ pub enum Command {
         #[arg(long, default_value = "50")]
         limit: u32,
     },
+    /// Receive a hook event from a coding agent (called by the agent, not the user)
+    Hook {
+        /// Provider name (e.g. "claude")
+        provider: String,
+    },
+    /// Register vigil hooks with coding agents and initialize config
+    Init,
 }
 
 fn vigil_db_path() -> PathBuf {
@@ -75,8 +84,15 @@ pub async fn run_watch(dirs: Vec<PathBuf>) {
         eprintln!("  {}", d.display());
     }
 
-    let (_watcher, mut rx) =
+    // Start file watcher.
+    let (_fs_watcher, mut fs_rx) =
         crate::watcher::start(&dirs).expect("failed to start file watcher");
+
+    // Start git monitor.
+    let (_git_watcher, mut git_rx, mut worktree_rx) =
+        crate::git::start(&dirs).expect("failed to start git monitor");
+
+    eprintln!("vigil: git monitor active");
 
     let scanner = Arc::new(Mutex::new(ProcessScanner::new()));
 
@@ -114,8 +130,79 @@ pub async fn run_watch(dirs: Vec<PathBuf>) {
         }
     });
 
-    // Main event loop.
-    while let Some(fs_event) = rx.recv().await {
+    // Handle new worktrees — log them. The git monitor already detects
+    // worktree creation; this channel lets us add additional monitoring.
+    tokio::spawn(async move {
+        while let Some(wt_path) = worktree_rx.recv().await {
+            eprintln!("vigil: new worktree detected at {}", wt_path.display());
+        }
+    });
+
+    // Git event consumer.
+    let git_db = Arc::clone(&db);
+    tokio::spawn(async move {
+        while let Some(git_event) = git_rx.recv().await {
+            let (kind, file_path, branch, diff) = match &git_event.kind {
+                GitEventKind::Commit {
+                    branch,
+                    hash,
+                    message,
+                    author,
+                } => {
+                    eprintln!(
+                        "vigil: commit on {} by {} — {} ({})",
+                        branch,
+                        author,
+                        message,
+                        &hash[..8]
+                    );
+                    (
+                        EventKind::GitCommit,
+                        None,
+                        Some(branch.clone()),
+                        Some(format!("{hash} {message}")),
+                    )
+                }
+                GitEventKind::BranchCreate { branch } => {
+                    eprintln!("vigil: new branch — {}", branch);
+                    (EventKind::GitBranchCreate, None, Some(branch.clone()), None)
+                }
+                GitEventKind::WorktreeCreate { worktree_path } => {
+                    eprintln!(
+                        "vigil: new worktree — {}",
+                        worktree_path.display()
+                    );
+                    (
+                        EventKind::GitWorktreeCreate,
+                        Some(worktree_path.to_string_lossy().to_string()),
+                        None,
+                        None,
+                    )
+                }
+            };
+
+            let agent_event = AgentEvent {
+                id: None,
+                timestamp: git_event.timestamp,
+                kind,
+                file_path,
+                agent: "unknown-agent".to_string(),
+                session_id: None,
+                repo_path: Some(git_event.repo_path.to_string_lossy().to_string()),
+                branch,
+                diff,
+                metadata: None,
+            };
+
+            let store = git_db.lock().unwrap();
+            if let Err(e) = store.insert(&agent_event) {
+                eprintln!("vigil: store error (git): {e}");
+            }
+        }
+    });
+
+    // Main file event loop.
+    while let Some(fs_event) = fs_rx.recv().await {
         let agent = {
             let s = scanner.lock().unwrap();
             s.identify_agent(0)
@@ -141,6 +228,41 @@ pub async fn run_watch(dirs: Vec<PathBuf>) {
             }
         }
     }
+}
+
+/// Handle a hook event from a coding agent.
+pub fn run_hook(provider: &str) {
+    ensure_vigil_dir();
+    let db_path = vigil_db_path();
+
+    match provider {
+        "claude" => {
+            if let Err(e) = claude::process_hook_stdin(&db_path) {
+                eprintln!("vigil: hook error: {e}");
+                std::process::exit(1);
+            }
+        }
+        other => {
+            eprintln!("vigil: unknown hook provider: {other}");
+            std::process::exit(1);
+        }
+    }
+}
+
+/// Register vigil hooks with coding agents.
+pub fn run_init() {
+    ensure_vigil_dir();
+
+    // Find our own binary path.
+    let vigil_bin = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("vigil"));
+
+    // Register Claude Code hooks.
+    match claude::register_hooks(&vigil_bin) {
+        Ok(()) => println!("Registered Claude Code hooks"),
+        Err(e) => eprintln!("Failed to register Claude Code hooks: {e}"),
+    }
+
+    println!("vigil init complete");
 }
 
 pub fn run_status() {
