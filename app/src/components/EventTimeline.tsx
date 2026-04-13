@@ -4,11 +4,15 @@ import type { AgentEvent } from "../types";
 
 interface EventTimelineProps {
   events: AgentEvent[];
-  activeAgents: string[];
+  agentFilter: string | null;
+  newEventIds: Set<number>;
 }
 
-export default function EventTimeline({ events, activeAgents }: EventTimelineProps) {
-  const [agentFilter, setAgentFilter] = useState("");
+export default function EventTimeline({
+  events,
+  agentFilter,
+  newEventIds,
+}: EventTimelineProps) {
   const [pathFilter, setPathFilter] = useState("");
 
   const filtered = useMemo(() => {
@@ -23,19 +27,7 @@ export default function EventTimeline({ events, activeAgents }: EventTimelinePro
   return (
     <div className="flex flex-col flex-1 min-h-0">
       <div className="px-4 pt-3 pb-2 flex items-center gap-2">
-        <p className="text-[10px] text-text-muted uppercase tracking-widest mr-auto">Timeline</p>
-        <select
-          value={agentFilter}
-          onChange={(e) => setAgentFilter(e.target.value)}
-          className="bg-surface border border-border text-text-secondary text-[10px] px-2 py-1 rounded focus:outline-none focus:border-accent"
-        >
-          <option value="">All agents</option>
-          {activeAgents.map((a) => (
-            <option key={a} value={a}>
-              {a}
-            </option>
-          ))}
-        </select>
+        <p className="text-[10px] text-text-muted uppercase tracking-widest mr-auto">LIVE FEED</p>
         <input
           type="text"
           placeholder="Filter path..."
@@ -48,7 +40,9 @@ export default function EventTimeline({ events, activeAgents }: EventTimelinePro
         {filtered.length === 0 ? (
           <p className="text-xs text-text-secondary text-center py-8">No events</p>
         ) : (
-          filtered.map((event) => <EventRow key={event.id} event={event} />)
+          filtered.map((event) => (
+            <EventRow key={event.id} event={event} isNew={newEventIds.has(event.id)} />
+          ))
         )}
       </div>
     </div>

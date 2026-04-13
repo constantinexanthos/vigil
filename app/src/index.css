@@ -1,5 +1,3 @@
-@import "prismjs/themes/prism-tomorrow.css";
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -11,7 +9,7 @@
 }
 
 body {
-  font-family: "IBM Plex Mono", monospace;
+  font-family: "JetBrains Mono", "IBM Plex Mono", monospace;
   background: #07080a;
   color: #e4e4e7;
   overflow: hidden;
@@ -35,4 +33,113 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #2a2e37;
+}
+
+/* === Animations === */
+
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 var(--pulse-color, rgba(0, 255, 65, 0.5));
+  }
+  70% {
+    box-shadow: 0 0 0 4px var(--pulse-color, rgba(0, 255, 65, 0));
+  }
+  100% {
+    box-shadow: 0 0 0 0 var(--pulse-color, rgba(0, 255, 65, 0));
+  }
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes flash-green {
+  0% {
+    background-color: rgba(0, 255, 65, 0.12);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+@keyframes slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    max-height: 100px;
+  }
+}
+
+@keyframes collision-pulse {
+  0%,
+  100% {
+    border-color: rgba(255, 51, 51, 0.4);
+  }
+  50% {
+    border-color: rgba(255, 51, 51, 0.9);
+  }
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 4px rgba(0, 255, 65, 0.4);
+    opacity: 1;
+  }
+  50% {
+    box-shadow: 0 0 8px rgba(0, 255, 65, 0.8);
+    opacity: 0.8;
+  }
+}
+
+@keyframes scan-line {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(100%);
+  }
+}
+
+/* === Event animations === */
+
+.event-new {
+  animation: slide-in 0.3s ease-out;
+}
+
+.event-flash {
+  animation: flash-green 1s ease-out;
+}
+
+/* === Diff styling === */
+
+.diff-add {
+  background-color: rgba(0, 255, 65, 0.1);
+  color: #00ff41;
+}
+
+.diff-del {
+  background-color: rgba(255, 51, 51, 0.1);
+  color: #ff5555;
+}
+
+.diff-hunk {
+  color: #00d9ff;
+  opacity: 0.7;
+}
+
+.diff-ctx {
+  color: #6b7084;
 }

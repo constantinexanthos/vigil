@@ -1,6 +1,13 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { AgentEvent, Collision, AgentStat } from "./types";
+
+export interface AgentActivity {
+  agent: string;
+  sparkline: number[];
+  lastFile: string | null;
+  lastEventTime: number;
+}
 
 interface DaemonState {
   events: AgentEvent[];
@@ -10,9 +17,12 @@ interface DaemonState {
   eventCount: number;
   connected: boolean;
   error: string | null;
+  agentActivity: Map<string, AgentActivity>;
+  newEventIds: Set<number>;
 }
 
 const POLL_INTERVAL = 2000;
+const SPARKLINE_WINDOW = 30;
 
 export function useDaemonData(): DaemonState {
   const [events, setEvents] = useState<AgentEvent[]>([]);
@@ -22,6 +32,12 @@ export function useDaemonData(): DaemonState {
   const [eventCount, setEventCount] = useState(0);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [agentActivity, setAgentActivity] = useState<Map<string, AgentActivity>>(new Map());
+  const [newEventIds, setNewEventIds] = useState<Set<number>>(new Set());
+
+  const prevEventCountByAgent = useRef<Map<string, number>>(new Map());
+  const sparklineBuffers = useRef<Map<string, number[]>>(new Map());
+  const prevEventIds = useRef<Set<number>>(new Set());
 
   const fetchAll = useCallback(async () => {
     try {
@@ -32,6 +48,57 @@ export function useDaemonData(): DaemonState {
         invoke<AgentStat[]>("get_agent_stats"),
         invoke<number>("get_event_count"),
       ]);
+
+      // Compute new event IDs for entrance animations
+      const currentIds = new Set(evts.map((e) => e.id));
+      const freshIds = new Set<number>();
+      for (const id of currentIds) {
+        if (!prevEventIds.current.has(id)) {
+          freshIds.add(id);
+        }
+      }
+      prevEventIds.current = currentIds;
+
+      if (freshIds.size > 0) {
+        setNewEventIds(freshIds);
+        setTimeout(() => setNewEventIds(new Set()), 400);
+      }
+
+      // Compute sparkline deltas per agent
+      const now = Date.now();
+      const nextActivity = new Map<string, AgentActivity>();
+
+      for (const stat of stats) {
+        const prevCount = prevEventCountByAgent.current.get(stat.agent) ?? stat.count;
+        const delta = Math.max(0, stat.count - prevCount);
+        prevEventCountByAgent.current.set(stat.agent, stat.count);
+
+        let buffer = sparklineBuffers.current.get(stat.agent);
+        if (!buffer) {
+          buffer = new Array(SPARKLINE_WINDOW).fill(0);
+          sparklineBuffers.current.set(stat.agent, buffer);
+        }
+
+        buffer.push(delta);
+        if (buffer.length > SPARKLINE_WINDOW) {
+          buffer.splice(0, buffer.length - SPARKLINE_WINDOW);
+        }
+
+        // Find last file for this agent
+        const agentEvents = evts.filter((e) => e.agent === stat.agent);
+        const lastFileEvent = agentEvents.find((e) => e.file_path);
+        const lastEventTimeForAgent = agentEvents[0]
+          ? new Date(agentEvents[0].timestamp).getTime()
+          : 0;
+
+        nextActivity.set(stat.agent, {
+          agent: stat.agent,
+          sparkline: [...buffer],
+          lastFile: lastFileEvent?.file_path ?? null,
+          lastEventTime: lastEventTimeForAgent || now,
+        });
+      }
+
       setEvents(evts);
       setActiveAgents(agents);
       setCollisions(cols);
@@ -39,6 +106,7 @@ export function useDaemonData(): DaemonState {
       setEventCount(count);
       setConnected(true);
       setError(null);
+      setAgentActivity(nextActivity);
     } catch (e) {
       setConnected(false);
       setError(
@@ -53,5 +121,15 @@ export function useDaemonData(): DaemonState {
     return () => clearInterval(interval);
   }, [fetchAll]);
 
-  return { events, activeAgents, collisions, agentStats, eventCount, connected, error };
+  return {
+    events,
+    activeAgents,
+    collisions,
+    agentStats,
+    eventCount,
+    connected,
+    error,
+    agentActivity,
+    newEventIds,
+  };
 }
