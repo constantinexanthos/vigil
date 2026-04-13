@@ -1,0 +1,25 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Vigil",
+  "version": "0.1.0",
+  "identifier": "com.vigil.app",
+  "build": {
+    "frontendDist": "../src"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": []
+  },
+  "bundle": {
+    "active": true,
+    "icon": [
+      "icons/icon.png"
+    ],
+    "targets": "all"
+  },
+  "plugins": {
+    "shell": {
+      "open": true
+    }
+  }
+}
