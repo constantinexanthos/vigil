@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { AgentEvent, Collision, AgentStat, CostSummary } from "./types";
+import type { AgentEvent, Collision, AgentStat, CostSummary, CommitGroup, WorkspaceSummary } from "./types";
 
 export interface AgentActivity {
   agent: string;
@@ -20,6 +20,8 @@ interface DaemonState {
   error: string | null;
   agentActivity: Map<string, AgentActivity>;
   newEventIds: Set<number>;
+  commitGroups: CommitGroup[];
+  workspaceSummary: WorkspaceSummary;
 }
 
 const POLL_INTERVAL = 2000;
@@ -36,6 +38,8 @@ export function useDaemonData(): DaemonState {
   const [agentActivity, setAgentActivity] = useState<Map<string, AgentActivity>>(new Map());
   const [newEventIds, setNewEventIds] = useState<Set<number>>(new Set());
   const [costSummary, setCostSummary] = useState<CostSummary>({ total_cost_usd: 0, agents: [] });
+  const [commitGroups, setCommitGroups] = useState<CommitGroup[]>([]);
+  const [workspaceSummary, setWorkspaceSummary] = useState<WorkspaceSummary>({ commits_today: 0, files_changed_today: 0, total_cost_today: 0, agent_commits: [], active_collisions: [] });
 
   const prevEventCountByAgent = useRef<Map<string, number>>(new Map());
   const sparklineBuffers = useRef<Map<string, number[]>>(new Map());
@@ -43,13 +47,15 @@ export function useDaemonData(): DaemonState {
 
   const fetchAll = useCallback(async () => {
     try {
-      const [evts, agents, cols, stats, count, cost] = await Promise.all([
+      const [evts, agents, cols, stats, count, cost, commits, summary] = await Promise.all([
         invoke<AgentEvent[]>("get_recent_events", { limit: 50 }),
         invoke<string[]>("get_active_agents"),
         invoke<Collision[]>("get_collisions"),
         invoke<AgentStat[]>("get_agent_stats"),
         invoke<number>("get_event_count"),
         invoke<CostSummary>("get_cost_summary", { hours: 24 }).catch(() => ({ total_cost_usd: 0, agents: [] })),
+        invoke<CommitGroup[]>("get_commit_activity", { hours: 24 }).catch(() => [] as CommitGroup[]),
+        invoke<WorkspaceSummary>("get_workspace_summary").catch(() => ({ commits_today: 0, files_changed_today: 0, total_cost_today: 0, agent_commits: [], active_collisions: [] } as WorkspaceSummary)),
       ]);
 
       // Compute new event IDs for entrance animations
@@ -108,6 +114,8 @@ export function useDaemonData(): DaemonState {
       setAgentStats(stats);
       setEventCount(count);
       setCostSummary(cost);
+      setCommitGroups(commits);
+      setWorkspaceSummary(summary);
       setConnected(true);
       setError(null);
       setAgentActivity(nextActivity);
@@ -136,5 +144,7 @@ export function useDaemonData(): DaemonState {
     error,
     agentActivity,
     newEventIds,
+    commitGroups,
+    workspaceSummary,
   };
 }

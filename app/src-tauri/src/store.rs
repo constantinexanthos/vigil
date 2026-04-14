@@ -104,6 +104,159 @@ impl Store {
         )
     }
 
+    pub fn query_commit_groups(&self, hours: i64) -> Result<Vec<CommitGroup>> {
+        let since = format!("-{hours} hours");
+
+        // Get all git_commit events
+        let mut commit_stmt = self.conn.prepare(
+            "SELECT id, timestamp, agent, diff, session_id FROM events
+             WHERE kind = 'git_commit' AND timestamp >= datetime('now', ?1)
+             ORDER BY timestamp DESC",
+        )?;
+
+        let commits: Vec<(i64, String, String, Option<String>, Option<String>)> = commit_stmt
+            .query_map(params![since], |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        let mut groups = Vec::new();
+
+        for (_commit_id, ts, agent, diff_field, session_id) in &commits {
+            // Parse commit hash and message from diff field (format: "hash message")
+            let (hash, message) = match diff_field {
+                Some(d) => {
+                    let parts: Vec<&str> = d.splitn(2, ' ').collect();
+                    (
+                        parts.first().unwrap_or(&"").to_string(),
+                        parts.get(1).unwrap_or(&"").to_string(),
+                    )
+                }
+                None => ("unknown".to_string(), String::new()),
+            };
+
+            // Find file events within 60 seconds before this commit by the same agent
+            let mut file_stmt = self.conn.prepare(
+                "SELECT file_path, kind, diff FROM events
+                 WHERE agent = ?1
+                   AND kind IN ('file_create', 'file_modify', 'file_delete')
+                   AND file_path IS NOT NULL
+                   AND julianday(?2) - julianday(timestamp) BETWEEN 0 AND (60.0/86400.0)
+                 GROUP BY file_path
+                 ORDER BY timestamp DESC",
+            )?;
+
+            let files: Vec<FileChange> = file_stmt
+                .query_map(params![agent, ts], |row| {
+                    let path: String = row.get(0)?;
+                    let kind: String = row.get(1)?;
+                    let diff: Option<String> = row.get(2)?;
+                    let (added, removed) =
+                        diff.as_ref().map(|d| count_diff_lines(d)).unwrap_or((0, 0));
+                    Ok(FileChange {
+                        path,
+                        kind,
+                        added,
+                        removed,
+                    })
+                })?
+                .filter_map(|r| r.ok())
+                .collect();
+
+            // Get cost for this session/time window
+            let cost: f64 = if let Some(sid) = session_id {
+                self.conn
+                    .query_row(
+                        "SELECT COALESCE(SUM(cost_usd), 0.0) FROM cost_events WHERE session_id = ?1",
+                        params![sid],
+                        |row| row.get(0),
+                    )
+                    .unwrap_or(0.0)
+            } else {
+                0.0
+            };
+
+            // Simple confidence heuristic
+            let file_count = files.len() as u32;
+            let confidence = if file_count == 0 {
+                50
+            } else if file_count <= 5 {
+                85
+            } else if file_count <= 15 {
+                70
+            } else {
+                50
+            };
+
+            groups.push(CommitGroup {
+                commit_hash: hash,
+                commit_message: message,
+                agent: agent.clone(),
+                timestamp: ts.clone(),
+                files,
+                confidence_score: confidence,
+                cost_usd: cost,
+            });
+        }
+
+        Ok(groups)
+    }
+
+    pub fn query_workspace_summary(&self) -> Result<WorkspaceSummaryRow> {
+        let commits_today: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM events WHERE kind = 'git_commit' AND timestamp >= date('now')",
+            [],
+            |row| row.get(0),
+        )?;
+
+        let files_changed_today: i64 = self.conn.query_row(
+            "SELECT COUNT(DISTINCT file_path) FROM events WHERE file_path IS NOT NULL AND kind IN ('file_create', 'file_modify', 'file_delete') AND timestamp >= date('now')",
+            [],
+            |row| row.get(0),
+        )?;
+
+        // Cost (gracefully handle missing table)
+        let total_cost_today: f64 = self
+            .conn
+            .query_row(
+                "SELECT COALESCE(SUM(cost_usd), 0.0) FROM cost_events WHERE timestamp >= date('now')",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(0.0);
+
+        // Agent commit counts
+        let mut agent_stmt = self.conn.prepare(
+            "SELECT agent, COUNT(*) FROM events WHERE kind = 'git_commit' AND timestamp >= date('now') GROUP BY agent ORDER BY COUNT(*) DESC",
+        )?;
+        let agent_commits: Vec<AgentCommitCount> = agent_stmt
+            .query_map([], |row| {
+                Ok(AgentCommitCount {
+                    agent: row.get(0)?,
+                    commit_count: row.get(1)?,
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        let active_collisions = self.query_collisions()?;
+
+        Ok(WorkspaceSummaryRow {
+            commits_today,
+            files_changed_today,
+            total_cost_today,
+            agent_commits,
+            active_collisions,
+        })
+    }
+
     /// Cost summary by agent for the last N hours.
     pub fn query_cost_summary(&self, hours: i64) -> Result<CostTotalRow> {
         // Check if cost_events table exists (daemon may not have created it yet).
@@ -195,4 +348,52 @@ pub struct CostSummaryRow {
 pub struct CostTotalRow {
     pub total_cost_usd: f64,
     pub agents: Vec<CostSummaryRow>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct FileChange {
+    pub path: String,
+    pub kind: String,
+    pub added: i64,
+    pub removed: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct CommitGroup {
+    pub commit_hash: String,
+    pub commit_message: String,
+    pub agent: String,
+    pub timestamp: String,
+    pub files: Vec<FileChange>,
+    pub confidence_score: u32,
+    pub cost_usd: f64,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct WorkspaceSummaryRow {
+    pub commits_today: i64,
+    pub files_changed_today: i64,
+    pub total_cost_today: f64,
+    pub agent_commits: Vec<AgentCommitCount>,
+    pub active_collisions: Vec<CollisionRow>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AgentCommitCount {
+    pub agent: String,
+    pub commit_count: i64,
+}
+
+fn count_diff_lines(diff: &str) -> (i64, i64) {
+    let mut added = 0i64;
+    let mut removed = 0i64;
+    for line in diff.lines() {
+        if line.starts_with('+') && !line.starts_with("+++") {
+            added += 1;
+        }
+        if line.starts_with('-') && !line.starts_with("---") {
+            removed += 1;
+        }
+    }
+    (added, removed)
 }
