@@ -44,12 +44,14 @@ export function Nav() {
           >
             Agents
           </Link>
-          <Link
+          <a
             href="/docs"
+            target="_blank"
+            rel="noopener noreferrer"
             className="text-[#6b7084] uppercase tracking-[0.08em] transition-colors hover:text-[#22d3ee]"
           >
             Docs
-          </Link>
+          </a>
           <Link
             href="/changelog"
             className="text-[#6b7084] uppercase tracking-[0.08em] transition-colors hover:text-[#22d3ee]"
