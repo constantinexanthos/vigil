@@ -23,6 +23,16 @@ const itemVariants = {
 const shipped = [
   {
     date: "April 2026",
+    title: "Selective Rollback",
+    bullets: [
+      "Session grouping by agent + 5-minute time gap",
+      "vigil sessions CLI with --agent and --since filters",
+      "vigil rollback with per-file accept/reject/skip and diff preview",
+      "--reject-all and --dry-run flags for automation",
+    ],
+  },
+  {
+    date: "April 2026",
     title: "Cost Intelligence",
     bullets: [
       "Token usage tracking and burn rate per agent, session, day",
@@ -91,11 +101,6 @@ const comingSoon = [
     title: "Hallucination Detection",
     status: "Planned" as "Planned" | "In Progress",
     description: "Import/require verification for phantom dependencies",
-  },
-  {
-    title: "Selective Rollback",
-    status: "Planned" as "Planned" | "In Progress",
-    description: "Per-file accept/reject after agent sessions",
   },
   {
     title: "Multi-machine Support",
