@@ -48,6 +48,7 @@ fn main() {
             commands::get_cost_summary,
             commands::get_commit_activity,
             commands::get_workspace_summary,
+            commands::get_pull_requests,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

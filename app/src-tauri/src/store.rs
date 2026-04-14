@@ -309,6 +309,61 @@ impl Store {
             agents,
         })
     }
+
+    /// Query pull requests from the pull_requests table.
+    pub fn query_pull_requests(&self, repo_path: Option<&str>) -> Result<Vec<PrRow>> {
+        let table_exists: bool = self.conn.query_row(
+            "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type='table' AND name='pull_requests'",
+            [],
+            |row| row.get(0),
+        )?;
+
+        if !table_exists {
+            return Ok(vec![]);
+        }
+
+        let sql = if repo_path.is_some() {
+            "SELECT pr_number, branch, title, state, url, additions, deletions, author, review_decision, repo_path
+             FROM pull_requests WHERE repo_path = ?1 ORDER BY pr_number DESC"
+        } else {
+            "SELECT pr_number, branch, title, state, url, additions, deletions, author, review_decision, repo_path
+             FROM pull_requests ORDER BY pr_number DESC"
+        };
+
+        let mut stmt = self.conn.prepare(sql)?;
+        let rows = if let Some(rp) = repo_path {
+            stmt.query_map(params![rp], |row| {
+                Ok(PrRow {
+                    pr_number: row.get(0)?,
+                    branch: row.get(1)?,
+                    title: row.get(2)?,
+                    state: row.get(3)?,
+                    url: row.get(4)?,
+                    additions: row.get(5)?,
+                    deletions: row.get(6)?,
+                    author: row.get(7)?,
+                    review_decision: row.get(8)?,
+                    repo_path: row.get(9)?,
+                })
+            })?.collect::<Result<Vec<_>>>()?
+        } else {
+            stmt.query_map([], |row| {
+                Ok(PrRow {
+                    pr_number: row.get(0)?,
+                    branch: row.get(1)?,
+                    title: row.get(2)?,
+                    state: row.get(3)?,
+                    url: row.get(4)?,
+                    additions: row.get(5)?,
+                    deletions: row.get(6)?,
+                    author: row.get(7)?,
+                    review_decision: row.get(8)?,
+                    repo_path: row.get(9)?,
+                })
+            })?.collect::<Result<Vec<_>>>()?
+        };
+        Ok(rows)
+    }
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -382,6 +437,20 @@ pub struct WorkspaceSummaryRow {
 pub struct AgentCommitCount {
     pub agent: String,
     pub commit_count: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct PrRow {
+    pub pr_number: u32,
+    pub branch: Option<String>,
+    pub title: Option<String>,
+    pub state: Option<String>,
+    pub url: Option<String>,
+    pub additions: u32,
+    pub deletions: u32,
+    pub author: Option<String>,
+    pub review_decision: Option<String>,
+    pub repo_path: String,
 }
 
 fn count_diff_lines(diff: &str) -> (i64, i64) {

@@ -1,6 +1,7 @@
 mod cli;
 mod cost;
 mod git;
+mod github;
 mod hallucination;
 mod hooks;
 mod process;
@@ -27,5 +28,6 @@ async fn main() {
         Command::Sessions { agent, since } => cli::run_sessions(agent, since),
         Command::Rollback { session_id, reject_all, dry_run } => cli::run_rollback(&session_id, reject_all, dry_run),
         Command::Hallucinations { agent, since } => cli::run_hallucinations(agent, since),
+        Command::Prs { repo } => cli::run_prs(repo),
     }
 }

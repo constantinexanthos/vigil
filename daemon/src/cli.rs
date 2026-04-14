@@ -81,6 +81,12 @@ pub enum Command {
         #[arg(long)]
         dry_run: bool,
     },
+    /// Show pull requests for watched repos
+    Prs {
+        /// Filter by repo path
+        #[arg(long)]
+        repo: Option<String>,
+    },
     /// Show cost and token usage by agent and session
     Cost {
         /// Filter by agent name
@@ -174,6 +180,30 @@ pub async fn run_watch(dirs: Vec<PathBuf>) {
             interval.tick().await;
             let mut s = refresh_scanner.lock().unwrap();
             s.refresh();
+        }
+    });
+
+    // Background GitHub PR sync — every 60 seconds.
+    let gh_db = Arc::clone(&db);
+    let gh_dirs = dirs.clone();
+    tokio::spawn(async move {
+        // Initial delay to let the daemon settle.
+        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+        loop {
+            interval.tick().await;
+            for dir in &gh_dirs {
+                if !crate::github::is_github_repo(dir) {
+                    continue;
+                }
+                let store = gh_db.lock().unwrap();
+                if let Some(pr) = crate::github::sync_pr_data(store.conn(), dir) {
+                    eprintln!(
+                        "vigil: PR #{} ({}) — {} +{}/-{}",
+                        pr.number, pr.state, pr.title, pr.additions, pr.deletions
+                    );
+                }
+            }
         }
     });
 
@@ -467,6 +497,68 @@ pub fn run_hallucinations(agent: Option<String>, since: String) {
 
     println!();
     println!("{} unresolved phantom import(s)", results.len());
+}
+
+pub fn run_prs(repo: Option<String>) {
+    let db_path = vigil_db_path();
+    if !db_path.exists() {
+        println!("No vigil database found at {}", db_path.display());
+        println!("Run `vigil watch <dir>` first.");
+        return;
+    }
+
+    let store = Store::open(&db_path).expect("failed to open store");
+
+    // If a specific repo is given, try to sync fresh data first.
+    if let Some(ref repo_path) = repo {
+        let path = std::path::Path::new(repo_path);
+        if path.is_dir() && crate::github::is_github_repo(path) {
+            crate::github::sync_pr_data(store.conn(), path);
+        }
+    }
+
+    let prs = crate::github::query_prs(store.conn(), repo.as_deref()).unwrap_or_default();
+
+    if prs.is_empty() {
+        println!("No pull requests found.");
+        println!("Run `vigil watch <dir>` on a GitHub repo to sync PR data.");
+        return;
+    }
+
+    println!("PULL REQUESTS");
+    println!("{}", "-".repeat(70));
+
+    for pr in &prs {
+        let state = pr.state.as_deref().unwrap_or("?");
+        let title = pr.title.as_deref().unwrap_or("(untitled)");
+        let branch = pr.branch.as_deref().unwrap_or("-");
+        let author = pr.author.as_deref().unwrap_or("?");
+        let review = pr.review_decision.as_deref().unwrap_or("-");
+
+        println!(
+            "  #{:<5}  {:<8}  {:<30}  {}",
+            pr.pr_number,
+            state,
+            truncate_str(title, 30),
+            branch,
+        );
+        println!(
+            "          +{:<5} -{:<5}  review: {:<15}  by {}",
+            pr.additions, pr.deletions, review, author,
+        );
+        if let Some(ref url) = pr.url {
+            println!("          {url}");
+        }
+        println!();
+    }
+}
+
+fn truncate_str(s: &str, max: usize) -> String {
+    if s.len() <= max {
+        s.to_string()
+    } else {
+        format!("{}...", &s[..max - 3])
+    }
 }
 
 pub fn run_cost(agent: Option<String>, since: String, sessions: bool) {
