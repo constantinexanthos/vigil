@@ -23,6 +23,16 @@ const itemVariants = {
 const shipped = [
   {
     date: "April 2026",
+    title: "Session Review UI",
+    bullets: [
+      "Visual accept/reject per file in the Tauri app",
+      "SessionList cards with agent, time range, confidence score",
+      "SessionReview with per-file diffs and Apply Rollback button",
+      "New Sessions tab alongside Monitor tab",
+    ],
+  },
+  {
+    date: "April 2026",
     title: "Hallucination Detection",
     bullets: [
       "Phantom import detection across JS/TS, Python, and Rust",
