@@ -66,6 +66,15 @@ pub enum Command {
         #[arg(long)]
         dry_run: bool,
     },
+    /// List unresolved phantom imports detected by hallucination scanner
+    Hallucinations {
+        /// Filter by agent name
+        #[arg(long)]
+        agent: Option<String>,
+        /// Time window (e.g. "1h", "24h", "7d"). Default: 24h
+        #[arg(long, default_value = "24h")]
+        since: String,
+    },
     /// Show cost and token usage by agent and session
     Cost {
         /// Filter by agent name
@@ -332,6 +341,53 @@ pub fn run_status() {
             println!("  {} -- [{}]", path, agents.join(", "));
         }
     }
+}
+
+pub fn run_hallucinations(agent: Option<String>, since: String) {
+    let db_path = vigil_db_path();
+    if !db_path.exists() {
+        println!("No vigil database found at {}", db_path.display());
+        println!("Run `vigil watch <dir>` first.");
+        return;
+    }
+
+    let store = Store::open(&db_path).expect("failed to open store");
+    let since_dt = parse_duration_ago(&since);
+
+    let results = crate::hallucination::query_hallucinations(
+        store.conn(),
+        agent.as_deref(),
+        Some(&since_dt),
+    )
+    .unwrap_or_default();
+
+    if results.is_empty() {
+        println!("No phantom imports detected (last {since}).");
+        return;
+    }
+
+    println!("PHANTOM IMPORTS (last {})", since);
+    println!("{}", "-".repeat(70));
+
+    const TS_W: usize = 19;
+    const AGENT_W: usize = 15;
+
+    println!(
+        "{:<TS_W$}  {:<AGENT_W$}  LOCATION",
+        "TIMESTAMP", "AGENT",
+    );
+    println!("{}", "-".repeat(70));
+
+    for h in &results {
+        let ts = h.timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
+        println!(
+            "{:<TS_W$}  {:<AGENT_W$}  {}:{}  {}",
+            ts, h.agent, h.file_path, h.line_number, h.import_path,
+        );
+    }
+
+    println!();
+    println!("{} unresolved phantom import(s)", results.len());
 }
 
 pub fn run_cost(agent: Option<String>, since: String, sessions: bool) {

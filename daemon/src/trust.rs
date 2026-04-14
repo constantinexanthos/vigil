@@ -30,7 +30,17 @@ pub struct ScoringFactor {
 }
 
 /// Score a set of events from a single agent.
+/// `hallucination_count` is the number of unresolved phantom imports for this agent.
 pub fn score_events(agent: &str, events: &[AgentEvent], collision_files: &[String]) -> ConfidenceReport {
+    score_events_with_hallucinations(agent, events, collision_files, 0)
+}
+
+pub fn score_events_with_hallucinations(
+    agent: &str,
+    events: &[AgentEvent],
+    collision_files: &[String],
+    hallucination_count: usize,
+) -> ConfidenceReport {
     let mut score: i32 = 75; // Start at a reasonable baseline.
     let mut factors = Vec::new();
 
@@ -183,6 +193,17 @@ pub fn score_events(agent: &str, events: &[AgentEvent], collision_files: &[Strin
         });
     }
 
+    // --- Hallucinated imports ---
+    if hallucination_count > 0 {
+        let penalty = -((hallucination_count as i32 * 5).min(25));
+        score += penalty;
+        factors.push(ScoringFactor {
+            name: "phantom_imports".into(),
+            impact: penalty,
+            reason: format!("{hallucination_count} unresolved import(s) — possible hallucination"),
+        });
+    }
+
     // Clamp to 0–100.
     let score = score.clamp(0, 100) as u32;
 
@@ -263,6 +284,36 @@ mod tests {
         let report = score_events("claude-code", &events, &[]);
         assert!(report.self_corrections > 0);
         assert!(report.score >= 80, "score was {}", report.score);
+    }
+
+    #[test]
+    fn hallucinations_reduce_score() {
+        let events = vec![
+            make_event(EventKind::FileModify, Some("src/main.rs"), Some("+line")),
+        ];
+        let clean = score_events("claude-code", &events, &[]);
+        let with_phantoms =
+            score_events_with_hallucinations("claude-code", &events, &[], 3);
+        assert!(
+            with_phantoms.score < clean.score,
+            "phantom: {} vs clean: {}",
+            with_phantoms.score,
+            clean.score
+        );
+        // 3 phantoms * 5 = -15 penalty
+        assert_eq!(clean.score - with_phantoms.score, 15);
+        assert!(with_phantoms.factors.iter().any(|f| f.name == "phantom_imports"));
+    }
+
+    #[test]
+    fn hallucination_penalty_caps_at_25() {
+        let events = vec![
+            make_event(EventKind::FileModify, Some("src/main.rs"), Some("+line")),
+        ];
+        let clean = score_events("agent", &events, &[]);
+        let with_many = score_events_with_hallucinations("agent", &events, &[], 10);
+        // 10 * 5 = 50 but capped at 25.
+        assert_eq!(clean.score - with_many.score, 25);
     }
 
     #[test]
