@@ -134,6 +134,33 @@ impl Store {
         )
     }
 
+    /// Return all events since a given time, ordered by timestamp ascending.
+    pub fn events_since(&self, since: &DateTime<Utc>) -> rusqlite::Result<Vec<AgentEvent>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, timestamp, kind, file_path, agent, session_id, repo_path, branch, diff, metadata
+             FROM events WHERE timestamp >= ?1 ORDER BY timestamp ASC",
+        )?;
+        let rows = stmt.query_map(params![since.to_rfc3339()], |row| {
+            let ts_str: String = row.get(1)?;
+            let kind_str: String = row.get(2)?;
+            Ok(AgentEvent {
+                id: Some(row.get(0)?),
+                timestamp: DateTime::parse_from_rfc3339(&ts_str)
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .unwrap_or_else(|_| Utc::now()),
+                kind: EventKind::from_str(&kind_str).unwrap_or(EventKind::FileModify),
+                file_path: row.get(3)?,
+                agent: row.get(4)?,
+                session_id: row.get(5)?,
+                repo_path: row.get(6)?,
+                branch: row.get(7)?,
+                diff: row.get(8)?,
+                metadata: row.get(9)?,
+            })
+        })?;
+        rows.collect()
+    }
+
     /// Per-agent event counts since a given time.
     pub fn agent_stats_since(&self, since: &DateTime<Utc>) -> rusqlite::Result<Vec<(String, u64)>> {
         let mut stmt = self.conn.prepare(

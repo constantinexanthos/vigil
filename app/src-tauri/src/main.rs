@@ -52,6 +52,9 @@ fn main() {
             commands::get_collisions,
             commands::get_event_count,
             commands::get_agent_stats,
+            commands::get_sessions,
+            commands::get_session_diffs,
+            commands::rollback_files,
         ])
         .setup(|app| {
             let quit = MenuItem::with_id(app, "quit", "Quit Vigil", true, None::<&str>)?;
