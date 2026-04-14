@@ -23,6 +23,25 @@ const itemVariants = {
 const shipped = [
   {
     date: "April 2026",
+    title: "App UI Redesign",
+    bullets: [
+      "Refined color scheme: neon green replaced with soft cyan, Inter font for body text",
+      "Full-height responsive layout, no dead space, resizable window",
+      "Clean flat agent cards, calm amber collision alerts, readable event labels",
+      "CSS reduced from 11KB to 9.7KB, all flashy animations removed",
+    ],
+  },
+  {
+    date: "April 2026",
+    title: "Agent Reattribution",
+    bullets: [
+      "vigil reattribute fixes historical unknown-agent events",
+      "30-second window neighbor matching with same-file preference",
+      "--dry-run flag to preview changes",
+    ],
+  },
+  {
+    date: "April 2026",
     title: "Session Review UI",
     bullets: [
       "Visual accept/reject per file in the Tauri app",
