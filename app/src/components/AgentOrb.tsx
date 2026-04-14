@@ -1,12 +1,13 @@
 import Sparkline from "./Sparkline";
 import { agentColor, agentDisplayName, fileName } from "../types";
 import type { AgentActivity } from "../hooks";
-import type { Collision } from "../types";
+import type { Collision, ScoringFactor } from "../types";
 
 interface AgentOrbProps {
   agent: string;
   fileCount: number;
   confidence?: number;
+  factors?: ScoringFactor[];
   activity: AgentActivity | undefined;
   collisions: Collision[];
   selected: boolean;
@@ -30,6 +31,7 @@ export default function AgentOrb({
   agent,
   fileCount,
   confidence,
+  factors,
   activity,
   collisions,
   selected,
@@ -92,6 +94,22 @@ export default function AgentOrb({
       {lastFile && (
         <div className="text-[9px] text-text-muted truncate mt-1" title={lastFile}>
           {fileName(lastFile)}
+        </div>
+      )}
+
+      {selected && factors && factors.length > 0 && (
+        <div className="mt-2 pt-2 border-t" style={{ borderColor: "#1a1d23" }}>
+          {factors.map((f, i) => (
+            <div key={i} className="flex items-start gap-1.5 text-[8px] leading-snug mb-0.5">
+              <span
+                className="font-semibold flex-shrink-0 w-[28px] text-right"
+                style={{ color: f.impact > 0 ? "#00ff41" : "#ff3333" }}
+              >
+                {f.impact > 0 ? "+" : ""}{f.impact}
+              </span>
+              <span className="text-text-secondary">{f.reason}</span>
+            </div>
+          ))}
         </div>
       )}
     </div>

@@ -42,6 +42,7 @@ export default function ActiveAgents({
               agent={stat.agent}
               fileCount={scoreData?.file_count ?? stat.count}
               confidence={scoreData?.score}
+              factors={scoreData?.factors}
               activity={agentActivity.get(stat.agent)}
               collisions={collisions}
               selected={selectedAgent === stat.agent}

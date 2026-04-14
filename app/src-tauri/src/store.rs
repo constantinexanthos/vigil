@@ -219,6 +219,14 @@ pub struct ConfidenceScore {
     pub file_count: usize,
     pub has_tests: bool,
     pub collision_count: usize,
+    pub factors: Vec<ScoringFactor>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ScoringFactor {
+    pub name: String,
+    pub impact: i32,
+    pub reason: String,
 }
 
 /// Score an agent's recent activity. Mirrors daemon/src/trust.rs logic.
@@ -226,6 +234,7 @@ fn score_agent_events(agent: &str, events: &[AgentEventRow], collision_files: &[
     use std::collections::{HashMap, HashSet};
 
     let mut score: i32 = 75;
+    let mut factors = Vec::new();
 
     let files: HashSet<&str> = events
         .iter()
@@ -233,14 +242,23 @@ fn score_agent_events(agent: &str, events: &[AgentEventRow], collision_files: &[
         .collect();
     let file_count = files.len();
 
-    // Small scope bonus.
     if file_count <= 3 {
         score += 10;
+        factors.push(ScoringFactor {
+            name: "small_scope".into(),
+            impact: 10,
+            reason: format!("Only {file_count} files — easy to review"),
+        });
     } else if file_count > 15 {
-        score -= (file_count as i32 - 15).min(20);
+        let penalty = -((file_count as i32 - 15).min(20));
+        score += penalty;
+        factors.push(ScoringFactor {
+            name: "large_scope".into(),
+            impact: penalty,
+            reason: format!("{file_count} files modified — high review burden"),
+        });
     }
 
-    // Self-corrections.
     let mut edit_counts: HashMap<&str, usize> = HashMap::new();
     for e in events {
         if e.kind == "file_modify" || e.kind == "file_create" {
@@ -252,45 +270,86 @@ fn score_agent_events(agent: &str, events: &[AgentEventRow], collision_files: &[
     let self_corrections = edit_counts.values().filter(|&&c| c > 1).count();
     if self_corrections > 0 && self_corrections <= 5 {
         score += 5;
+        factors.push(ScoringFactor {
+            name: "self_correction".into(),
+            impact: 5,
+            reason: format!("{self_corrections} files re-edited — agent iterated toward correctness"),
+        });
     } else if self_corrections > 5 {
         score -= 5;
+        factors.push(ScoringFactor {
+            name: "excessive_churn".into(),
+            impact: -5,
+            reason: format!("{self_corrections} files re-edited excessively — possible flailing"),
+        });
     }
 
-    // Tests.
     let has_tests = files.iter().any(|f| {
         let l = f.to_lowercase();
         l.contains("test") || l.contains("spec")
     });
     if has_tests {
         score += 10;
+        factors.push(ScoringFactor {
+            name: "tests_present".into(),
+            impact: 10,
+            reason: "Agent modified or created test files".into(),
+        });
     } else if file_count > 3 {
         score -= 10;
+        factors.push(ScoringFactor {
+            name: "no_tests".into(),
+            impact: -10,
+            reason: "No test files in a multi-file change".into(),
+        });
     }
 
-    // All-creates penalty.
     let creates = events.iter().filter(|e| e.kind == "file_create").count();
     let modifies = events.iter().filter(|e| e.kind == "file_modify").count();
     if creates > 5 && modifies == 0 {
         score -= 10;
+        factors.push(ScoringFactor {
+            name: "all_creates".into(),
+            impact: -10,
+            reason: format!("{creates} files created with no modifications — possible boilerplate dump"),
+        });
     }
 
-    // Diff size.
     let total_diff: usize = events.iter().filter_map(|e| e.diff.as_ref()).map(|d| d.len()).sum();
     if total_diff > 50_000 {
         score -= 10;
+        factors.push(ScoringFactor {
+            name: "huge_diff".into(),
+            impact: -10,
+            reason: format!("{}KB of diffs — very large change", total_diff / 1024),
+        });
     } else if total_diff > 0 && total_diff < 5_000 {
         score += 5;
+        factors.push(ScoringFactor {
+            name: "small_diff".into(),
+            impact: 5,
+            reason: "Small, focused change".into(),
+        });
     }
 
-    // Collisions.
     let collision_count = files.iter().filter(|f| collision_files.contains(&f.to_string())).count();
     if collision_count > 0 {
-        score -= (collision_count as i32 * 10).min(30);
+        let penalty = -(collision_count as i32 * 10).min(30);
+        score += penalty;
+        factors.push(ScoringFactor {
+            name: "file_collisions".into(),
+            impact: penalty,
+            reason: format!("{collision_count} files also modified by other agents"),
+        });
     }
 
-    // Git commits.
     if events.iter().any(|e| e.kind == "git_commit") {
         score += 5;
+        factors.push(ScoringFactor {
+            name: "committed".into(),
+            impact: 5,
+            reason: "Agent committed changes to git".into(),
+        });
     }
 
     ConfidenceScore {
@@ -299,5 +358,6 @@ fn score_agent_events(agent: &str, events: &[AgentEventRow], collision_files: &[
         file_count,
         has_tests,
         collision_count,
+        factors,
     }
 }

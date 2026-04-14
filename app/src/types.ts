@@ -17,12 +17,19 @@ export interface AgentStat {
   count: number;
 }
 
+export interface ScoringFactor {
+  name: string;
+  impact: number;
+  reason: string;
+}
+
 export interface ConfidenceScore {
   agent: string;
   score: number;
   file_count: number;
   has_tests: boolean;
   collision_count: number;
+  factors: ScoringFactor[];
 }
 
 export interface StreamPayload {
