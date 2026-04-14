@@ -45,6 +45,7 @@ fn main() {
             commands::get_collisions,
             commands::get_agent_stats,
             commands::get_event_count,
+            commands::get_cost_summary,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

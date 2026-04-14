@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { AgentEvent, Collision, AgentStat } from "./types";
+import type { AgentEvent, Collision, AgentStat, CostSummary } from "./types";
 
 export interface AgentActivity {
   agent: string;
@@ -15,6 +15,7 @@ interface DaemonState {
   collisions: Collision[];
   agentStats: AgentStat[];
   eventCount: number;
+  costSummary: CostSummary;
   connected: boolean;
   error: string | null;
   agentActivity: Map<string, AgentActivity>;
@@ -34,6 +35,7 @@ export function useDaemonData(): DaemonState {
   const [error, setError] = useState<string | null>(null);
   const [agentActivity, setAgentActivity] = useState<Map<string, AgentActivity>>(new Map());
   const [newEventIds, setNewEventIds] = useState<Set<number>>(new Set());
+  const [costSummary, setCostSummary] = useState<CostSummary>({ total_cost_usd: 0, agents: [] });
 
   const prevEventCountByAgent = useRef<Map<string, number>>(new Map());
   const sparklineBuffers = useRef<Map<string, number[]>>(new Map());
@@ -41,12 +43,13 @@ export function useDaemonData(): DaemonState {
 
   const fetchAll = useCallback(async () => {
     try {
-      const [evts, agents, cols, stats, count] = await Promise.all([
+      const [evts, agents, cols, stats, count, cost] = await Promise.all([
         invoke<AgentEvent[]>("get_recent_events", { limit: 50 }),
         invoke<string[]>("get_active_agents"),
         invoke<Collision[]>("get_collisions"),
         invoke<AgentStat[]>("get_agent_stats"),
         invoke<number>("get_event_count"),
+        invoke<CostSummary>("get_cost_summary", { hours: 24 }).catch(() => ({ total_cost_usd: 0, agents: [] })),
       ]);
 
       // Compute new event IDs for entrance animations
@@ -104,6 +107,7 @@ export function useDaemonData(): DaemonState {
       setCollisions(cols);
       setAgentStats(stats);
       setEventCount(count);
+      setCostSummary(cost);
       setConnected(true);
       setError(null);
       setAgentActivity(nextActivity);
@@ -127,6 +131,7 @@ export function useDaemonData(): DaemonState {
     collisions,
     agentStats,
     eventCount,
+    costSummary,
     connected,
     error,
     agentActivity,

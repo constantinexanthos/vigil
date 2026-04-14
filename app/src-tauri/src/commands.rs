@@ -1,4 +1,4 @@
-use crate::store::{default_db_path, AgentStatRow, CollisionRow, EventRow, Store};
+use crate::store::{default_db_path, AgentStatRow, CollisionRow, CostTotalRow, EventRow, Store};
 
 fn open_store() -> Result<Store, String> {
     let path = default_db_path();
@@ -45,5 +45,13 @@ pub fn get_event_count() -> Result<i64, String> {
     let store = open_store()?;
     store
         .query_event_count()
+        .map_err(|e| format!("Query failed: {e}"))
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn get_cost_summary(hours: Option<i64>) -> Result<CostTotalRow, String> {
+    let store = open_store()?;
+    store
+        .query_cost_summary(hours.unwrap_or(24))
         .map_err(|e| format!("Query failed: {e}"))
 }

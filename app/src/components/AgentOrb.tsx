@@ -1,11 +1,12 @@
 import Sparkline from "./Sparkline";
-import { agentColor, agentDisplayName, fileName } from "../types";
+import { agentColor, agentDisplayName, fileName, formatCost } from "../types";
 import type { AgentActivity } from "../hooks";
 import type { Collision } from "../types";
 
 interface AgentOrbProps {
   agent: string;
   fileCount: number;
+  costUsd: number;
   activity: AgentActivity | undefined;
   collisions: Collision[];
   selected: boolean;
@@ -22,6 +23,7 @@ function pulseSpeed(lastEventTime: number): string | null {
 export default function AgentOrb({
   agent,
   fileCount,
+  costUsd,
   activity,
   collisions,
   selected,
@@ -74,6 +76,9 @@ export default function AgentOrb({
 
       <div className="flex items-center justify-between text-[9px]">
         <span className="text-text-secondary">{fileCount} files</span>
+        {costUsd > 0 && (
+          <span style={{ color: "#ffb800" }}>{formatCost(costUsd)}</span>
+        )}
       </div>
 
       {lastFile && (

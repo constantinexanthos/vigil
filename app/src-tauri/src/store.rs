@@ -103,6 +103,59 @@ impl Store {
             |row| row.get(0),
         )
     }
+
+    /// Cost summary by agent for the last N hours.
+    pub fn query_cost_summary(&self, hours: i64) -> Result<CostTotalRow> {
+        // Check if cost_events table exists (daemon may not have created it yet).
+        let table_exists: bool = self.conn.query_row(
+            "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type='table' AND name='cost_events'",
+            [],
+            |row| row.get(0),
+        )?;
+
+        if !table_exists {
+            return Ok(CostTotalRow {
+                total_cost_usd: 0.0,
+                agents: vec![],
+            });
+        }
+
+        let since = format!("-{hours} hours");
+        let total: f64 = self.conn.query_row(
+            "SELECT COALESCE(SUM(cost_usd), 0.0) FROM cost_events WHERE timestamp >= datetime('now', ?1)",
+            params![since],
+            |row| row.get(0),
+        )?;
+
+        let mut stmt = self.conn.prepare(
+            "SELECT agent,
+                    SUM(cost_usd), SUM(input_tokens), SUM(output_tokens),
+                    SUM(cache_read_tokens), SUM(cache_write_tokens), COUNT(*)
+             FROM cost_events
+             WHERE timestamp >= datetime('now', ?1)
+             GROUP BY agent
+             ORDER BY SUM(cost_usd) DESC",
+        )?;
+
+        let rows = stmt.query_map(params![since], |row| {
+            Ok(CostSummaryRow {
+                agent: row.get(0)?,
+                total_cost_usd: row.get(1)?,
+                input_tokens: row.get(2)?,
+                output_tokens: row.get(3)?,
+                cache_read_tokens: row.get(4)?,
+                cache_write_tokens: row.get(5)?,
+                event_count: row.get(6)?,
+            })
+        })?;
+
+        let agents: Vec<CostSummaryRow> = rows.filter_map(|r| r.ok()).collect();
+
+        Ok(CostTotalRow {
+            total_cost_usd: total,
+            agents,
+        })
+    }
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -125,4 +178,21 @@ pub struct CollisionRow {
 pub struct AgentStatRow {
     pub agent: String,
     pub count: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct CostSummaryRow {
+    pub agent: String,
+    pub total_cost_usd: f64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub cache_read_tokens: i64,
+    pub cache_write_tokens: i64,
+    pub event_count: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct CostTotalRow {
+    pub total_cost_usd: f64,
+    pub agents: Vec<CostSummaryRow>,
 }
