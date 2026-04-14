@@ -23,6 +23,24 @@ const itemVariants = {
 const shipped = [
   {
     date: "April 2026",
+    title: "GitHub Integration",
+    bullets: [
+      "PR data via gh CLI: status, diff stats, checks, review decisions",
+      "Background sync every 60s with graceful offline/unauthenticated fallback",
+      "vigil prs CLI command, pull_requests table, Tauri command",
+    ],
+  },
+  {
+    date: "April 2026",
+    title: "Commit-Centric View",
+    bullets: [
+      "New default Commits tab grouping file events around git commits",
+      "WorkspaceSummary cards: commits, files changed, cost, agent breakdown",
+      "CommitCard with commit message as hero text, confidence dots, expandable file lists",
+    ],
+  },
+  {
+    date: "April 2026",
     title: "App UI Redesign",
     bullets: [
       "Refined color scheme: neon green replaced with soft cyan, Inter font for body text",
