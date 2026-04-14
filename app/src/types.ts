@@ -17,29 +17,6 @@ export interface AgentStat {
   count: number;
 }
 
-export interface ScoringFactor {
-  name: string;
-  impact: number;
-  reason: string;
-}
-
-export interface ConfidenceScore {
-  agent: string;
-  score: number;
-  file_count: number;
-  has_tests: boolean;
-  collision_count: number;
-  factors: ScoringFactor[];
-}
-
-export interface StreamPayload {
-  events: AgentEvent[];
-  scores: ConfidenceScore[];
-  collisions: Collision[];
-  event_count: number;
-  active_agents: string[];
-}
-
 export const AGENT_COLORS: Record<string, string> = {
   "claude-code": "#00ff41",
   cursor: "#00d9ff",
@@ -92,4 +69,31 @@ export function truncatePath(path: string): string {
 export function fileName(path: string): string {
   const parts = path.split("/");
   return parts[parts.length - 1] ?? path;
+}
+
+export interface CostAgentSummary {
+  agent: string;
+  total_cost_usd: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+  event_count: number;
+}
+
+export interface CostSummary {
+  total_cost_usd: number;
+  agents: CostAgentSummary[];
+}
+
+export function formatCost(usd: number): string {
+  if (usd < 0.01) return `$${usd.toFixed(4)}`;
+  if (usd < 1) return `$${usd.toFixed(2)}`;
+  return `$${usd.toFixed(2)}`;
+}
+
+export function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return n.toString();
 }

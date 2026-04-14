@@ -1,23 +1,16 @@
 import Sparkline from "./Sparkline";
-import { agentColor, agentDisplayName, fileName } from "../types";
+import { agentColor, agentDisplayName, fileName, formatCost } from "../types";
 import type { AgentActivity } from "../hooks";
-import type { Collision, ScoringFactor } from "../types";
+import type { Collision } from "../types";
 
 interface AgentOrbProps {
   agent: string;
   fileCount: number;
-  confidence?: number;
-  factors?: ScoringFactor[];
+  costUsd: number;
   activity: AgentActivity | undefined;
   collisions: Collision[];
   selected: boolean;
   onSelect: (agent: string) => void;
-}
-
-function confidenceColor(score: number): string {
-  if (score > 75) return "#00ff41";
-  if (score >= 50) return "#ffb800";
-  return "#ff3333";
 }
 
 function pulseSpeed(lastEventTime: number): string | null {
@@ -30,8 +23,7 @@ function pulseSpeed(lastEventTime: number): string | null {
 export default function AgentOrb({
   agent,
   fileCount,
-  confidence,
-  factors,
+  costUsd,
   activity,
   collisions,
   selected,
@@ -84,32 +76,14 @@ export default function AgentOrb({
 
       <div className="flex items-center justify-between text-[9px]">
         <span className="text-text-secondary">{fileCount} files</span>
-        {confidence !== undefined && (
-          <span className="font-semibold" style={{ color: confidenceColor(confidence) }}>
-            {confidence}
-          </span>
+        {costUsd > 0 && (
+          <span style={{ color: "#ffb800" }}>{formatCost(costUsd)}</span>
         )}
       </div>
 
       {lastFile && (
         <div className="text-[9px] text-text-muted truncate mt-1" title={lastFile}>
           {fileName(lastFile)}
-        </div>
-      )}
-
-      {selected && factors && factors.length > 0 && (
-        <div className="mt-2 pt-2 border-t" style={{ borderColor: "#1a1d23" }}>
-          {factors.map((f, i) => (
-            <div key={i} className="flex items-start gap-1.5 text-[8px] leading-snug mb-0.5">
-              <span
-                className="font-semibold flex-shrink-0 w-[28px] text-right"
-                style={{ color: f.impact > 0 ? "#00ff41" : "#ff3333" }}
-              >
-                {f.impact > 0 ? "+" : ""}{f.impact}
-              </span>
-              <span className="text-text-secondary">{f.reason}</span>
-            </div>
-          ))}
         </div>
       )}
     </div>

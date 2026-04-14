@@ -1,10 +1,13 @@
+import { formatCost } from "../types";
+
 interface HeaderProps {
   eventCount: number;
   connected: boolean;
   agentCount: number;
+  totalCostUsd: number;
 }
 
-export default function Header({ eventCount, connected, agentCount }: HeaderProps) {
+export default function Header({ eventCount, connected, agentCount, totalCostUsd }: HeaderProps) {
   return (
     <div className="flex items-center justify-between px-4 py-3 border-b border-border">
       <div className="flex items-center gap-3">
@@ -24,6 +27,18 @@ export default function Header({ eventCount, connected, agentCount }: HeaderProp
         )}
       </div>
       <div className="flex items-center gap-3">
+        {totalCostUsd > 0 && (
+          <span
+            className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+            style={{
+              color: "#ffb800",
+              backgroundColor: "rgba(255,184,0,0.08)",
+              border: "1px solid rgba(255,184,0,0.2)",
+            }}
+          >
+            {formatCost(totalCostUsd)}
+          </span>
+        )}
         <span className="text-text-secondary text-[10px]">
           {eventCount.toLocaleString()} events
         </span>

@@ -2,7 +2,6 @@
 
 mod commands;
 mod store;
-mod streaming;
 
 use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -13,9 +12,6 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
-            // Start real-time event streamer.
-            streaming::start(app.handle());
-
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
                 .tooltip("Vigil")
@@ -49,7 +45,7 @@ fn main() {
             commands::get_collisions,
             commands::get_agent_stats,
             commands::get_event_count,
-            commands::get_confidence_scores,
+            commands::get_cost_summary,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -104,83 +104,57 @@ impl Store {
         )
     }
 
-    /// Query events for a specific agent (for confidence scoring).
-    pub fn query_events_for_agent(&self, agent: &str) -> Result<Vec<AgentEventRow>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT kind, file_path, diff
-             FROM events
-             WHERE agent = ?1
-               AND timestamp >= datetime('now', '-30 minutes')
-             ORDER BY timestamp DESC",
-        )?;
-        let rows = stmt.query_map(params![agent], |row| {
-            Ok(AgentEventRow {
-                kind: row.get(0)?,
-                file_path: row.get(1)?,
-                diff: row.get(2)?,
-            })
-        })?;
-        rows.collect()
-    }
-
-    /// Get collision file paths (for scoring).
-    pub fn query_collision_file_paths(&self) -> Result<Vec<String>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT file_path
-             FROM events
-             WHERE file_path IS NOT NULL
-               AND kind IN ('file_create', 'file_modify')
-               AND timestamp >= datetime('now', '-5 minutes')
-             GROUP BY file_path
-             HAVING COUNT(DISTINCT agent) > 1",
-        )?;
-        let rows = stmt.query_map([], |row| row.get(0))?;
-        rows.collect()
-    }
-
-    /// Compute confidence scores for all active agents.
-    pub fn query_confidence_scores(&self) -> Result<Vec<ConfidenceScore>> {
-        let agents = self.query_active_agents()?;
-        let collision_files = self.query_collision_file_paths().unwrap_or_default();
-
-        let mut scores = Vec::new();
-        for agent in &agents {
-            let events = self.query_events_for_agent(agent)?;
-            let report = score_agent_events(agent, &events, &collision_files);
-            scores.push(report);
-        }
-        Ok(scores)
-    }
-
-    /// Get the max event ID (for streaming — poll for id > last_seen).
-    pub fn max_event_id(&self) -> Result<i64> {
-        self.conn.query_row(
-            "SELECT COALESCE(MAX(id), 0) FROM events",
+    /// Cost summary by agent for the last N hours.
+    pub fn query_cost_summary(&self, hours: i64) -> Result<CostTotalRow> {
+        // Check if cost_events table exists (daemon may not have created it yet).
+        let table_exists: bool = self.conn.query_row(
+            "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type='table' AND name='cost_events'",
             [],
             |row| row.get(0),
-        )
-    }
-
-    /// Get events newer than a given ID.
-    pub fn query_events_after(&self, after_id: i64, limit: u32) -> Result<Vec<EventRow>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT id, timestamp, kind, file_path, agent, diff
-             FROM events
-             WHERE id > ?1
-             ORDER BY id ASC
-             LIMIT ?2",
         )?;
-        let rows = stmt.query_map(params![after_id, limit as i64], |row| {
-            Ok(EventRow {
-                id: row.get(0)?,
-                timestamp: row.get(1)?,
-                kind: row.get(2)?,
-                file_path: row.get::<_, Option<String>>(3)?,
-                agent: row.get(4)?,
-                diff: row.get(5)?,
+
+        if !table_exists {
+            return Ok(CostTotalRow {
+                total_cost_usd: 0.0,
+                agents: vec![],
+            });
+        }
+
+        let since = format!("-{hours} hours");
+        let total: f64 = self.conn.query_row(
+            "SELECT COALESCE(SUM(cost_usd), 0.0) FROM cost_events WHERE timestamp >= datetime('now', ?1)",
+            params![since],
+            |row| row.get(0),
+        )?;
+
+        let mut stmt = self.conn.prepare(
+            "SELECT agent,
+                    SUM(cost_usd), SUM(input_tokens), SUM(output_tokens),
+                    SUM(cache_read_tokens), SUM(cache_write_tokens), COUNT(*)
+             FROM cost_events
+             WHERE timestamp >= datetime('now', ?1)
+             GROUP BY agent
+             ORDER BY SUM(cost_usd) DESC",
+        )?;
+
+        let rows = stmt.query_map(params![since], |row| {
+            Ok(CostSummaryRow {
+                agent: row.get(0)?,
+                total_cost_usd: row.get(1)?,
+                input_tokens: row.get(2)?,
+                output_tokens: row.get(3)?,
+                cache_read_tokens: row.get(4)?,
+                cache_write_tokens: row.get(5)?,
+                event_count: row.get(6)?,
             })
         })?;
-        rows.collect()
+
+        let agents: Vec<CostSummaryRow> = rows.filter_map(|r| r.ok()).collect();
+
+        Ok(CostTotalRow {
+            total_cost_usd: total,
+            agents,
+        })
     }
 }
 
@@ -206,158 +180,19 @@ pub struct AgentStatRow {
     pub count: i64,
 }
 
-pub struct AgentEventRow {
-    pub kind: String,
-    pub file_path: Option<String>,
-    pub diff: Option<String>,
-}
-
 #[derive(Debug, Clone, serde::Serialize)]
-pub struct ConfidenceScore {
+pub struct CostSummaryRow {
     pub agent: String,
-    pub score: u32,
-    pub file_count: usize,
-    pub has_tests: bool,
-    pub collision_count: usize,
-    pub factors: Vec<ScoringFactor>,
+    pub total_cost_usd: f64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub cache_read_tokens: i64,
+    pub cache_write_tokens: i64,
+    pub event_count: i64,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
-pub struct ScoringFactor {
-    pub name: String,
-    pub impact: i32,
-    pub reason: String,
-}
-
-/// Score an agent's recent activity. Mirrors daemon/src/trust.rs logic.
-fn score_agent_events(agent: &str, events: &[AgentEventRow], collision_files: &[String]) -> ConfidenceScore {
-    use std::collections::{HashMap, HashSet};
-
-    let mut score: i32 = 75;
-    let mut factors = Vec::new();
-
-    let files: HashSet<&str> = events
-        .iter()
-        .filter_map(|e| e.file_path.as_deref())
-        .collect();
-    let file_count = files.len();
-
-    if file_count <= 3 {
-        score += 10;
-        factors.push(ScoringFactor {
-            name: "small_scope".into(),
-            impact: 10,
-            reason: format!("Only {file_count} files — easy to review"),
-        });
-    } else if file_count > 15 {
-        let penalty = -((file_count as i32 - 15).min(20));
-        score += penalty;
-        factors.push(ScoringFactor {
-            name: "large_scope".into(),
-            impact: penalty,
-            reason: format!("{file_count} files modified — high review burden"),
-        });
-    }
-
-    let mut edit_counts: HashMap<&str, usize> = HashMap::new();
-    for e in events {
-        if e.kind == "file_modify" || e.kind == "file_create" {
-            if let Some(ref p) = e.file_path {
-                *edit_counts.entry(p.as_str()).or_default() += 1;
-            }
-        }
-    }
-    let self_corrections = edit_counts.values().filter(|&&c| c > 1).count();
-    if self_corrections > 0 && self_corrections <= 5 {
-        score += 5;
-        factors.push(ScoringFactor {
-            name: "self_correction".into(),
-            impact: 5,
-            reason: format!("{self_corrections} files re-edited — agent iterated toward correctness"),
-        });
-    } else if self_corrections > 5 {
-        score -= 5;
-        factors.push(ScoringFactor {
-            name: "excessive_churn".into(),
-            impact: -5,
-            reason: format!("{self_corrections} files re-edited excessively — possible flailing"),
-        });
-    }
-
-    let has_tests = files.iter().any(|f| {
-        let l = f.to_lowercase();
-        l.contains("test") || l.contains("spec")
-    });
-    if has_tests {
-        score += 10;
-        factors.push(ScoringFactor {
-            name: "tests_present".into(),
-            impact: 10,
-            reason: "Agent modified or created test files".into(),
-        });
-    } else if file_count > 3 {
-        score -= 10;
-        factors.push(ScoringFactor {
-            name: "no_tests".into(),
-            impact: -10,
-            reason: "No test files in a multi-file change".into(),
-        });
-    }
-
-    let creates = events.iter().filter(|e| e.kind == "file_create").count();
-    let modifies = events.iter().filter(|e| e.kind == "file_modify").count();
-    if creates > 5 && modifies == 0 {
-        score -= 10;
-        factors.push(ScoringFactor {
-            name: "all_creates".into(),
-            impact: -10,
-            reason: format!("{creates} files created with no modifications — possible boilerplate dump"),
-        });
-    }
-
-    let total_diff: usize = events.iter().filter_map(|e| e.diff.as_ref()).map(|d| d.len()).sum();
-    if total_diff > 50_000 {
-        score -= 10;
-        factors.push(ScoringFactor {
-            name: "huge_diff".into(),
-            impact: -10,
-            reason: format!("{}KB of diffs — very large change", total_diff / 1024),
-        });
-    } else if total_diff > 0 && total_diff < 5_000 {
-        score += 5;
-        factors.push(ScoringFactor {
-            name: "small_diff".into(),
-            impact: 5,
-            reason: "Small, focused change".into(),
-        });
-    }
-
-    let collision_count = files.iter().filter(|f| collision_files.contains(&f.to_string())).count();
-    if collision_count > 0 {
-        let penalty = -(collision_count as i32 * 10).min(30);
-        score += penalty;
-        factors.push(ScoringFactor {
-            name: "file_collisions".into(),
-            impact: penalty,
-            reason: format!("{collision_count} files also modified by other agents"),
-        });
-    }
-
-    if events.iter().any(|e| e.kind == "git_commit") {
-        score += 5;
-        factors.push(ScoringFactor {
-            name: "committed".into(),
-            impact: 5,
-            reason: "Agent committed changes to git".into(),
-        });
-    }
-
-    ConfidenceScore {
-        agent: agent.to_string(),
-        score: score.clamp(0, 100) as u32,
-        file_count,
-        has_tests,
-        collision_count,
-        factors,
-    }
+pub struct CostTotalRow {
+    pub total_cost_usd: f64,
+    pub agents: Vec<CostSummaryRow>,
 }

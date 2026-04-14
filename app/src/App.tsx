@@ -11,8 +11,8 @@ export default function App() {
     events,
     collisions,
     agentStats,
-    confidenceScores,
     eventCount,
+    costSummary,
     connected,
     error,
     agentActivity,
@@ -28,7 +28,7 @@ export default function App() {
   if (error && !connected) {
     return (
       <div className="h-screen bg-bg flex flex-col font-mono">
-        <Header eventCount={0} connected={false} agentCount={0} />
+        <Header eventCount={0} connected={false} agentCount={0} totalCostUsd={0} />
         <ErrorState />
       </div>
     );
@@ -40,12 +40,13 @@ export default function App() {
         eventCount={eventCount}
         connected={connected}
         agentCount={agentStats.length}
+        totalCostUsd={costSummary.total_cost_usd}
       />
       <ActiveAgents
         agentStats={agentStats}
         collisions={collisions}
-        confidenceScores={confidenceScores}
         agentActivity={agentActivity}
+        agentCosts={costSummary.agents}
         selectedAgent={selectedAgent}
         onSelectAgent={handleSelectAgent}
       />
