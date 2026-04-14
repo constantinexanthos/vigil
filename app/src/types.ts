@@ -95,3 +95,49 @@ export function formatTokens(n: number): string {
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return n.toString();
 }
+
+export interface FileChange {
+  path: string;
+  kind: string;
+  added: number;
+  removed: number;
+}
+
+export interface CommitGroup {
+  commit_hash: string;
+  commit_message: string;
+  agent: string;
+  timestamp: string;
+  files: FileChange[];
+  confidence_score: number;
+  cost_usd: number;
+}
+
+export interface AgentCommitCount {
+  agent: string;
+  commit_count: number;
+}
+
+export interface WorkspaceSummary {
+  commits_today: number;
+  files_changed_today: number;
+  total_cost_today: number;
+  agent_commits: AgentCommitCount[];
+  active_collisions: Collision[];
+}
+
+export function relativeTime(isoString: string): string {
+  const now = Date.now();
+  const then = new Date(isoString).getTime();
+  const diffSec = Math.floor((now - then) / 1000);
+  if (diffSec < 60) return "just now";
+  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
+  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
+  return `${Math.floor(diffSec / 86400)}d ago`;
+}
+
+export function confidenceColor(score: number): string {
+  if (score >= 75) return "#4ade80";
+  if (score >= 50) return "#fbbf24";
+  return "#ef4444";
+}
