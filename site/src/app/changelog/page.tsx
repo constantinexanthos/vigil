@@ -1,8 +1,6 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { Nav } from "@/components/nav"
-import { Footer } from "@/components/footer"
 
 const containerVariants = {
   hidden: {},
@@ -108,9 +106,7 @@ const comingSoon = [
 
 export default function ChangelogPage() {
   return (
-    <>
-      <Nav />
-      <div className="min-h-screen pt-[64px]">
+    <div className="min-h-screen pt-[64px]">
         <div className="mx-auto max-w-4xl px-6 py-16">
           {/* Header */}
           <motion.div
@@ -252,7 +248,5 @@ export default function ChangelogPage() {
           </motion.div>
         </div>
       </div>
-      <Footer />
-    </>
   )
 }

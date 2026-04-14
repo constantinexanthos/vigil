@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
+import { Nav } from "@/components/nav";
+import { Footer } from "@/components/footer";
 import "./globals.css";
 
 const ibmPlexMono = IBM_Plex_Mono({
@@ -37,7 +39,9 @@ export default function RootLayout({
       className={`${ibmPlexMono.variable} ${ibmPlexSans.variable} antialiased`}
     >
       <body className="min-h-screen bg-background text-foreground">
+        <Nav />
         {children}
+        <Footer />
       </body>
     </html>
   );
