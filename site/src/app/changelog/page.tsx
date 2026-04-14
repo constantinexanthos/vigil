@@ -23,6 +23,16 @@ const itemVariants = {
 const shipped = [
   {
     date: "April 2026",
+    title: "Hallucination Detection",
+    bullets: [
+      "Phantom import detection across JS/TS, Python, and Rust",
+      "Resolution against node_modules, Cargo.toml, Python stdlib + venv",
+      "vigil hallucinations CLI with --agent and --since filters",
+      "Trust integration: -5 points per phantom import (capped at -25)",
+    ],
+  },
+  {
+    date: "April 2026",
     title: "Selective Rollback",
     bullets: [
       "Session grouping by agent + 5-minute time gap",
@@ -97,11 +107,6 @@ const shipped = [
 ]
 
 const comingSoon = [
-  {
-    title: "Hallucination Detection",
-    status: "Planned" as "Planned" | "In Progress",
-    description: "Import/require verification for phantom dependencies",
-  },
   {
     title: "Multi-machine Support",
     status: "Planned" as "Planned" | "In Progress",
