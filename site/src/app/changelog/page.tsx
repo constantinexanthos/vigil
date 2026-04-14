@@ -25,29 +25,56 @@ const itemVariants = {
 const shipped = [
   {
     date: "April 2026",
+    title: "Cost Intelligence",
+    bullets: [
+      "Token usage tracking and burn rate per agent, session, day",
+      "Automatic cost extraction from hook metadata",
+      "Model-aware estimation (Opus, Sonnet, Haiku pricing)",
+      "vigil cost CLI with --agent, --since, --sessions flags",
+    ],
+  },
+  {
+    date: "April 2026",
+    title: "Confidence Scoring",
+    bullets: [
+      "Trust scoring engine (0\u2013100) for agent output quality",
+      "7 heuristics: scope, self-correction, tests, diversity, diffs, collisions, commits",
+      "Live scores in AgentOrb cards (green/amber/red)",
+    ],
+  },
+  {
+    date: "April 2026",
+    title: "Real-time Streaming",
+    bullets: [
+      "Background thread polls SQLite for new events",
+      "Tauri event push replaces 5s polling",
+      "Live animations for new events, scores, and collisions",
+    ],
+  },
+  {
+    date: "April 2026",
     title: "Claude Code Hooks",
     bullets: [
       "Native hooks API integration",
-      "Structured events",
-      "Automatic registration",
+      "Structured events for tool calls, file edits, commands",
+      "Automatic registration via vigil init",
     ],
   },
   {
     date: "April 2026",
     title: "Marketing Site",
     bullets: [
-      "Next.js site with animated hero",
-      "Feature showcase",
-      "Docs",
+      "Next.js site with animated raining letters hero",
+      "Feature showcase, terminal demo, docs, changelog",
     ],
   },
   {
     date: "April 2026",
     title: "Menu Bar App",
     bullets: [
-      "Tauri v2 menu bar app",
-      "Real-time timeline",
-      "Collision highlighting",
+      "Tauri v2 menu bar app with hacker HUD aesthetic",
+      "AgentOrb cards with sparklines and cost display",
+      "CollisionBanner with real-time alerts",
     ],
   },
   {
@@ -55,41 +82,26 @@ const shipped = [
     title: "Core Daemon",
     bullets: [
       "File watcher, git monitoring, process detection",
-      "SQLite store, CLI",
-      "Collision detection",
+      "SQLite store, CLI interface",
+      "Collision detection for multi-agent file conflicts",
     ],
   },
 ]
 
 const comingSoon = [
   {
-    title: "Cost Intelligence",
-    status: "In Progress" as const,
-    description: "Token usage tracking and burn rate per agent",
-  },
-  {
-    title: "Confidence Scoring",
-    status: "In Progress" as const,
-    description: "Trust scoring engine for agent output quality (0\u2013100)",
-  },
-  {
-    title: "Real-time Streaming",
-    status: "In Progress" as const,
-    description: "Replace polling with Tauri event push",
-  },
-  {
     title: "Hallucination Detection",
-    status: "Planned" as const,
+    status: "Planned" as "Planned" | "In Progress",
     description: "Import/require verification for phantom dependencies",
   },
   {
     title: "Selective Rollback",
-    status: "Planned" as const,
+    status: "Planned" as "Planned" | "In Progress",
     description: "Per-file accept/reject after agent sessions",
   },
   {
     title: "Multi-machine Support",
-    status: "Planned" as const,
+    status: "Planned" as "Planned" | "In Progress",
     description: "Monitor agents across multiple development machines",
   },
 ]
