@@ -6,7 +6,7 @@ import Image from "next/image"
 export function Nav() {
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 border-b border-[#1a1d23] bg-[rgba(7,8,10,0.88)] backdrop-blur-md">
-      <div className="mx-auto max-w-6xl px-3 py-3 flex justify-between items-center">
+      <div className="w-full px-4 sm:px-6 py-3 flex justify-between items-center">
         <Link href="/" className="flex items-center gap-2.5">
           <Image
             src="/logo.png"

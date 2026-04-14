@@ -72,7 +72,7 @@ const itemVariants = {
 
 export function DarkFeatureGrid() {
   return (
-    <section id="features" className="w-full bg-[#07080a] py-20 md:py-32 border-t border-[#1a1d23]">
+    <section id="features" className="w-full py-20 md:py-32 border-t border-[#1a1d23]">
       <div className="mx-auto max-w-4xl px-6">
         <span
           className="block text-[#22d3ee] text-xs uppercase tracking-[0.15em] font-mono mb-3"

@@ -93,7 +93,7 @@ const lines: TerminalLine[] = [
 
 export function TerminalDemo() {
   return (
-    <section className="w-full bg-[#07080a] py-20 border-t border-[#1a1d23]">
+    <section className="w-full py-20 border-t border-[#1a1d23]">
       <div className="mx-auto max-w-4xl px-6">
         <div
           className="font-mono bg-[#0d0f12] border border-[#2a2e37] overflow-hidden"
