@@ -16,22 +16,34 @@ export function Nav() {
         </Link>
         <div className="flex gap-6 font-mono text-xs">
           <Link
-            href="#features"
+            href="/#features"
             className="text-[#6b7084] uppercase tracking-[0.08em] transition-colors hover:text-[#22d3ee]"
           >
             Features
           </Link>
           <Link
-            href="#how"
+            href="/#how"
             className="text-[#6b7084] uppercase tracking-[0.08em] transition-colors hover:text-[#22d3ee]"
           >
             How
           </Link>
           <Link
-            href="#agents"
+            href="/#agents"
             className="text-[#6b7084] uppercase tracking-[0.08em] transition-colors hover:text-[#22d3ee]"
           >
             Agents
+          </Link>
+          <Link
+            href="/docs"
+            className="text-[#6b7084] uppercase tracking-[0.08em] transition-colors hover:text-[#22d3ee]"
+          >
+            Docs
+          </Link>
+          <Link
+            href="/changelog"
+            className="text-[#6b7084] uppercase tracking-[0.08em] transition-colors hover:text-[#22d3ee]"
+          >
+            Changelog
           </Link>
           <a
             href="https://github.com/constantinexanthos/vigil"
