@@ -106,10 +106,12 @@ impl Store {
             CREATE INDEX IF NOT EXISTS idx_events_file_path ON events(file_path);
             CREATE INDEX IF NOT EXISTS idx_events_session_id ON events(session_id);
             ",
-        )
+        )?;
+        crate::cost::init_cost_schema(&self.conn)
     }
 
     /// Insert a new event. Returns the row id.
+    /// If the event has metadata with cost info, also inserts into cost_events.
     pub fn insert(&self, event: &AgentEvent) -> Result<i64> {
         self.conn.execute(
             "INSERT INTO events (timestamp, kind, file_path, agent, session_id, repo_path, branch, diff, metadata)
@@ -126,7 +128,26 @@ impl Store {
                 event.metadata,
             ],
         )?;
-        Ok(self.conn.last_insert_rowid())
+        let event_id = self.conn.last_insert_rowid();
+
+        // Extract cost data if metadata contains token usage or cost info.
+        if let Some(ref metadata) = event.metadata {
+            let _ = crate::cost::extract_and_store_cost(
+                &self.conn,
+                event_id,
+                &event.timestamp,
+                &event.agent,
+                event.session_id.as_deref(),
+                metadata,
+            );
+        }
+
+        Ok(event_id)
+    }
+
+    /// Get a reference to the underlying connection (for cost queries).
+    pub fn conn(&self) -> &Connection {
+        &self.conn
     }
 
     /// Query events with optional filters, ordered by timestamp descending.
