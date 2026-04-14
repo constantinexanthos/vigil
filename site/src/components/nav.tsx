@@ -13,7 +13,7 @@ export function Nav() {
             alt="Vigil"
             width={28}
             height={28}
-            className="invert opacity-90"
+            className="opacity-90"
           />
           <span
             className="font-mono font-bold text-lg text-[#22d3ee] uppercase tracking-[0.12em]"
