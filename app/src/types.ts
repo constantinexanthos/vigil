@@ -17,6 +17,22 @@ export interface AgentStat {
   count: number;
 }
 
+export interface ConfidenceScore {
+  agent: string;
+  score: number;
+  file_count: number;
+  has_tests: boolean;
+  collision_count: number;
+}
+
+export interface StreamPayload {
+  events: AgentEvent[];
+  scores: ConfidenceScore[];
+  collisions: Collision[];
+  event_count: number;
+  active_agents: string[];
+}
+
 export const AGENT_COLORS: Record<string, string> = {
   "claude-code": "#00ff41",
   cursor: "#00d9ff",

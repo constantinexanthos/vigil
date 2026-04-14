@@ -11,6 +11,7 @@ export default function App() {
     events,
     collisions,
     agentStats,
+    confidenceScores,
     eventCount,
     connected,
     error,
@@ -43,6 +44,7 @@ export default function App() {
       <ActiveAgents
         agentStats={agentStats}
         collisions={collisions}
+        confidenceScores={confidenceScores}
         agentActivity={agentActivity}
         selectedAgent={selectedAgent}
         onSelectAgent={handleSelectAgent}

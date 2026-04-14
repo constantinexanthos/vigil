@@ -6,10 +6,17 @@ import type { Collision } from "../types";
 interface AgentOrbProps {
   agent: string;
   fileCount: number;
+  confidence?: number;
   activity: AgentActivity | undefined;
   collisions: Collision[];
   selected: boolean;
   onSelect: (agent: string) => void;
+}
+
+function confidenceColor(score: number): string {
+  if (score > 75) return "#00ff41";
+  if (score >= 50) return "#ffb800";
+  return "#ff3333";
 }
 
 function pulseSpeed(lastEventTime: number): string | null {
@@ -22,6 +29,7 @@ function pulseSpeed(lastEventTime: number): string | null {
 export default function AgentOrb({
   agent,
   fileCount,
+  confidence,
   activity,
   collisions,
   selected,
@@ -74,6 +82,11 @@ export default function AgentOrb({
 
       <div className="flex items-center justify-between text-[9px]">
         <span className="text-text-secondary">{fileCount} files</span>
+        {confidence !== undefined && (
+          <span className="font-semibold" style={{ color: confidenceColor(confidence) }}>
+            {confidence}
+          </span>
+        )}
       </div>
 
       {lastFile && (

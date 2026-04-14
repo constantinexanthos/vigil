@@ -1,4 +1,6 @@
-use crate::store::{default_db_path, AgentStatRow, CollisionRow, EventRow, Store};
+use crate::store::{
+    default_db_path, AgentStatRow, CollisionRow, ConfidenceScore, EventRow, Store,
+};
 
 fn open_store() -> Result<Store, String> {
     let path = default_db_path();
@@ -45,5 +47,13 @@ pub fn get_event_count() -> Result<i64, String> {
     let store = open_store()?;
     store
         .query_event_count()
+        .map_err(|e| format!("Query failed: {e}"))
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn get_confidence_scores() -> Result<Vec<ConfidenceScore>, String> {
+    let store = open_store()?;
+    store
+        .query_confidence_scores()
         .map_err(|e| format!("Query failed: {e}"))
 }

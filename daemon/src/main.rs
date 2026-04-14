@@ -4,6 +4,7 @@ mod git;
 mod hooks;
 mod process;
 mod store;
+pub mod trust;
 mod watcher;
 
 use clap::Parser;
