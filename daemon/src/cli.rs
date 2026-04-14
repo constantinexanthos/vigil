@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use chrono::{Duration, Utc};
+use chrono::{DateTime, Duration, Utc};
 use clap::{Parser, Subcommand};
 
 use crate::git::GitEventKind;
@@ -46,6 +46,18 @@ pub enum Command {
     },
     /// Register vigil hooks with coding agents and initialize config
     Init,
+    /// Show cost and token usage by agent and session
+    Cost {
+        /// Filter by agent name
+        #[arg(long)]
+        agent: Option<String>,
+        /// Time window (e.g. "1h", "24h", "7d"). Default: 24h
+        #[arg(long, default_value = "24h")]
+        since: String,
+        /// Show per-session breakdown
+        #[arg(long)]
+        sessions: bool,
+    },
 }
 
 fn vigil_db_path() -> PathBuf {
@@ -299,6 +311,146 @@ pub fn run_status() {
         for (path, agents) in &collisions {
             println!("  {} -- [{}]", path, agents.join(", "));
         }
+    }
+}
+
+pub fn run_cost(agent: Option<String>, since: String, sessions: bool) {
+    let db_path = vigil_db_path();
+    if !db_path.exists() {
+        println!("No vigil database found at {}", db_path.display());
+        println!("Run `vigil watch <dir>` first.");
+        return;
+    }
+
+    let store = Store::open(&db_path).expect("failed to open store");
+
+    // Backfill cost data from existing events that predate the cost table.
+    let backfilled = crate::cost::backfill_from_events(store.conn()).unwrap_or(0);
+    if backfilled > 0 {
+        eprintln!("vigil: backfilled {} cost records from existing events", backfilled);
+    }
+
+    let since_dt = parse_duration_ago(&since);
+
+    // Total cost.
+    let total = crate::cost::total_cost(store.conn(), &since_dt).unwrap_or(0.0);
+
+    println!("COST SUMMARY (last {})", since);
+    println!("{}", "-".repeat(50));
+    println!("  Total: ${:.4}", total);
+    println!();
+
+    // Per-agent breakdown.
+    let summaries = crate::cost::cost_by_agent(store.conn(), &since_dt).unwrap_or_default();
+    if summaries.is_empty() {
+        println!("  No cost data recorded. Ensure hooks are active:");
+        println!("    vigil init");
+        return;
+    }
+
+    const AGENT_W: usize = 15;
+    const TOKENS_W: usize = 12;
+    const COST_W: usize = 10;
+
+    println!(
+        "  {:<AGENT_W$}  {:>TOKENS_W$}  {:>TOKENS_W$}  {:>COST_W$}  EVENTS",
+        "AGENT", "INPUT", "OUTPUT", "COST",
+    );
+    println!("  {}", "-".repeat(AGENT_W + TOKENS_W * 2 + COST_W + 16));
+
+    for s in &summaries {
+        if agent.as_ref().is_some_and(|a| a != &s.agent) {
+            continue;
+        }
+        println!(
+            "  {:<AGENT_W$}  {:>TOKENS_W$}  {:>TOKENS_W$}  {:>COST_W$}  {}",
+            s.agent,
+            format_tokens(s.total_input_tokens),
+            format_tokens(s.total_output_tokens),
+            format!("${:.4}", s.total_cost_usd),
+            s.event_count,
+        );
+        if s.total_cache_read_tokens > 0 || s.total_cache_write_tokens > 0 {
+            println!(
+                "  {:<AGENT_W$}  cache: {} read, {} write",
+                "",
+                format_tokens(s.total_cache_read_tokens),
+                format_tokens(s.total_cache_write_tokens),
+            );
+        }
+    }
+
+    // Per-session breakdown.
+    if sessions {
+        println!();
+        println!("SESSIONS");
+        println!("{}", "-".repeat(50));
+
+        let session_costs = crate::cost::cost_by_session(
+            store.conn(),
+            &since_dt,
+            agent.as_deref(),
+        )
+        .unwrap_or_default();
+
+        if session_costs.is_empty() {
+            println!("  No session data.");
+        } else {
+            for sc in &session_costs {
+                let model = sc.model.as_deref().unwrap_or("unknown");
+                let duration = session_duration(&sc.first_seen, &sc.last_seen);
+                println!(
+                    "  {} ({})  {}  ${:.4}  {} events  {}",
+                    &sc.session_id[..8.min(sc.session_id.len())],
+                    sc.agent,
+                    model,
+                    sc.cost_usd,
+                    sc.event_count,
+                    duration,
+                );
+            }
+        }
+    }
+}
+
+fn parse_duration_ago(s: &str) -> DateTime<Utc> {
+    let s = s.trim();
+    let (num_str, unit) = s.split_at(s.len().saturating_sub(1));
+    let num: i64 = num_str.parse().unwrap_or(24);
+    let duration = match unit {
+        "m" => Duration::minutes(num),
+        "h" => Duration::hours(num),
+        "d" => Duration::days(num),
+        _ => Duration::hours(24),
+    };
+    Utc::now() - duration
+}
+
+fn format_tokens(n: u64) -> String {
+    if n >= 1_000_000 {
+        format!("{:.1}M", n as f64 / 1_000_000.0)
+    } else if n >= 1_000 {
+        format!("{:.1}K", n as f64 / 1_000.0)
+    } else {
+        n.to_string()
+    }
+}
+
+fn session_duration(first: &str, last: &str) -> String {
+    let first_dt = DateTime::parse_from_rfc3339(first).ok().map(|d| d.with_timezone(&Utc));
+    let last_dt = DateTime::parse_from_rfc3339(last).ok().map(|d| d.with_timezone(&Utc));
+    match (first_dt, last_dt) {
+        (Some(f), Some(l)) => {
+            let secs = (l - f).num_seconds();
+            if secs < 60 {
+                format!("{secs}s")
+            } else if secs < 3600 {
+                format!("{}m", secs / 60)
+            } else {
+                format!("{}h {}m", secs / 3600, (secs % 3600) / 60)
+            }
+        }
+        _ => "-".to_string(),
     }
 }
 
