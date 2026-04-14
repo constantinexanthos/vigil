@@ -1,14 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useCallback, useRef } from "react"
-
-interface Character {
-  char: string
-  x: number
-  y: number
-  speed: number
-}
+import { useState, useEffect, useRef } from "react"
 
 class TextScramble {
   el: HTMLElement
@@ -133,69 +126,8 @@ const ScrambledTitle: React.FC = () => {
   )
 }
 
-const RainingLetters: React.FC = () => {
-  const [characters, setCharacters] = useState<Character[]>([])
-  const [activeIndices, setActiveIndices] = useState<Set<number>>(new Set())
+const HeroSection: React.FC = () => {
   const [copied, setCopied] = useState(false)
-
-  const createCharacters = useCallback(() => {
-    const allChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;:,.<>?"
-    const charCount = 300
-    const newCharacters: Character[] = []
-
-    for (let i = 0; i < charCount; i++) {
-      newCharacters.push({
-        char: allChars[Math.floor(Math.random() * allChars.length)],
-        x: Math.random() * 100,
-        y: Math.random() * 100,
-        speed: 0.1 + Math.random() * 0.3,
-      })
-    }
-
-    return newCharacters
-  }, [])
-
-  useEffect(() => {
-    setCharacters(createCharacters())
-  }, [createCharacters])
-
-  useEffect(() => {
-    const updateActiveIndices = () => {
-      const newActiveIndices = new Set<number>()
-      const numActive = Math.floor(Math.random() * 3) + 3
-      for (let i = 0; i < numActive; i++) {
-        newActiveIndices.add(Math.floor(Math.random() * characters.length))
-      }
-      setActiveIndices(newActiveIndices)
-    }
-
-    const flickerInterval = setInterval(updateActiveIndices, 50)
-    return () => clearInterval(flickerInterval)
-  }, [characters.length])
-
-  useEffect(() => {
-    let animationFrameId: number
-
-    const updatePositions = () => {
-      setCharacters(prevChars =>
-        prevChars.map(char => ({
-          ...char,
-          y: char.y + char.speed,
-          ...(char.y >= 100 && {
-            y: -5,
-            x: Math.random() * 100,
-            char: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;:,.<>?"[
-              Math.floor(Math.random() * "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;:,.<>?".length)
-            ],
-          }),
-        }))
-      )
-      animationFrameId = requestAnimationFrame(updatePositions)
-    }
-
-    animationFrameId = requestAnimationFrame(updatePositions)
-    return () => cancelAnimationFrame(animationFrameId)
-  }, [])
 
   const handleCopy = () => {
     navigator.clipboard.writeText('brew install vigil')
@@ -204,7 +136,7 @@ const RainingLetters: React.FC = () => {
   }
 
   return (
-    <div className="relative w-full h-screen bg-[#07080a] overflow-hidden">
+    <div className="relative w-full h-screen overflow-hidden">
       {/* Grid background */}
       <div
         className="absolute inset-0 opacity-[0.04]"
@@ -226,24 +158,20 @@ const RainingLetters: React.FC = () => {
 
       {/* Center content */}
       <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-6">
-        {/* Label */}
         <span className="text-[#22d3ee] text-xs uppercase tracking-[0.15em] font-mono"
           style={{ textShadow: '0 0 10px rgba(34, 211, 238, 0.3)' }}
         >
           // the control panel for coding agents
         </span>
 
-        {/* Scrambled title */}
         <ScrambledTitle />
 
-        {/* Subtitle */}
         <p className="text-[#6b7084] text-center max-w-xl text-sm md:text-base font-sans leading-relaxed px-4">
           Your agents are writing code faster than you can review it. Vigil watches
           all of them &mdash; Claude Code, Cursor, Codex, Conductor, Aider &mdash;
           in one place. Local-first. Zero config. No cloud.
         </p>
 
-        {/* Install CTA */}
         <button
           onClick={handleCopy}
           className="mt-4 group relative font-mono text-sm border border-[#22d3ee]/30 bg-[#0d0f12] px-6 py-3 flex items-center gap-3 cursor-pointer transition-all hover:border-[#22d3ee]/60 hover:shadow-[0_0_20px_rgba(34,211,238,0.1)]"
@@ -258,33 +186,8 @@ const RainingLetters: React.FC = () => {
           </span>
         </button>
       </div>
-
-      {/* Raining Characters */}
-      {characters.map((char, index) => (
-        <span
-          key={index}
-          className="absolute text-xs"
-          style={{
-            left: `${char.x}%`,
-            top: `${char.y}%`,
-            transform: `translate(-50%, -50%) ${activeIndices.has(index) ? 'scale(1.25)' : 'scale(1)'}`,
-            color: activeIndices.has(index) ? '#22d3ee' : '#3d4150',
-            fontWeight: activeIndices.has(index) ? 700 : 300,
-            textShadow: activeIndices.has(index)
-              ? '0 0 8px rgba(34, 211, 238, 0.8), 0 0 12px rgba(34, 211, 238, 0.4)'
-              : 'none',
-            opacity: activeIndices.has(index) ? 1 : 0.4,
-            transition: 'color 0.1s, transform 0.1s, text-shadow 0.1s',
-            willChange: 'transform, top',
-            fontSize: '1.8rem',
-            fontFamily: 'var(--font-mono), monospace',
-          }}
-        >
-          {char.char}
-        </span>
-      ))}
     </div>
   )
 }
 
-export default RainingLetters
+export default HeroSection
