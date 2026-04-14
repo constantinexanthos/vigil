@@ -18,36 +18,23 @@ export function CLIReference() {
         </h3>
         <p className="text-[#6b7084] text-sm font-sans leading-relaxed mb-4">
           Start the Vigil daemon. It monitors filesystem events, detects running
-          AI agents, and records every action to the local SQLite store. Runs in
-          the foreground by default &mdash; use{" "}
-          <code className="text-[#22d3ee] text-xs bg-[#0a0a0a] px-1.5 py-0.5 border border-[#2a2e37]">
-            --daemon
-          </code>{" "}
-          to background it.
+          AI agents, and records every action to the local SQLite store.
         </p>
 
         <CodeBlock
           title="Usage"
-          output={`vigil watch [paths...] [options]
+          output={`vigil watch <paths...>
 
 Arguments:
-  [paths...]              Directories to watch (default: cwd)
-
-Options:
-  -d, --daemon            Run as background daemon
-  -c, --config <path>     Path to config file
-  --ignore <patterns>     Additional ignore patterns
-  --no-process-scan       Disable process detection
-  --verbose               Enable debug logging`}
+  <paths...>              Directories to watch (required)`}
         />
 
         <CodeBlock
-          command="vigil watch ~/projects ~/work --daemon"
+          command="vigil watch ~/projects"
           output={`[vigil] daemon started (pid 41822)
 [vigil] watching ~/projects (recursive)
-[vigil] watching ~/work (recursive)
 [vigil] process scanner active
-[vigil] ready — PID file: ~/.local/share/vigil/vigil.pid`}
+[vigil] ready`}
         />
       </section>
 
@@ -65,13 +52,7 @@ Options:
 
         <CodeBlock
           title="Usage"
-          output={`vigil status [options]
-
-Options:
-  --json                  Output as JSON
-  --watch                 Continuously refresh (like top)
-  --interval <secs>       Refresh interval for --watch (default: 2)
-  --no-color              Disable colored output`}
+          output={`vigil status`}
         />
 
         <CodeBlock
@@ -97,9 +78,8 @@ UPTIME  2h 07m    EVENTS  1,204    STORE  3.4 MB`}
           vigil log
         </h3>
         <p className="text-[#6b7084] text-sm font-sans leading-relaxed mb-4">
-          Query the event stream. Filter by agent, session, time range, file
-          path, or event flags. By default shows the most recent events across
-          all agents.
+          Query the event stream. Filter by agent or file path. By default shows
+          the most recent events across all agents.
         </p>
 
         <CodeBlock
@@ -108,14 +88,8 @@ UPTIME  2h 07m    EVENTS  1,204    STORE  3.4 MB`}
 
 Options:
   --agent <name>          Filter by agent name
-  --session <id>          Filter by session ID
-  --since <duration>      Events after duration (e.g., 1h, 30m, 7d)
-  --path <glob>           Filter by file path pattern
-  --flags <flags>         Filter by flags (collision, hallucination)
-  --fields <fields>       Additional columns (confidence, tokens)
-  --limit <n>             Max events to show (default: 20)
-  --json                  Output as JSON
-  -f, --follow            Stream new events in real time`}
+  --file <glob>           Filter by file path pattern
+  --limit <n>             Max events to show (default: 20)`}
         />
 
         <CodeBlock
@@ -144,13 +118,11 @@ Options:
 Options:
   --since <duration>      Time window (e.g., 24h, 7d, 30d)
   --agent <name>          Filter by agent name
-  --group-by <field>      Group by: agent, session, day (default: agent)
-  --json                  Output as JSON
-  --no-projections        Hide monthly projections`}
+  --sessions              Show per-session breakdown`}
         />
 
         <CodeBlock
-          command="vigil cost --since 7d --group-by day"
+          command="vigil cost --since 7d"
           output={`DATE          SESSIONS   TOKENS        ESTIMATED COST
 2025-01-15    8          1,842,300     $6.41
 2025-01-14    5          1,123,400     $3.92
@@ -166,42 +138,29 @@ DAILY AVG  $5.40     MONTHLY PROJ  $162.00`}
         />
       </section>
 
-      {/* vigil hook */}
-      <section id="vigil-hook" className="mb-16 scroll-mt-20">
+      {/* vigil init */}
+      <section id="vigil-init" className="mb-16 scroll-mt-20">
         <h3 className="text-xl font-bold text-[#e4e4e7] font-mono mb-4">
-          vigil hook
+          vigil init
         </h3>
         <p className="text-[#6b7084] text-sm font-sans leading-relaxed mb-4">
-          Manage deep integration hooks for supported agents. Currently supports
-          Claude Code&apos;s native hooks API. Hooks provide richer telemetry
-          than filesystem watching alone &mdash; prompt context, tool calls,
-          token counts, and model selection.
+          Register Claude Code hooks so Vigil can capture richer telemetry
+          &mdash; token counts, model selection, and tool calls &mdash; beyond
+          what filesystem watching alone provides.
         </p>
 
         <CodeBlock
           title="Usage"
-          output={`vigil hook <subcommand> [options]
-
-Subcommands:
-  init                    Install hooks for detected agents
-  status                  Show installed hooks and their state
-  remove                  Remove installed hooks
-
-Options:
-  --agent <name>          Target a specific agent (default: all)
-  --force                 Overwrite existing hooks
-  --dry-run               Show what would be installed`}
+          output={`vigil init`}
         />
 
         <CodeBlock
-          command="vigil hook init"
-          output={`[vigil] scanning for supported agents...
-[vigil] found: claude-code
-[vigil] installed hooks:
-  ~/.claude/hooks/pre-tool-use.sh   → vigil event capture
-  ~/.claude/hooks/post-tool-use.sh  → vigil result capture
-  ~/.claude/hooks/on-error.sh       → vigil error tracking
-[vigil] hooks active — claude-code integration: deep`}
+          command="vigil init"
+          output={`[vigil] registering Claude Code hooks...
+[vigil] hook registered: PreToolUse
+[vigil] hook registered: PostToolUse
+[vigil] hook registered: Stop
+[vigil] hooks active`}
         />
       </section>
     </>

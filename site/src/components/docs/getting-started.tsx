@@ -117,48 +117,15 @@ UPTIME  1h 12m    EVENTS  847    STORE  2.1 MB`}
           Configuration
         </h3>
         <p className="text-[#6b7084] text-sm font-sans leading-relaxed mb-4">
-          Vigil works with zero configuration. The daemon uses sensible defaults
-          &mdash; watch the current directory, detect all known agents, alert on
-          collisions within a 30&ndash;second window.
-        </p>
-        <p className="text-[#6b7084] text-sm font-sans leading-relaxed mb-4">
-          For advanced tuning, create an optional config file at{" "}
+          Vigil works with zero configuration &mdash; no config files needed.
+          All options are passed as CLI flags to{" "}
           <code className="text-[#22d3ee] text-xs bg-[#0a0a0a] px-1.5 py-0.5 border border-[#2a2e37]">
-            ~/.config/vigil/config.toml
+            vigil watch
           </code>
-          :
+          .
         </p>
-
-        <CodeBlock
-          title="~/.config/vigil/config.toml"
-          output={`# Directories to watch (default: current directory)
-watch_paths = [
-  "~/projects",
-  "~/work",
-]
-
-# Patterns to ignore
-ignore_patterns = [
-  "node_modules",
-  ".git/objects",
-  "target",
-  "dist",
-  "*.lock",
-]
-
-# Seconds within which overlapping edits count as a collision
-collision_window = 30
-
-# Desktop notifications for collisions
-[notifications]
-enabled = true
-sound = false`}
-        />
-
         <p className="text-[#6b7084] text-sm font-sans leading-relaxed mb-4">
-          All fields are optional. Any value you omit falls back to the built&ndash;in
-          default. The daemon picks up config changes automatically &mdash; no
-          restart required.
+          A config file format is planned for a future release.
         </p>
       </section>
     </>

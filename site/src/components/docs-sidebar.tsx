@@ -36,7 +36,7 @@ const sections: SidebarSection[] = [
       { id: "vigil-status", title: "vigil status" },
       { id: "vigil-log", title: "vigil log" },
       { id: "vigil-cost", title: "vigil cost" },
-      { id: "vigil-hook", title: "vigil hook" },
+      { id: "vigil-init", title: "vigil init" },
     ],
   },
   {

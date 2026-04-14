@@ -85,14 +85,14 @@ export function ArchitectureDocs() {
         <p className="text-[#6b7084] text-sm font-sans leading-relaxed mb-4">
           All data lives in a single SQLite database at{" "}
           <code className="text-[#22d3ee] text-xs bg-[#0a0a0a] px-1.5 py-0.5 border border-[#2a2e37]">
-            ~/.local/share/vigil/vigil.db
+            ~/.vigil/vigil.db
           </code>
           . No cloud, no network calls, no external dependencies. Both the CLI
           and the menu bar app query this file directly.
         </p>
 
         <p className="text-[#6b7084] text-sm font-sans leading-relaxed mb-4">
-          The schema centers on three core tables:
+          The schema centers on two core tables:
         </p>
 
         <div className="flex flex-col gap-[2px] mb-6">
@@ -102,7 +102,7 @@ export function ArchitectureDocs() {
                 className="text-[#22d3ee] font-mono font-bold text-xs"
                 style={{ textShadow: "0 0 6px rgba(34, 211, 238, 0.3)" }}
               >
-                agent_events
+                events
               </span>
               <span className="text-[#6b7084] text-xs font-mono">
                 primary event stream
@@ -110,10 +110,9 @@ export function ArchitectureDocs() {
             </div>
             <p className="text-[#6b7084] text-sm font-sans leading-relaxed">
               Every file operation &mdash; reads, writes, creates, deletes &mdash;
-              with sub&ndash;millisecond timestamps, agent attribution, session
-              ID, file path, diff stats, and optional metadata from L2 hooks.
-              This table grows the fastest and is the source of truth for
-              everything else.
+              with timestamps, agent attribution, session ID, file path, and
+              optional metadata from L2 hooks. This table grows the fastest and
+              is the source of truth for everything else.
             </p>
           </div>
 
@@ -123,46 +122,23 @@ export function ArchitectureDocs() {
                 className="text-[#22d3ee] font-mono font-bold text-xs"
                 style={{ textShadow: "0 0 6px rgba(34, 211, 238, 0.3)" }}
               >
-                sessions
+                cost_events
               </span>
               <span className="text-[#6b7084] text-xs font-mono">
-                agent session lifecycle
+                token usage and cost tracking
               </span>
             </div>
             <p className="text-[#6b7084] text-sm font-sans leading-relaxed">
-              Tracks agent session boundaries &mdash; start time, end time,
-              agent name, PID, total files touched, token counts (when
-              available), confidence score, and cost estimate. Sessions are
-              created when an agent is first detected and closed when it exits
-              or goes idle.
-            </p>
-          </div>
-
-          <div className="bg-[#0d0f12] border border-[#2a2e37] p-5">
-            <div className="flex items-center gap-3 mb-2">
-              <span
-                className="text-[#22d3ee] font-mono font-bold text-xs"
-                style={{ textShadow: "0 0 6px rgba(34, 211, 238, 0.3)" }}
-              >
-                collisions
-              </span>
-              <span className="text-[#6b7084] text-xs font-mono">
-                overlapping agent writes
-              </span>
-            </div>
-            <p className="text-[#6b7084] text-sm font-sans leading-relaxed">
-              Records every detected collision &mdash; the two sessions
-              involved, the file path, timestamps of the overlapping writes,
-              the time window, and the risk level. Resolved collisions are kept
-              for historical analysis.
+              Records token usage and estimated costs per agent session. Populated
+              by L2 hooks that capture model, token counts, and pricing data from
+              supported agents.
             </p>
           </div>
         </div>
 
         <CodeBlock
-          command="sqlite3 ~/.local/share/vigil/vigil.db '.tables'"
-          output={`agent_events   collisions     config         migrations
-sessions       snapshots      hooks_state`}
+          command="sqlite3 ~/.vigil/vigil.db '.tables'"
+          output={`cost_events  events`}
         />
       </section>
 
@@ -227,7 +203,7 @@ sessions       snapshots      hooks_state`}
         <CodeBlock
           command="vigil app --version"
           output={`vigil-app 0.4.1 (tauri 2.1.0, react 19.0.0)
-backend: ~/.local/share/vigil/vigil.db
+backend: ~/.vigil/vigil.db
 theme: dark`}
         />
       </section>
