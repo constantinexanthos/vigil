@@ -12,6 +12,7 @@
     "tauri:build": "tauri build"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.2.8",
     "@tauri-apps/api": "^2.0.0",
     "prismjs": "^1.29.0",
     "react": "^19.0.0",

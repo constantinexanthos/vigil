@@ -12,32 +12,31 @@ export default function CollisionBanner({ collisions }: CollisionBannerProps) {
 
   return (
     <div
-      className="mx-4 my-2 rounded-lg bg-elevated px-3 py-2 overflow-hidden"
-      style={{
-        borderLeft: "3px solid #ff3333",
-        animation: "slide-down 0.3s ease-out, collision-pulse 1.5s ease-in-out infinite",
-      }}
+      className="mx-5 my-2 rounded-lg bg-surface px-4 py-2.5 w-auto"
+      style={{ borderLeft: "3px solid #fbbf24" }}
     >
-      <div className="flex items-center gap-2 text-[10px]">
-        <span className="text-danger font-semibold">COLLISION</span>
-        <span className="text-text-secondary truncate">{truncatePath(first.file_path)}</span>
+      <div className="flex items-center gap-2 text-[11px]">
+        <span className="text-amber font-medium">Conflict</span>
+        <span className="text-text-secondary truncate font-mono text-[10px]">
+          {truncatePath(first.file_path)}
+        </span>
         {collisions.length > 1 && (
           <span className="text-text-muted ml-auto flex-shrink-0">
             +{collisions.length - 1} more
           </span>
         )}
       </div>
-      <div className="flex gap-1.5 mt-1">
+      <div className="flex gap-1.5 mt-1.5">
         {first.agents.map((agent) => {
           const color = agentColor(agent);
           return (
             <span
               key={agent}
-              className="text-[9px] px-1.5 py-0.5 rounded"
+              className="text-[10px] px-1.5 py-0.5 rounded"
               style={{
                 color,
-                backgroundColor: color + "15",
-                border: `1px solid ${color}30`,
+                backgroundColor: color + "10",
+                border: `1px solid ${color}20`,
               }}
             >
               {agentDisplayName(agent)}

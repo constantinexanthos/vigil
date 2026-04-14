@@ -27,7 +27,7 @@ export default function App() {
 
   if (error && !connected) {
     return (
-      <div className="h-screen bg-bg flex flex-col font-mono">
+      <div className="h-screen w-full bg-bg flex flex-col font-sans">
         <Header eventCount={0} connected={false} agentCount={0} totalCostUsd={0} />
         <ErrorState />
       </div>
@@ -35,7 +35,7 @@ export default function App() {
   }
 
   return (
-    <div className="h-screen bg-bg flex flex-col font-mono">
+    <div className="h-screen w-full bg-bg flex flex-col font-sans">
       <Header
         eventCount={eventCount}
         connected={connected}

@@ -1,4 +1,4 @@
-import AgentOrb from "./AgentOrb";
+import AgentCard from "./AgentCard";
 import type { AgentStat, Collision, CostAgentSummary } from "../types";
 import type { AgentActivity } from "../hooks";
 
@@ -21,11 +21,9 @@ export default function ActiveAgents({
 }: ActiveAgentsProps) {
   if (agentStats.length === 0) {
     return (
-      <div className="px-4 py-3 border-b border-border">
-        <p className="text-[10px] text-text-muted uppercase tracking-widest mb-2">
-          ACTIVE AGENTS
-        </p>
-        <p className="text-xs text-text-secondary">No agents detected</p>
+      <div className="px-5 py-4 border-b border-border w-full">
+        <p className="text-xs text-text-muted uppercase tracking-wider mb-2">Agents</p>
+        <p className="text-sm text-text-secondary">No agents detected</p>
       </div>
     );
   }
@@ -33,11 +31,11 @@ export default function ActiveAgents({
   const costMap = new Map(agentCosts.map((c) => [c.agent, c.total_cost_usd]));
 
   return (
-    <div className="px-4 py-3 border-b border-border">
-      <p className="text-[10px] text-text-muted uppercase tracking-widest mb-2">ACTIVE AGENTS</p>
-      <div className="flex gap-2 overflow-x-auto pb-1">
+    <div className="px-5 py-4 border-b border-border w-full">
+      <p className="text-xs text-text-muted uppercase tracking-wider mb-3">Agents</p>
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-2 w-full">
         {agentStats.map((stat) => (
-          <AgentOrb
+          <AgentCard
             key={stat.agent}
             agent={stat.agent}
             fileCount={stat.count}
