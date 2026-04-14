@@ -6,7 +6,7 @@ use clap::{Parser, Subcommand};
 
 use crate::git::GitEventKind;
 use crate::hooks::claude;
-use crate::process::ProcessScanner;
+use crate::process::{Agent, ProcessScanner};
 use crate::store::{AgentEvent, EventKind, EventQuery, Store};
 use crate::watcher::FsEventKind;
 
@@ -181,6 +181,7 @@ pub async fn run_watch(dirs: Vec<PathBuf>) {
 
     // Git event consumer.
     let git_db = Arc::clone(&db);
+    let git_scanner = Arc::clone(&scanner);
     tokio::spawn(async move {
         while let Some(git_event) = git_rx.recv().await {
             let (kind, file_path, branch, diff) = match &git_event.kind {
@@ -222,12 +223,24 @@ pub async fn run_watch(dirs: Vec<PathBuf>) {
                 }
             };
 
+            let agent = {
+                let s = git_scanner.lock().unwrap();
+                let active = s.active_agents();
+                if active.len() == 1 {
+                    active[0].1
+                } else if active.is_empty() {
+                    Agent::Unknown
+                } else {
+                    active[0].1
+                }
+            };
+
             let agent_event = AgentEvent {
                 id: None,
                 timestamp: git_event.timestamp,
                 kind,
                 file_path,
-                agent: "unknown-agent".to_string(),
+                agent: agent.as_str().to_string(),
                 session_id: None,
                 repo_path: Some(git_event.repo_path.to_string_lossy().to_string()),
                 branch,
@@ -246,7 +259,16 @@ pub async fn run_watch(dirs: Vec<PathBuf>) {
     while let Some(fs_event) = fs_rx.recv().await {
         let agent = {
             let s = scanner.lock().unwrap();
-            s.identify_agent(0)
+            let active = s.active_agents();
+            if active.len() == 1 {
+                active[0].1
+            } else if active.is_empty() {
+                Agent::Unknown
+            } else {
+                // Multiple agents running -- pick the first known one.
+                // TODO: improve heuristic by matching agent working directory to file path.
+                active[0].1
+            }
         };
 
         let agent_event = AgentEvent {
