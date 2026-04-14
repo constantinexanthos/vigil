@@ -1,9 +1,13 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
+import Switch from "@/components/ui/sky-toggle"
 
 export function Nav() {
+  const [darkMode, setDarkMode] = useState(true)
+
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 border-b border-[#1a1d23] bg-[rgba(7,8,10,0.88)] backdrop-blur-md">
       <div className="mx-auto max-w-6xl px-3 py-3 flex justify-between items-center">
@@ -25,7 +29,7 @@ export function Nav() {
             vigil<span className="animate-pulse">_</span>
           </span>
         </Link>
-        <div className="flex gap-6 font-mono text-xs">
+        <div className="flex items-center gap-6 font-mono text-xs">
           <Link
             href="/#features"
             className="text-[#6b7084] uppercase tracking-[0.08em] transition-colors hover:text-[#22d3ee]"
@@ -64,6 +68,7 @@ export function Nav() {
           >
             GitHub
           </a>
+          <Switch checked={darkMode} onChange={setDarkMode} />
         </div>
       </div>
     </nav>
