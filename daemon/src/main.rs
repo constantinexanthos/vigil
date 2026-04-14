@@ -3,6 +3,7 @@ mod cost;
 mod git;
 mod hooks;
 mod process;
+mod rollback;
 mod store;
 mod watcher;
 
@@ -20,5 +21,7 @@ async fn main() {
         Command::Hook { provider } => cli::run_hook(&provider),
         Command::Init => cli::run_init(),
         Command::Cost { agent, since, sessions } => cli::run_cost(agent, since, sessions),
+        Command::Sessions { agent, since } => cli::run_sessions(agent, since),
+        Command::Rollback { session_id, reject_all, dry_run } => cli::run_rollback(&session_id, reject_all, dry_run),
     }
 }

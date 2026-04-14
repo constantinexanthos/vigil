@@ -46,6 +46,26 @@ pub enum Command {
     },
     /// Register vigil hooks with coding agents and initialize config
     Init,
+    /// List detected agent sessions
+    Sessions {
+        /// Filter by agent name
+        #[arg(long)]
+        agent: Option<String>,
+        /// Time window (e.g. "1h", "24h", "7d"). Default: 24h
+        #[arg(long, default_value = "24h")]
+        since: String,
+    },
+    /// Interactively accept/reject file changes from an agent session
+    Rollback {
+        /// Session ID to rollback (from `vigil sessions`)
+        session_id: String,
+        /// Reject all files without prompting
+        #[arg(long)]
+        reject_all: bool,
+        /// Show what would be rolled back without doing it
+        #[arg(long)]
+        dry_run: bool,
+    },
     /// Show cost and token usage by agent and session
     Cost {
         /// Filter by agent name
@@ -451,6 +471,102 @@ fn session_duration(first: &str, last: &str) -> String {
             }
         }
         _ => "-".to_string(),
+    }
+}
+
+pub fn run_sessions(agent: Option<String>, since: String) {
+    let db_path = vigil_db_path();
+    if !db_path.exists() {
+        println!("No vigil database found at {}", db_path.display());
+        println!("Run `vigil watch <dir>` first.");
+        return;
+    }
+
+    let store = Store::open(&db_path).expect("failed to open store");
+    let since_dt = parse_duration_ago(&since);
+
+    let sessions = crate::rollback::get_sessions(store.conn(), &since_dt, agent.as_deref())
+        .unwrap_or_default();
+
+    if sessions.is_empty() {
+        println!("No sessions found in the last {since}.");
+        return;
+    }
+
+    const ID_W: usize = 8;
+    const AGENT_W: usize = 15;
+    const TIME_W: usize = 19;
+    const FILES_W: usize = 6;
+
+    println!(
+        "{:<ID_W$}  {:<AGENT_W$}  {:<TIME_W$}  {:<TIME_W$}  {:>FILES_W$}  EVENTS",
+        "ID", "AGENT", "START", "END", "FILES",
+    );
+    println!("{}", "-".repeat(ID_W + AGENT_W + TIME_W * 2 + FILES_W + 20));
+
+    for s in &sessions {
+        println!(
+            "{:<ID_W$}  {:<AGENT_W$}  {:<TIME_W$}  {:<TIME_W$}  {:>FILES_W$}  {}",
+            s.id,
+            s.agent,
+            s.start_time.format("%Y-%m-%d %H:%M:%S"),
+            s.end_time.format("%Y-%m-%d %H:%M:%S"),
+            s.file_count,
+            s.event_count,
+        );
+    }
+}
+
+pub fn run_rollback(session_id: &str, reject_all: bool, dry_run: bool) {
+    let db_path = vigil_db_path();
+    if !db_path.exists() {
+        println!("No vigil database found at {}", db_path.display());
+        println!("Run `vigil watch <dir>` first.");
+        return;
+    }
+
+    let store = Store::open(&db_path).expect("failed to open store");
+    let since = Utc::now() - Duration::days(7); // Look back 7 days for sessions.
+
+    let sessions = crate::rollback::get_sessions(store.conn(), &since, None)
+        .unwrap_or_default();
+
+    let session = match sessions.iter().find(|s| s.id == session_id) {
+        Some(s) => s,
+        None => {
+            println!("Session '{session_id}' not found. Run `vigil sessions` to list.");
+            return;
+        }
+    };
+
+    println!(
+        "Session: {} ({})  {} files  {} events",
+        session.id, session.agent, session.file_count, session.event_count,
+    );
+    println!(
+        "  {} to {}",
+        session.start_time.format("%Y-%m-%d %H:%M:%S"),
+        session.end_time.format("%Y-%m-%d %H:%M:%S"),
+    );
+    if dry_run {
+        println!("  (dry run — no changes will be made)");
+    }
+    println!();
+
+    let result = crate::rollback::interactive_rollback(session, dry_run, reject_all);
+
+    println!();
+    println!("SUMMARY");
+    println!("{}", "-".repeat(40));
+    println!(
+        "  Accepted {} files, rejected {} files, skipped {} files",
+        result.accepted, result.rejected, result.skipped,
+    );
+    if !result.errors.is_empty() {
+        println!("  Errors:");
+        for e in &result.errors {
+            println!("    {e}");
+        }
     }
 }
 
