@@ -18,9 +18,11 @@
     "windows": [
       {
         "title": "Vigil",
-        "width": 420,
-        "height": 600,
-        "resizable": false,
+        "width": 800,
+        "height": 700,
+        "minWidth": 420,
+        "minHeight": 500,
+        "resizable": true,
         "decorations": true,
         "transparent": false,
         "visible": true
