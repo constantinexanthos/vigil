@@ -242,6 +242,73 @@ impl Store {
         rows.collect()
     }
 
+    /// Re-attribute "unknown-agent" events by looking at neighboring events.
+    /// Returns a vec of (event_id, new_agent) pairs that were (or would be) updated.
+    pub fn reattribute_unknown(&self, dry_run: bool) -> Result<Vec<(i64, String)>> {
+        // Find all unknown-agent events.
+        let mut unknown_stmt = self.conn.prepare(
+            "SELECT id, timestamp, file_path FROM events WHERE agent = 'unknown-agent'",
+        )?;
+        let unknowns: Vec<(i64, String, Option<String>)> = unknown_stmt
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        let mut results = Vec::new();
+
+        for (event_id, ts_str, file_path) in &unknowns {
+            // Find non-unknown agents within 30 seconds of this event.
+            let mut neighbor_stmt = self.conn.prepare(
+                "SELECT DISTINCT agent, file_path FROM events
+                 WHERE agent != 'unknown-agent'
+                   AND ABS(julianday(timestamp) - julianday(?1)) * 86400 <= 30",
+            )?;
+            let neighbors: Vec<(String, Option<String>)> = neighbor_stmt
+                .query_map(params![ts_str], |row| Ok((row.get(0)?, row.get(1)?)))?
+                .filter_map(|r| r.ok())
+                .collect();
+
+            if neighbors.is_empty() {
+                continue;
+            }
+
+            let distinct_agents: Vec<&str> = {
+                let mut agents: Vec<&str> = neighbors.iter().map(|(a, _)| a.as_str()).collect();
+                agents.sort();
+                agents.dedup();
+                agents
+            };
+
+            let new_agent = if distinct_agents.len() == 1 {
+                // Unambiguous — only one agent nearby.
+                distinct_agents[0].to_string()
+            } else if let Some(fp) = file_path {
+                // Multiple agents — prefer one that touched the same file.
+                let same_file_agent = neighbors
+                    .iter()
+                    .find(|(_, nfp)| nfp.as_deref() == Some(fp.as_str()))
+                    .map(|(a, _)| a.clone());
+                match same_file_agent {
+                    Some(a) => a,
+                    None => continue, // Ambiguous, skip.
+                }
+            } else {
+                continue; // Multiple agents, no file to disambiguate.
+            };
+
+            results.push((event_id.to_owned(), new_agent.clone()));
+
+            if !dry_run {
+                self.conn.execute(
+                    "UPDATE events SET agent = ?1 WHERE id = ?2",
+                    params![new_agent, event_id],
+                )?;
+            }
+        }
+
+        Ok(results)
+    }
+
     /// Get the database file path (None for in-memory databases).
     pub fn db_path(&self) -> Option<PathBuf> {
         self.conn
@@ -355,5 +422,90 @@ mod tests {
         };
         let results = store.query(&q).unwrap();
         assert_eq!(results.len(), 3);
+    }
+
+    fn event_at(agent: &str, file: &str, ts: DateTime<Utc>) -> AgentEvent {
+        AgentEvent {
+            id: None,
+            timestamp: ts,
+            kind: EventKind::FileModify,
+            file_path: Some(file.to_string()),
+            agent: agent.to_string(),
+            session_id: None,
+            repo_path: None,
+            branch: None,
+            diff: None,
+            metadata: None,
+        }
+    }
+
+    #[test]
+    fn reattribute_single_neighbor() {
+        let store = Store::open_in_memory().unwrap();
+        let now = Utc::now();
+        // A claude-code event and an unknown event 5 seconds later on same file.
+        store.insert(&event_at("claude-code", "a.rs", now)).unwrap();
+        store.insert(&event_at("unknown-agent", "a.rs", now + Duration::seconds(5))).unwrap();
+
+        let results = store.reattribute_unknown(false).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].1, "claude-code");
+
+        // Verify the DB was updated.
+        let q = EventQuery { agent: Some("unknown-agent".to_string()), ..Default::default() };
+        assert_eq!(store.query(&q).unwrap().len(), 0);
+    }
+
+    #[test]
+    fn reattribute_dry_run_no_mutation() {
+        let store = Store::open_in_memory().unwrap();
+        let now = Utc::now();
+        store.insert(&event_at("cursor", "b.rs", now)).unwrap();
+        store.insert(&event_at("unknown-agent", "b.rs", now + Duration::seconds(10))).unwrap();
+
+        let results = store.reattribute_unknown(true).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].1, "cursor");
+
+        // DB should NOT be updated.
+        let q = EventQuery { agent: Some("unknown-agent".to_string()), ..Default::default() };
+        assert_eq!(store.query(&q).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn reattribute_no_neighbors_stays_unknown() {
+        let store = Store::open_in_memory().unwrap();
+        let now = Utc::now();
+        // An unknown event with no neighbors at all.
+        store.insert(&event_at("unknown-agent", "c.rs", now)).unwrap();
+
+        let results = store.reattribute_unknown(false).unwrap();
+        assert_eq!(results.len(), 0);
+    }
+
+    #[test]
+    fn reattribute_ambiguous_prefers_same_file() {
+        let store = Store::open_in_memory().unwrap();
+        let now = Utc::now();
+        // Two agents nearby, but only cursor touched the same file.
+        store.insert(&event_at("claude-code", "other.rs", now)).unwrap();
+        store.insert(&event_at("cursor", "target.rs", now + Duration::seconds(2))).unwrap();
+        store.insert(&event_at("unknown-agent", "target.rs", now + Duration::seconds(5))).unwrap();
+
+        let results = store.reattribute_unknown(false).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].1, "cursor");
+    }
+
+    #[test]
+    fn reattribute_too_far_away_ignored() {
+        let store = Store::open_in_memory().unwrap();
+        let now = Utc::now();
+        // Neighbor is 60 seconds away — beyond the 30-second window.
+        store.insert(&event_at("claude-code", "a.rs", now)).unwrap();
+        store.insert(&event_at("unknown-agent", "a.rs", now + Duration::seconds(60))).unwrap();
+
+        let results = store.reattribute_unknown(false).unwrap();
+        assert_eq!(results.len(), 0);
     }
 }

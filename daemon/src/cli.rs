@@ -66,6 +66,12 @@ pub enum Command {
         #[arg(long)]
         dry_run: bool,
     },
+    /// Re-attribute "unknown-agent" events using neighboring event context
+    Reattribute {
+        /// Show what would change without modifying the database
+        #[arg(long)]
+        dry_run: bool,
+    },
     /// Show cost and token usage by agent and session
     Cost {
         /// Filter by agent name
@@ -295,6 +301,57 @@ pub fn run_init() {
     }
 
     println!("vigil init complete");
+}
+
+pub fn run_reattribute(dry_run: bool) {
+    let db_path = vigil_db_path();
+    if !db_path.exists() {
+        println!("No vigil database found at {}", db_path.display());
+        println!("Run `vigil watch <dir>` first.");
+        return;
+    }
+
+    let store = Store::open(&db_path).expect("failed to open store");
+
+    if dry_run {
+        println!("DRY RUN — no changes will be made");
+        println!();
+    }
+
+    let results = store.reattribute_unknown(dry_run).unwrap_or_default();
+
+    if results.is_empty() {
+        println!("No unknown-agent events could be re-attributed.");
+        return;
+    }
+
+    // Count per agent.
+    let mut counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    for (_, agent) in &results {
+        *counts.entry(agent.clone()).or_default() += 1;
+    }
+
+    let verb = if dry_run { "Would re-attribute" } else { "Re-attributed" };
+    let breakdown: Vec<String> = counts
+        .iter()
+        .map(|(agent, count)| format!("{count} to {agent}"))
+        .collect();
+
+    println!("{} {} events ({})", verb, results.len(), breakdown.join(", "));
+
+    // Count remaining unknowns.
+    let remaining: i64 = store
+        .conn()
+        .query_row(
+            "SELECT COUNT(*) FROM events WHERE agent = 'unknown-agent'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+
+    if remaining > 0 {
+        println!("{remaining} events remain as unknown-agent.");
+    }
 }
 
 pub fn run_status() {
