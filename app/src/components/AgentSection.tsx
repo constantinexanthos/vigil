@@ -1,87 +1,68 @@
 import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import AgentLogo from "./AgentLogo";
 import SessionCard from "./SessionCard";
-import { formatCost, relativeTime } from "../types";
-import type { AgentGroup, Collision } from "../types";
+import { agentDisplayName, formatCost } from "../types";
+import type { SessionGroup, Collision } from "../types";
 
-interface AgentSectionProps {
-  group: AgentGroup;
-  newSessionIds: Set<string>;
+interface Props {
+  agent: string;
+  sessions: SessionGroup[];
+  totalCost: number;
   collisions: Collision[];
+  newSessionIds: Set<string>;
 }
 
-export default function AgentSection({ group, newSessionIds, collisions }: AgentSectionProps) {
+const spring = { type: "spring" as const, stiffness: 400, damping: 30 };
+
+export default function AgentSection({ agent, sessions, totalCost, collisions: _collisions, newSessionIds }: Props) {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <div style={{ marginBottom: "8px" }}>
+    <motion.div className="mb-3" layout transition={spring}>
       {/* Agent header */}
       <div
+        className="flex items-center justify-between px-3 py-2.5 rounded-md cursor-pointer hover:shadow-card transition-shadow"
         onClick={() => setCollapsed(!collapsed)}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "12px 20px",
-          cursor: "pointer",
-          background: "#151518",
-          borderBottom: "1px solid #232530",
-          userSelect: "none",
-        }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <AgentLogo agent={group.agent} />
-          <span style={{ fontSize: "14px", fontWeight: 500, color: "#fafafa" }}>
-            {group.displayName}
-          </span>
-          {group.isActive && (
-            <span style={{
-              width: "6px",
-              height: "6px",
-              borderRadius: "50%",
-              background: "#4ade80",
-              display: "inline-block",
-              animation: "pulse-dot 2s ease-in-out infinite",
-            }} />
-          )}
-          {!group.isActive && (
-            <span style={{ fontSize: "11px", color: "#52525b" }}>idle</span>
-          )}
+        <div className="flex items-center gap-2.5">
+          <AgentLogo agent={agent} />
+          <span className="text-lg font-medium text-text-primary">{agentDisplayName(agent)}</span>
+          <span className="text-sm text-text-muted">{sessions.length} session{sessions.length !== 1 ? "s" : ""}</span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <span style={{ fontSize: "12px", color: "#71717a" }}>
-            {group.sessions.length} session{group.sessions.length !== 1 ? "s" : ""}
-          </span>
-          {group.totalCost > 0 && (
-            <span style={{ fontSize: "12px", color: "#71717a" }}>
-              {formatCost(group.totalCost)}
-            </span>
+        <div className="flex items-center gap-2">
+          {totalCost > 0 && (
+            <span className="text-xs text-text-muted bg-bg-secondary px-2 py-0.5 rounded-sm">{formatCost(totalCost)}</span>
           )}
-          <span style={{ fontSize: "11px", color: "#52525b" }}>
-            {collapsed ? "▸" : "▾"}
-          </span>
+          <motion.span
+            className="text-text-muted text-xs"
+            animate={{ rotate: collapsed ? -90 : 0 }}
+            transition={{ duration: 0.15 }}
+          >
+            ▾
+          </motion.span>
         </div>
       </div>
 
-      {/* Sessions */}
-      {!collapsed && (
-        <div>
-          {group.sessions.map((session) => (
-            <SessionCard
-              key={session.id}
-              session={session}
-              isNew={newSessionIds.has(session.id)}
-            />
-          ))}
-        </div>
-      )}
-
-      <style>{`
-        @keyframes pulse-dot {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.4; }
-        }
-      `}</style>
-    </div>
+      <AnimatePresence initial={false}>
+        {!collapsed && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="overflow-hidden"
+          >
+            {sessions.map((session) => (
+              <SessionCard
+                key={session.id}
+                session={session}
+                isNew={newSessionIds.has(session.id)}
+              />
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 }
