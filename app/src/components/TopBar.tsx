@@ -18,7 +18,7 @@ export default function TopBar({
   hasNewEvents,
 }: TopBarProps) {
   return (
-    <div className="sticky top-0 z-50 flex items-center justify-between px-5 py-3 border-b border-border bg-bg">
+    <div className="sticky top-0 z-50 flex items-center justify-between pl-[78px] pr-5 py-3 border-b border-border frosted-header titlebar-drag">
       <div className="flex items-center gap-2">
         <img
           src="/logo.png"
@@ -45,7 +45,7 @@ export default function TopBar({
           title={connected ? "Connected" : "Disconnected"}
         />
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 titlebar-no-drag">
         <select
           value={agentFilter}
           onChange={(e) => onAgentFilterChange(e.target.value)}

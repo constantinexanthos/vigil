@@ -3,6 +3,12 @@ use crate::store::{
     WorkspaceSummaryRow, LiveSummaryRow,
 };
 
+pub fn try_open_store() -> Option<Store> {
+    let path = default_db_path();
+    if !path.exists() { return None; }
+    Store::open(&path).ok()
+}
+
 fn open_store() -> Result<Store, String> {
     let path = default_db_path();
     if !path.exists() {

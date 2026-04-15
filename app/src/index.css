@@ -10,9 +10,23 @@
 
 body {
   font-family: "Inter", system-ui, sans-serif;
-  background: #111113;
+  background: rgba(17, 17, 19, 0.85);
   color: #d4d4d8;
   -webkit-font-smoothing: antialiased;
+}
+
+.titlebar-drag {
+  -webkit-app-region: drag;
+}
+
+.titlebar-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+.frosted-header {
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background: rgba(17, 17, 19, 0.7);
 }
 
 ::-webkit-scrollbar {
