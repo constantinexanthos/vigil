@@ -176,6 +176,14 @@ export interface ProjectGroup {
   sessions: SessionGroup[];
 }
 
+export interface AgentGroup {
+  agent: string;
+  displayName: string;
+  isActive: boolean;
+  sessions: SessionGroup[];
+  totalCost: number;
+}
+
 function parseDiffCounts(diff: string): { added: number; removed: number } {
   let added = 0;
   let removed = 0;
@@ -377,4 +385,60 @@ export function groupEventsIntoSessions(
   });
 
   return projects;
+}
+
+export function groupSessionsByAgent(
+  projects: ProjectGroup[],
+  events: AgentEvent[],
+  costSummary: CostSummary,
+): AgentGroup[] {
+  const allSessions = projects.flatMap((p) => p.sessions);
+
+  // Group sessions by agent
+  const agentMap = new Map<string, SessionGroup[]>();
+  for (const session of allSessions) {
+    const list = agentMap.get(session.agent) ?? [];
+    list.push(session);
+    agentMap.set(session.agent, list);
+  }
+
+  // Determine active agents (events in last 2 min)
+  const twoMinAgo = Date.now() - 2 * 60 * 1000;
+  const activeAgents = new Set<string>();
+  for (const evt of events) {
+    if (new Date(evt.timestamp).getTime() > twoMinAgo) {
+      activeAgents.add(evt.agent);
+    }
+  }
+
+  // Build cost map
+  const costByAgent = new Map<string, number>();
+  for (const ac of costSummary.agents) {
+    costByAgent.set(ac.agent, ac.total_cost_usd);
+  }
+
+  const groups: AgentGroup[] = [];
+  for (const [agent, sessions] of agentMap) {
+    // Sort sessions newest first
+    sessions.sort(
+      (a, b) => new Date(b.endTime).getTime() - new Date(a.endTime).getTime(),
+    );
+    groups.push({
+      agent,
+      displayName: agentDisplayName(agent),
+      isActive: activeAgents.has(agent),
+      sessions,
+      totalCost: costByAgent.get(agent) ?? 0,
+    });
+  }
+
+  // Active agents first, then by most recent session
+  groups.sort((a, b) => {
+    if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
+    const aLatest = a.sessions[0]?.endTime ?? "";
+    const bLatest = b.sessions[0]?.endTime ?? "";
+    return new Date(bLatest).getTime() - new Date(aLatest).getTime();
+  });
+
+  return groups;
 }
