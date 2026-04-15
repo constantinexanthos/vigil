@@ -20,8 +20,10 @@ interface DaemonState {
   error: string | null;
   agentActivity: Map<string, AgentActivity>;
   newEventIds: Set<number>;
+  hasNewEvents: boolean;
   commitGroups: CommitGroup[];
   workspaceSummary: WorkspaceSummary;
+  lastUpdated: number;
 }
 
 const POLL_INTERVAL = 2000;
@@ -37,8 +39,10 @@ export function useDaemonData(): DaemonState {
   const [error, setError] = useState<string | null>(null);
   const [agentActivity, setAgentActivity] = useState<Map<string, AgentActivity>>(new Map());
   const [newEventIds, setNewEventIds] = useState<Set<number>>(new Set());
+  const [hasNewEvents, setHasNewEvents] = useState(false);
   const [costSummary, setCostSummary] = useState<CostSummary>({ total_cost_usd: 0, agents: [] });
   const [commitGroups, setCommitGroups] = useState<CommitGroup[]>([]);
+  const [lastUpdated, setLastUpdated] = useState<number>(Date.now());
   const [workspaceSummary, setWorkspaceSummary] = useState<WorkspaceSummary>({ commits_today: 0, files_changed_today: 0, total_cost_today: 0, agent_commits: [], active_collisions: [] });
 
   const prevEventCountByAgent = useRef<Map<string, number>>(new Map());
@@ -70,7 +74,11 @@ export function useDaemonData(): DaemonState {
 
       if (freshIds.size > 0) {
         setNewEventIds(freshIds);
-        setTimeout(() => setNewEventIds(new Set()), 400);
+        setHasNewEvents(true);
+        setTimeout(() => {
+          setNewEventIds(new Set());
+          setHasNewEvents(false);
+        }, 400);
       }
 
       // Compute sparkline deltas per agent
@@ -116,6 +124,7 @@ export function useDaemonData(): DaemonState {
       setCostSummary(cost);
       setCommitGroups(commits);
       setWorkspaceSummary(summary);
+      setLastUpdated(Date.now());
       setConnected(true);
       setError(null);
       setAgentActivity(nextActivity);
@@ -144,7 +153,9 @@ export function useDaemonData(): DaemonState {
     error,
     agentActivity,
     newEventIds,
+    hasNewEvents,
     commitGroups,
     workspaceSummary,
+    lastUpdated,
   };
 }

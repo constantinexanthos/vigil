@@ -4,6 +4,8 @@ interface TopBarProps {
   onAgentFilterChange: (v: string) => void;
   timeRange: string;
   onTimeRangeChange: (v: string) => void;
+  connected: boolean;
+  hasNewEvents: boolean;
 }
 
 export default function TopBar({
@@ -12,6 +14,8 @@ export default function TopBar({
   onAgentFilterChange,
   timeRange,
   onTimeRangeChange,
+  connected,
+  hasNewEvents,
 }: TopBarProps) {
   return (
     <div className="sticky top-0 z-50 flex items-center justify-between px-5 py-3 border-b border-border bg-bg">
@@ -30,6 +34,16 @@ export default function TopBar({
           }}
         />
         <span className="text-[16px] font-medium text-text-heading">Vigil</span>
+        <span
+          className={`w-[7px] h-[7px] rounded-full ml-1 flex-shrink-0 ${
+            connected
+              ? hasNewEvents
+                ? "bg-success status-pulse"
+                : "bg-success"
+              : "bg-text-faint"
+          }`}
+          title={connected ? "Connected" : "Disconnected"}
+        />
       </div>
       <div className="flex items-center gap-3">
         <select

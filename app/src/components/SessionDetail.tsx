@@ -1,6 +1,6 @@
 import { useState } from "react";
 import DiffViewer from "./DiffViewer";
-import { formatCost } from "../types";
+import { formatCost, truncatePath } from "../types";
 import type { SessionGroup } from "../types";
 
 interface SessionDetailProps {
@@ -24,45 +24,24 @@ export default function SessionDetail({ session }: SessionDetailProps) {
   );
 
   return (
-    <div className="session-expand session-expand-active pl-7 pr-4 pb-4">
-      {/* Full description */}
-      <p className="text-[14px] text-text-primary mb-3">{session.description}</p>
+    <div className="bg-surface border-t border-border pl-7 pr-4 pb-4 pt-3">
+      {/* Confidence + Cost row */}
+      <div className="flex items-baseline gap-4 mb-3">
+        {session.confidence > 0 && (
+          <div>
+            <span className="text-[12px] text-text-muted">
+              Confidence: {session.confidence}/100 {"\u2014"} {confidenceExplanation(session.confidence)}
+            </span>
+          </div>
+        )}
+        <span className="text-[12px] text-text-muted">
+          Cost: {session.costUsd > 0 ? formatCost(session.costUsd) : "\u2014"}
+        </span>
+      </div>
 
-      {/* Confidence breakdown */}
-      {session.confidence > 0 && (
-        <div className="mb-3">
-          <p className="text-[12px] text-text-muted mb-0.5">
-            Confidence: {session.confidence}/100
-            {session.confidence < 50 && (
-              <span className="ml-2 inline-flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-danger inline-block" />
-                Low confidence
-              </span>
-            )}
-            {session.confidence >= 50 && session.confidence < 75 && (
-              <span className="ml-2 inline-flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-warning inline-block" />
-                Moderate confidence
-              </span>
-            )}
-          </p>
-          <p className="text-[11px] text-text-muted">{confidenceExplanation(session.confidence)}</p>
-          {session.hasWarning && (
-            <p className="text-[11px] text-text-muted mt-0.5">{"\u2022"} Potential issues detected in this session</p>
-          )}
-        </div>
-      )}
-
-      {/* Cost breakdown */}
-      {session.costUsd > 0 && (
-        <p className="text-[12px] text-text-muted mb-3">
-          Cost: {formatCost(session.costUsd)}
-        </p>
-      )}
-
-      {/* File list */}
+      {/* File list table */}
       {visibleFiles.length > 0 && (
-        <div className="mt-2">
+        <div>
           {visibleFiles.map((file) => (
             <div key={file.path}>
               <div
@@ -72,9 +51,9 @@ export default function SessionDetail({ session }: SessionDetailProps) {
                 }
               >
                 <span className="font-mono text-[13px] text-text-subtle truncate">
-                  {file.path}
+                  {truncatePath(file.path)}
                 </span>
-                <span className="flex items-center gap-2 flex-shrink-0 ml-3 font-mono text-[12px]">
+                <span className="flex items-center gap-3 flex-shrink-0 ml-3 font-mono text-[12px]">
                   {file.added > 0 && (
                     <span style={{ color: "#4ade80" }}>+{file.added}</span>
                   )}
@@ -83,13 +62,7 @@ export default function SessionDetail({ session }: SessionDetailProps) {
                   )}
                 </span>
               </div>
-              {expandedFile === file.path && (
-                file.diff ? (
-                  <DiffViewer diff={file.diff} />
-                ) : (
-                  <p className="text-[12px] text-text-muted font-mono ml-2 my-2">Diff not available</p>
-                )
-              )}
+              {expandedFile === file.path && <DiffViewer diff={file.diff} />}
             </div>
           ))}
         </div>

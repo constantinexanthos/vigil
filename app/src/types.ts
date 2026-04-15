@@ -31,12 +31,14 @@ export function agentColor(agent: string): string {
 }
 
 const DISPLAY_NAMES: Record<string, string> = {
-  "claude-code": "Claude",
+  "claude-code": "Claude Code",
   cursor: "Cursor",
+  windsurf: "Windsurf",
   conductor: "Conductor",
   aider: "Aider",
   codex: "Codex",
   cline: "Cline",
+  chatgpt: "ChatGPT",
 };
 
 export function agentDisplayName(agent: string): string {
@@ -185,12 +187,22 @@ function parseDiffCounts(diff: string): { added: number; removed: number } {
 }
 
 function extractProjectName(repoPath: string): string {
+  // Strip home directory prefix
+  const home = "/Users/";
+  let cleaned = repoPath.replace(/\/+$/, "");
+  const homeIdx = cleaned.indexOf(home);
+  if (homeIdx >= 0) {
+    // Remove everything up to and including the username
+    const afterHome = cleaned.slice(homeIdx + home.length);
+    const slashIdx = afterHome.indexOf("/");
+    cleaned = slashIdx >= 0 ? afterHome.slice(slashIdx + 1) : afterHome;
+  }
+
   const SKIP_SEGMENTS = new Set([
     "target", "debug", "deps", "build", "release",
-    "node_modules", "dist", "src", ".next", ".git",
-    "components", "views",
+    "node_modules", "dist", ".next", ".git",
   ]);
-  const parts = repoPath.replace(/\/+$/, "").split("/").filter(Boolean);
+  const parts = cleaned.split("/").filter(Boolean);
   const kept: string[] = [];
   for (let i = parts.length - 1; i >= 0 && kept.length < 2; i--) {
     if (!SKIP_SEGMENTS.has(parts[i])) {
