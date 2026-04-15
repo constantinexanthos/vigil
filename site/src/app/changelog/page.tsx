@@ -23,12 +23,12 @@ const itemVariants = {
 const shipped = [
   {
     date: "April 2026",
-    title: "Workspace Command Center",
+    title: "Session Feed Redesign",
     bullets: [
-      "Complete app redesign: sidebar navigation with 6 views",
-      "Dashboard, Activity, Commits, Sessions, Costs, Settings",
-      "Collapsible sidebar with smooth transitions",
-      "Clean professional aesthetic: Inter font, blue accent, no terminal vibes",
+      "Complete UI overhaul: session-based feed grouped by project",
+      "Agent brand logos (Claude, Cursor, Windsurf, Conductor, ChatGPT, Codex, Cline, Aider)",
+      "Click-to-expand session details with diffs, confidence breakdown, and cost",
+      "Minimal design: no colored text, no borders, information-first layout",
     ],
   },
   {
