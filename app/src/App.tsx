@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import TopBar from "./components/TopBar";
 import ProjectSection from "./components/ProjectSection";
 import { useDaemonData } from "./hooks";
-import { groupEventsIntoSessions } from "./types";
+import { groupEventsIntoSessions, relativeTime } from "./types";
 import type { AgentEvent } from "./types";
 
 function filterByTime(events: AgentEvent[], range: string): AgentEvent[] {
@@ -58,6 +58,15 @@ export default function App() {
         {projects.map((project) => (
           <ProjectSection key={project.repoPath} project={project} />
         ))}
+
+        {/* Last updated footer */}
+        {data.connected && (
+          <div className="text-center py-4">
+            <span style={{ fontSize: "11px", color: "#3f3f46" }}>
+              Last updated: {relativeTime(new Date(data.lastUpdated).toISOString())}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
