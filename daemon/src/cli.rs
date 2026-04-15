@@ -121,6 +121,33 @@ fn ensure_vigil_dir() {
     std::fs::create_dir_all(&dir).expect("failed to create ~/.vigil");
 }
 
+/// Fetch the full diff for a commit via `git show`.
+/// Returns the stat + patch output, capped at 8KB.
+fn git_show_diff(repo_path: &std::path::Path, hash: &str) -> Option<String> {
+    let output = std::process::Command::new("git")
+        .args(["show", "--stat", "--patch", "--no-color", "-U3", hash])
+        .current_dir(repo_path)
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let diff = String::from_utf8_lossy(&output.stdout);
+    let trimmed = diff.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    const MAX_DIFF_BYTES: usize = 8192;
+    if trimmed.len() > MAX_DIFF_BYTES {
+        Some(format!("{}…", &trimmed[..MAX_DIFF_BYTES]))
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
 fn fs_event_kind_to_store(kind: &FsEventKind) -> EventKind {
     match kind {
         FsEventKind::Create => EventKind::FileCreate,
@@ -240,11 +267,13 @@ pub async fn run_watch(dirs: Vec<PathBuf>) {
                         message,
                         &hash[..8]
                     );
+                    // Fetch the full commit diff via `git show`.
+                    let diff = git_show_diff(&git_event.repo_path, hash);
                     (
                         EventKind::GitCommit,
                         None,
                         Some(branch.clone()),
-                        Some(format!("{hash} {message}")),
+                        diff,
                     )
                 }
                 GitEventKind::BranchCreate { branch } => {

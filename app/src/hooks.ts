@@ -23,6 +23,7 @@ interface DaemonState {
   hasNewEvents: boolean;
   commitGroups: CommitGroup[];
   workspaceSummary: WorkspaceSummary;
+  lastUpdated: number;
 }
 
 const POLL_INTERVAL = 2000;
@@ -41,6 +42,7 @@ export function useDaemonData(): DaemonState {
   const [hasNewEvents, setHasNewEvents] = useState(false);
   const [costSummary, setCostSummary] = useState<CostSummary>({ total_cost_usd: 0, agents: [] });
   const [commitGroups, setCommitGroups] = useState<CommitGroup[]>([]);
+  const [lastUpdated, setLastUpdated] = useState<number>(Date.now());
   const [workspaceSummary, setWorkspaceSummary] = useState<WorkspaceSummary>({ commits_today: 0, files_changed_today: 0, total_cost_today: 0, agent_commits: [], active_collisions: [] });
 
   const prevEventCountByAgent = useRef<Map<string, number>>(new Map());
@@ -122,6 +124,7 @@ export function useDaemonData(): DaemonState {
       setCostSummary(cost);
       setCommitGroups(commits);
       setWorkspaceSummary(summary);
+      setLastUpdated(Date.now());
       setConnected(true);
       setError(null);
       setAgentActivity(nextActivity);
@@ -153,5 +156,6 @@ export function useDaemonData(): DaemonState {
     hasNewEvents,
     commitGroups,
     workspaceSummary,
+    lastUpdated,
   };
 }
