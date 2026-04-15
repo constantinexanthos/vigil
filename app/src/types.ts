@@ -185,9 +185,20 @@ function parseDiffCounts(diff: string): { added: number; removed: number } {
 }
 
 function extractProjectName(repoPath: string): string {
+  const SKIP_SEGMENTS = new Set([
+    "target", "debug", "deps", "build", "release",
+    "node_modules", "dist", "src", ".next", ".git",
+    "components", "views",
+  ]);
   const parts = repoPath.replace(/\/+$/, "").split("/").filter(Boolean);
-  if (parts.length >= 2) return parts.slice(-2).join("/");
-  if (parts.length === 1) return parts[0];
+  const kept: string[] = [];
+  for (let i = parts.length - 1; i >= 0 && kept.length < 2; i--) {
+    if (!SKIP_SEGMENTS.has(parts[i])) {
+      kept.unshift(parts[i]);
+    }
+  }
+  if (kept.length >= 2) return kept.join("/");
+  if (kept.length === 1) return kept[0];
   return repoPath || "unknown";
 }
 

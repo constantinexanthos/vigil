@@ -29,7 +29,7 @@ export default function AgentLogo({ agent }: AgentLogoProps) {
     <img
       src={src}
       alt={agent}
-      className="w-4 h-4 rounded-full flex-shrink-0 object-cover"
+      className="w-4 h-4 flex-shrink-0"
     />
   );
 }
