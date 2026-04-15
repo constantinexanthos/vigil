@@ -1,4 +1,5 @@
 mod cli;
+mod digest;
 mod cost;
 mod git;
 mod github;
@@ -29,5 +30,6 @@ async fn main() {
         Command::Rollback { session_id, reject_all, dry_run } => cli::run_rollback(&session_id, reject_all, dry_run),
         Command::Hallucinations { agent, since } => cli::run_hallucinations(agent, since),
         Command::Prs { repo } => cli::run_prs(repo),
+        Command::Dashboard { once } => cli::run_dashboard(once),
     }
 }

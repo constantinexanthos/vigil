@@ -1,6 +1,6 @@
 use crate::store::{
     default_db_path, AgentStatRow, CollisionRow, CommitGroup, CostTotalRow, EventRow, PrRow, Store,
-    WorkspaceSummaryRow,
+    WorkspaceSummaryRow, LiveSummaryRow,
 };
 
 fn open_store() -> Result<Store, String> {
@@ -80,5 +80,13 @@ pub fn get_pull_requests(repo_path: Option<String>) -> Result<Vec<PrRow>, String
     let store = open_store()?;
     store
         .query_pull_requests(repo_path.as_deref())
+        .map_err(|e| format!("Query failed: {e}"))
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn get_live_summary() -> Result<LiveSummaryRow, String> {
+    let store = open_store()?;
+    store
+        .query_live_summary()
         .map_err(|e| format!("Query failed: {e}"))
 }

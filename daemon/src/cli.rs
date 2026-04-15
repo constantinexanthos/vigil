@@ -81,6 +81,12 @@ pub enum Command {
         #[arg(long)]
         dry_run: bool,
     },
+    /// Live dashboard showing all agents, alerts, and hotspots
+    Dashboard {
+        /// Print once and exit (for scripting)
+        #[arg(long)]
+        once: bool,
+    },
     /// Show pull requests for watched repos
     Prs {
         /// Filter by repo path
@@ -841,5 +847,73 @@ pub fn run_log(agent: Option<String>, file: Option<String>, limit: u32) {
             "{:<TS_W$}  {:<AGENT_W$}  {:<KIND_W$}  {file}",
             ts, event.agent, kind,
         );
+    }
+}
+
+pub fn run_dashboard(once: bool) {
+    let db_path = vigil_db_path();
+    if !db_path.exists() {
+        eprintln!("No vigil database found at {}", db_path.display());
+        eprintln!("Run `vigil watch <dir>` first.");
+        std::process::exit(1);
+    }
+
+    loop {
+        let store = Store::open(&db_path).expect("failed to open store");
+        let summary = crate::digest::generate_live_summary(&store);
+
+        if !once { print!("\x1b[2J\x1b[H"); }
+
+        // Header
+        if let Some(brpm) = summary.burn_rate_per_min {
+            let partial = if summary.burn_rate_partial { " (partial)" } else { "" };
+            println!("VIGIL DASHBOARD                                    ${:.2}/hr{}", brpm * 60.0, partial);
+        } else {
+            println!("VIGIL DASHBOARD");
+        }
+        println!("{}", "-".repeat(61));
+
+        // Agents
+        println!("AGENTS");
+        if summary.agents.is_empty() {
+            println!("  (none detected)");
+        } else {
+            for agent in &summary.agents {
+                let dot = if agent.status == "active" { "\u{25cf}" } else { "\u{25cb}" };
+                let cost_str = agent.cost_1h.map(|c| format!("${:.2}", c)).unwrap_or_else(|| "\u{2014}".to_string());
+                let conf_str = agent.confidence.map(|c| format!("{:.0}", c)).unwrap_or_else(|| "-".to_string());
+                if agent.status == "active" {
+                    let file = agent.current_file.as_deref().map(|f| {
+                        let p: Vec<&str> = f.split('/').collect();
+                        if p.len() <= 2 { f.to_string() } else { p[p.len()-2..].join("/") }
+                    }).unwrap_or_default();
+                    println!("  {:<15} {} active   {:<25} {:<7} {}", agent.agent, dot, file, cost_str, conf_str);
+                } else {
+                    println!("  {:<15} {} idle     (no recent activity)", agent.agent, dot);
+                }
+            }
+        }
+        println!();
+
+        if !summary.alerts.is_empty() {
+            println!("ALERTS");
+            for alert in &summary.alerts {
+                let pfx = match alert.severity.as_str() { "critical" => "!! ", "warning" => "!  ", _ => "   " };
+                println!("  {}{}", pfx, alert.message);
+            }
+            println!();
+        }
+
+        if !summary.hotspots.is_empty() {
+            println!("HOTSPOTS");
+            for (file, agents) in &summary.hotspots {
+                let short = { let p: Vec<&str> = file.split('/').collect(); if p.len() <= 2 { file.clone() } else { p[p.len()-2..].join("/") } };
+                println!("  {:<30} {}", short, agents.join(", "));
+            }
+            println!();
+        }
+
+        if once { break; }
+        std::thread::sleep(std::time::Duration::from_secs(2));
     }
 }

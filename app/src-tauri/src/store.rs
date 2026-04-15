@@ -466,3 +466,155 @@ fn count_diff_lines(diff: &str) -> (i64, i64) {
     }
     (added, removed)
 }
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct LiveSummaryRow {
+    pub active_session_count: u64,
+    pub total_events_1h: u64,
+    pub total_cost_1h: Option<f64>,
+    pub burn_rate_per_min: Option<f64>,
+    pub burn_rate_partial: bool,
+    pub cost_tracked_agents: Vec<String>,
+    pub agents: Vec<AgentSummaryRow>,
+    pub alerts: Vec<AlertRow>,
+    pub hotspots: Vec<HotspotRow>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AgentSummaryRow {
+    pub agent: String,
+    pub status: String,
+    pub current_file: Option<String>,
+    pub events_1h: u64,
+    pub cost_1h: Option<f64>,
+    pub confidence: Option<f64>,
+    pub hallucinations: u64,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AlertRow {
+    pub severity: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct HotspotRow {
+    pub file_path: String,
+    pub agents: Vec<String>,
+}
+
+impl Store {
+    pub fn query_live_summary(&self) -> Result<LiveSummaryRow> {
+        let total_events_1h: u64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM events WHERE timestamp >= datetime('now', '-1 hour')",
+            [], |row| row.get::<_, i64>(0),
+        ).unwrap_or(0) as u64;
+
+        let has_cost_table: bool = self.conn.query_row(
+            "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type='table' AND name='cost_events'",
+            [], |row| row.get(0),
+        ).unwrap_or(false);
+
+        let raw_cost_1h: f64 = if has_cost_table {
+            self.conn.query_row(
+                "SELECT COALESCE(SUM(cost_usd), 0.0) FROM cost_events WHERE timestamp >= datetime('now', '-1 hour')",
+                [], |row| row.get(0),
+            ).unwrap_or(0.0)
+        } else { 0.0 };
+
+        let mut agents_stmt = self.conn.prepare(
+            "SELECT DISTINCT agent FROM events WHERE timestamp >= datetime('now', '-1 hour') ORDER BY agent"
+        )?;
+        let agent_names: Vec<String> = agents_stmt.query_map([], |row| row.get(0))?
+            .filter_map(|r| r.ok()).collect();
+
+        let mut agents = Vec::new();
+        for agent in &agent_names {
+            let events_1h: u64 = self.conn.query_row(
+                "SELECT COUNT(*) FROM events WHERE agent = ?1 AND timestamp >= datetime('now', '-1 hour')",
+                params![agent], |row| row.get::<_, i64>(0),
+            ).unwrap_or(0) as u64;
+
+            let recent: i64 = self.conn.query_row(
+                "SELECT COUNT(*) FROM events WHERE agent = ?1 AND timestamp >= datetime('now', '-2 minutes')",
+                params![agent], |row| row.get(0),
+            ).unwrap_or(0);
+            let status = if recent > 0 { "active" } else { "idle" };
+
+            let current_file: Option<String> = self.conn.query_row(
+                "SELECT file_path FROM events WHERE agent = ?1 AND file_path IS NOT NULL ORDER BY timestamp DESC LIMIT 1",
+                params![agent], |row| row.get(0),
+            ).ok();
+
+            // Cost: None if agent has no cost data
+            let cost_1h: Option<f64> = if has_cost_table {
+                let count: i64 = self.conn.query_row(
+                    "SELECT COUNT(*) FROM cost_events WHERE agent = ?1 AND timestamp >= datetime('now', '-1 hour')",
+                    params![agent], |row| row.get(0),
+                ).unwrap_or(0);
+                if count > 0 {
+                    Some(self.conn.query_row(
+                        "SELECT COALESCE(SUM(cost_usd), 0.0) FROM cost_events WHERE agent = ?1 AND timestamp >= datetime('now', '-1 hour')",
+                        params![agent], |row| row.get(0),
+                    ).unwrap_or(0.0))
+                } else { None }
+            } else { None };
+
+            let file_count: i64 = self.conn.query_row(
+                "SELECT COUNT(DISTINCT file_path) FROM events WHERE agent = ?1 AND file_path IS NOT NULL AND timestamp >= datetime('now', '-1 hour')",
+                params![agent], |row| row.get(0),
+            ).unwrap_or(0);
+            let confidence = if file_count <= 5 { 85.0 } else if file_count <= 15 { 70.0 } else { 50.0 };
+
+            let has_h_table: bool = self.conn.query_row(
+                "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type='table' AND name='hallucinations'",
+                [], |row| row.get(0),
+            ).unwrap_or(false);
+            let hallucinations: u64 = if has_h_table {
+                self.conn.query_row(
+                    "SELECT COUNT(*) FROM hallucinations WHERE agent = ?1 AND resolved = 0",
+                    params![agent], |row| row.get::<_, i64>(0),
+                ).unwrap_or(0) as u64
+            } else { 0 };
+
+            agents.push(AgentSummaryRow {
+                agent: agent.clone(), status: status.to_string(), current_file,
+                events_1h, cost_1h, confidence: Some(confidence), hallucinations,
+            });
+        }
+
+        let active_session_count = agents.iter().filter(|a| a.status == "active").count() as u64;
+        let collisions = self.query_collisions()?;
+        let hotspots: Vec<HotspotRow> = collisions.into_iter().map(|c| HotspotRow {
+            file_path: c.file_path, agents: c.agents,
+        }).collect();
+
+        let mut alerts = Vec::new();
+        for hs in &hotspots {
+            alerts.push(AlertRow { severity: "critical".into(), message: format!("COLLISION {} -- {}", hs.file_path, hs.agents.join(", ")) });
+        }
+        for a in &agents {
+            if let Some(c) = a.confidence { if c < 30.0 && a.status == "active" {
+                alerts.push(AlertRow { severity: "critical".into(), message: format!("{}: confidence {:.0} (critically low)", a.agent, c) });
+            }}
+            if a.hallucinations > 0 {
+                alerts.push(AlertRow { severity: "warning".into(), message: format!("{}: {} unresolved hallucination(s)", a.agent, a.hallucinations) });
+            }
+        }
+        if raw_cost_1h > 5.0 {
+            alerts.push(AlertRow { severity: "warning".into(), message: format!("Burn rate ${:.2}/hr exceeds $5/hr threshold", raw_cost_1h) });
+        }
+
+        let cost_tracked: Vec<String> = agents.iter().filter(|a| a.cost_1h.is_some()).map(|a| a.agent.clone()).collect();
+        let has_any = !cost_tracked.is_empty();
+        let partial = has_any && cost_tracked.len() < agents.len();
+        let total_cost_1h = if has_any { Some(raw_cost_1h) } else { None };
+        let burn_rate_per_min = total_cost_1h.map(|c| if c > 0.0 { c / 60.0 } else { 0.0 });
+
+        Ok(LiveSummaryRow {
+            active_session_count, total_events_1h, total_cost_1h, burn_rate_per_min,
+            burn_rate_partial: partial, cost_tracked_agents: cost_tracked,
+            agents, alerts, hotspots,
+        })
+    }
+}
