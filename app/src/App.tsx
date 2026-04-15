@@ -1,49 +1,64 @@
-import { useState } from "react";
-import Sidebar from "./components/Sidebar";
-import DashboardView from "./components/views/DashboardView";
-import ActivityView from "./components/views/ActivityView";
-import CommitsView from "./components/views/CommitsView";
-import SessionsView from "./components/views/SessionsView";
-import CostsView from "./components/views/CostsView";
-import SettingsView from "./components/views/SettingsView";
+import { useState, useMemo } from "react";
+import TopBar from "./components/TopBar";
+import ProjectSection from "./components/ProjectSection";
 import { useDaemonData } from "./hooks";
-import { formatCost } from "./types";
+import { groupEventsIntoSessions } from "./types";
+import type { AgentEvent } from "./types";
 
-type View = "dashboard" | "activity" | "commits" | "sessions" | "costs" | "settings";
+function filterByTime(events: AgentEvent[], range: string): AgentEvent[] {
+  if (range === "all") return events;
+  const now = Date.now();
+  const cutoffs: Record<string, number> = {
+    today: 24 * 60 * 60 * 1000,
+    "7d": 7 * 24 * 60 * 60 * 1000,
+    "30d": 30 * 24 * 60 * 60 * 1000,
+  };
+  const ms = cutoffs[range] ?? cutoffs["today"];
+  return events.filter((e) => now - new Date(e.timestamp).getTime() < ms);
+}
 
 export default function App() {
   const data = useDaemonData();
-  const [view, setView] = useState<View>("dashboard");
-  const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const [agentFilter, setAgentFilter] = useState("");
+  const [timeRange, setTimeRange] = useState("today");
+
+  const allAgents = useMemo(() => {
+    const set = new Set(data.events.map((e) => e.agent));
+    return [...set].sort();
+  }, [data.events]);
+
+  const projects = useMemo(() => {
+    let filtered = filterByTime(data.events, timeRange);
+    if (agentFilter) {
+      filtered = filtered.filter((e) => e.agent === agentFilter);
+    }
+    return groupEventsIntoSessions(filtered, data.commitGroups, data.costSummary);
+  }, [data.events, data.commitGroups, data.costSummary, agentFilter, timeRange]);
 
   return (
-    <div className="h-screen w-full bg-bg flex font-sans">
-      <Sidebar
-        activeView={view}
-        onNavigate={(v) => setView(v as View)}
-        expanded={sidebarExpanded}
-        onToggle={() => setSidebarExpanded(!sidebarExpanded)}
-        connected={data.connected}
+    <div className="h-screen w-full bg-bg flex flex-col font-sans">
+      <TopBar
+        agents={allAgents}
+        agentFilter={agentFilter}
+        onAgentFilterChange={setAgentFilter}
+        timeRange={timeRange}
+        onTimeRangeChange={setTimeRange}
       />
-      <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-3 border-b border-border flex-shrink-0">
-          <h1 className="text-[15px] font-semibold text-text-primary capitalize">{view}</h1>
-          <div className="flex items-center gap-4">
-            {data.costSummary.total_cost_usd > 0 && (
-              <span className="text-xs text-text-muted">{formatCost(data.costSummary.total_cost_usd)} today</span>
-            )}
-            <span className={`w-2 h-2 rounded-full ${data.connected ? "bg-green-400" : "bg-text-muted"}`} />
+      <div className="flex-1 overflow-y-auto">
+        {!data.connected && data.error && (
+          <div className="px-5 py-8 text-center">
+            <p className="text-[14px] text-text-muted">{data.error}</p>
           </div>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          {view === "dashboard" && <DashboardView data={data} />}
-          {view === "activity" && <ActivityView data={data} />}
-          {view === "commits" && <CommitsView data={data} />}
-          {view === "sessions" && <SessionsView />}
-          {view === "costs" && <CostsView data={data} />}
-          {view === "settings" && <SettingsView />}
-        </div>
-      </main>
+        )}
+        {data.connected && projects.length === 0 && (
+          <div className="px-5 py-8 text-center">
+            <p className="text-[14px] text-text-muted">No activity found</p>
+          </div>
+        )}
+        {projects.map((project) => (
+          <ProjectSection key={project.repoPath} project={project} />
+        ))}
+      </div>
     </div>
   );
 }

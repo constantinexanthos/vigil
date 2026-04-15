@@ -10,8 +10,8 @@
 
 body {
   font-family: "Inter", system-ui, sans-serif;
-  background: #0f1117;
-  color: #e8e9ed;
+  background: #111113;
+  color: #d4d4d8;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -24,44 +24,26 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #232530;
+  background: #1e1e21;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #2e3040;
+  background: #2a2a2e;
 }
 
-@keyframes fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.session-expand {
+  transition: opacity 150ms ease, max-height 150ms ease;
 }
 
-.event-new {
-  animation: fade-in 0.25s ease-out;
+.session-expand-enter {
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
 }
 
-.diff-add {
-  background-color: rgba(59, 130, 246, 0.06);
-  color: #3b82f6;
-}
-
-.diff-del {
-  background-color: rgba(239, 68, 68, 0.06);
-  color: #f87171;
-}
-
-.diff-hunk {
-  color: #a78bfa;
-  opacity: 0.6;
-}
-
-.diff-ctx {
-  color: #6b7280;
+.session-expand-active {
+  opacity: 1;
+  max-height: 2000px;
+  overflow: visible;
 }

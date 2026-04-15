@@ -143,3 +143,215 @@ export function confidenceColor(score: number): string {
   if (score >= 50) return "#fbbf24";
   return "#ef4444";
 }
+
+// --- Session Feed Types ---
+
+export interface SessionFile {
+  path: string;
+  kind: string;
+  diff: string | null;
+  added: number;
+  removed: number;
+}
+
+export interface SessionGroup {
+  id: string;
+  agent: string;
+  repoPath: string;
+  startTime: string;
+  endTime: string;
+  description: string;
+  files: SessionFile[];
+  confidence: number;
+  costUsd: number;
+  hasWarning: boolean;
+}
+
+export interface ProjectGroup {
+  project: string;
+  repoPath: string;
+  agents: string[];
+  sessions: SessionGroup[];
+}
+
+function parseDiffCounts(diff: string): { added: number; removed: number } {
+  let added = 0;
+  let removed = 0;
+  for (const line of diff.split("\n")) {
+    if (line.startsWith("+") && !line.startsWith("+++")) added++;
+    if (line.startsWith("-") && !line.startsWith("---")) removed++;
+  }
+  return { added, removed };
+}
+
+function extractProjectName(repoPath: string): string {
+  const parts = repoPath.replace(/\/+$/, "").split("/").filter(Boolean);
+  if (parts.length >= 2) return parts.slice(-2).join("/");
+  if (parts.length === 1) return parts[0];
+  return repoPath || "unknown";
+}
+
+export function groupEventsIntoSessions(
+  events: AgentEvent[],
+  commitGroups: CommitGroup[],
+  costSummary: CostSummary,
+): ProjectGroup[] {
+  // 1. Sort events ascending by timestamp
+  const sorted = [...events].sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+  );
+
+  // 2. Group events by agent, splitting when gap > 5min
+  const SESSION_GAP_MS = 5 * 60 * 1000;
+  const rawSessions: { agent: string; events: AgentEvent[] }[] = [];
+
+  const agentBuffers = new Map<string, AgentEvent[]>();
+
+  for (const evt of sorted) {
+    const buf = agentBuffers.get(evt.agent);
+    if (buf && buf.length > 0) {
+      const lastTime = new Date(buf[buf.length - 1].timestamp).getTime();
+      const thisTime = new Date(evt.timestamp).getTime();
+      if (thisTime - lastTime > SESSION_GAP_MS) {
+        rawSessions.push({ agent: evt.agent, events: [...buf] });
+        agentBuffers.set(evt.agent, [evt]);
+      } else {
+        buf.push(evt);
+      }
+    } else {
+      agentBuffers.set(evt.agent, [evt]);
+    }
+  }
+
+  // Flush remaining buffers
+  for (const [agent, buf] of agentBuffers) {
+    if (buf.length > 0) {
+      rawSessions.push({ agent, events: buf });
+    }
+  }
+
+  // 3. Build SessionGroups
+  const costByAgent = new Map<string, number>();
+  for (const ac of costSummary.agents) {
+    costByAgent.set(ac.agent, ac.total_cost_usd);
+  }
+
+  const sessions: SessionGroup[] = rawSessions.map((raw, idx) => {
+    const startTime = raw.events[0].timestamp;
+    const endTime = raw.events[raw.events.length - 1].timestamp;
+    const startMs = new Date(startTime).getTime();
+    const endMs = new Date(endTime).getTime();
+
+    // Determine repo path from file paths
+    const filePaths = raw.events
+      .map((e) => e.file_path)
+      .filter((p): p is string => p !== null);
+    let repoPath = "";
+    if (filePaths.length > 0) {
+      // Use the common prefix directory
+      const parts = filePaths[0].split("/");
+      repoPath = parts.length > 2 ? parts.slice(0, -1).join("/") : filePaths[0];
+    }
+
+    // Collect unique files with diff stats
+    const fileMap = new Map<string, SessionFile>();
+    for (const evt of raw.events) {
+      if (evt.file_path) {
+        const existing = fileMap.get(evt.file_path);
+        const counts = evt.diff ? parseDiffCounts(evt.diff) : { added: 0, removed: 0 };
+        if (existing) {
+          existing.added += counts.added;
+          existing.removed += counts.removed;
+          if (evt.diff && !existing.diff) existing.diff = evt.diff;
+        } else {
+          fileMap.set(evt.file_path, {
+            path: evt.file_path,
+            kind: evt.kind,
+            diff: evt.diff,
+            added: counts.added,
+            removed: counts.removed,
+          });
+        }
+      }
+    }
+
+    // Find best commit message from commitGroups matching agent and time window
+    let description = "";
+    let confidence = 0;
+    let hasWarning = false;
+
+    const matchingCommit = commitGroups.find((cg) => {
+      if (cg.agent !== raw.agent) return false;
+      const commitMs = new Date(cg.timestamp).getTime();
+      return commitMs >= startMs - 60000 && commitMs <= endMs + 60000;
+    });
+
+    if (matchingCommit) {
+      description = matchingCommit.commit_message;
+      confidence = matchingCommit.confidence_score;
+      hasWarning = matchingCommit.confidence_score < 75;
+    } else {
+      // Generate summary from file paths
+      const fileCount = fileMap.size;
+      if (fileCount > 0) {
+        const firstPath = filePaths[0];
+        const dir = firstPath.split("/").slice(0, -1).join("/");
+        const shortDir = dir.split("/").slice(-2).join("/");
+        description = `Modified ${fileCount} file${fileCount !== 1 ? "s" : ""} in ${shortDir || "/"}`;
+      } else {
+        description = `${raw.events.length} event${raw.events.length !== 1 ? "s" : ""}`;
+      }
+    }
+
+    // Apportion cost by session count for this agent
+    const agentTotalCost = costByAgent.get(raw.agent) ?? 0;
+    const agentSessionCount = rawSessions.filter((s) => s.agent === raw.agent).length;
+    const costUsd = agentSessionCount > 0 ? agentTotalCost / agentSessionCount : 0;
+
+    return {
+      id: `${raw.agent}-${idx}-${startTime}`,
+      agent: raw.agent,
+      repoPath,
+      startTime,
+      endTime,
+      description,
+      files: Array.from(fileMap.values()),
+      confidence,
+      costUsd,
+      hasWarning,
+    };
+  });
+
+  // 5. Group sessions by repoPath into ProjectGroups
+  const projectMap = new Map<string, SessionGroup[]>();
+  for (const session of sessions) {
+    const key = session.repoPath || "unknown";
+    const list = projectMap.get(key) ?? [];
+    list.push(session);
+    projectMap.set(key, list);
+  }
+
+  const projects: ProjectGroup[] = [];
+  for (const [repoPath, projectSessions] of projectMap) {
+    const agents = [...new Set(projectSessions.map((s) => s.agent))];
+    // Sort sessions within project by most recent first
+    projectSessions.sort(
+      (a, b) => new Date(b.endTime).getTime() - new Date(a.endTime).getTime(),
+    );
+    projects.push({
+      project: extractProjectName(repoPath),
+      repoPath,
+      agents,
+      sessions: projectSessions,
+    });
+  }
+
+  // 6. Sort projects by most recent session first
+  projects.sort((a, b) => {
+    const aLatest = a.sessions[0]?.endTime ?? "";
+    const bLatest = b.sessions[0]?.endTime ?? "";
+    return new Date(bLatest).getTime() - new Date(aLatest).getTime();
+  });
+
+  return projects;
+}
