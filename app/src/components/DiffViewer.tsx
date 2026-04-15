@@ -17,7 +17,7 @@ export default function DiffViewer({ diff }: DiffViewerProps) {
       <pre className="font-mono text-[12px] leading-[1.6]">
         {lines.map((line, i) => {
           const kind = classifyLine(line);
-          let textColor = "#71717a";
+          let textColor = "#a1a1aa";
           let bgColor = "transparent";
 
           if (kind === "add") {
@@ -27,7 +27,7 @@ export default function DiffViewer({ diff }: DiffViewerProps) {
             textColor = "#ef4444";
             bgColor = "rgba(239,68,68,0.1)";
           } else if (kind === "hunk") {
-            textColor = "#52525b";
+            textColor = "#a78bfa";
           }
 
           return (

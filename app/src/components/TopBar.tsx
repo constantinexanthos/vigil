@@ -16,7 +16,19 @@ export default function TopBar({
   return (
     <div className="sticky top-0 z-50 flex items-center justify-between px-5 py-3 border-b border-border bg-bg">
       <div className="flex items-center gap-2">
-        <img src="/logo.png" alt="Vigil" className="w-5 h-5" />
+        <img
+          src="/logo.png"
+          alt="Vigil"
+          width={20}
+          height={20}
+          style={{ imageRendering: 'auto' }}
+          onError={(e) => {
+            const span = document.createElement('span');
+            span.textContent = 'V';
+            span.className = 'text-[16px] font-bold text-text-heading';
+            (e.target as HTMLElement).replaceWith(span);
+          }}
+        />
         <span className="text-[16px] font-medium text-text-heading">Vigil</span>
       </div>
       <div className="flex items-center gap-3">
