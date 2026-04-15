@@ -23,6 +23,16 @@ const itemVariants = {
 const shipped = [
   {
     date: "April 2026",
+    title: "Workspace Command Center",
+    bullets: [
+      "Complete app redesign: sidebar navigation with 6 views",
+      "Dashboard, Activity, Commits, Sessions, Costs, Settings",
+      "Collapsible sidebar with smooth transitions",
+      "Clean professional aesthetic: Inter font, blue accent, no terminal vibes",
+    ],
+  },
+  {
+    date: "April 2026",
     title: "Live Dashboard & Smart Alerts",
     bullets: [
       "Real-time workspace summary with burn rate, active agents, and confidence",
