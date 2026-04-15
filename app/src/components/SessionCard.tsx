@@ -1,83 +1,72 @@
 import { useState } from "react";
-import AgentLogo from "./AgentLogo";
+import { motion, AnimatePresence } from "framer-motion";
 import SessionDetail from "./SessionDetail";
-import { agentDisplayName, relativeTime } from "../types";
+import { relativeTime, formatCost } from "../types";
 import type { SessionGroup } from "../types";
 
-interface SessionCardProps {
+interface Props {
   session: SessionGroup;
   isNew?: boolean;
 }
 
 function confidenceBorder(score: number): string {
-  if (score >= 80) return "2px solid #4ade80";
-  if (score >= 60) return "2px solid #fbbf24";
-  if (score >= 40) return "2px solid #f97316";
-  if (score > 0) return "2px solid #ef4444";
-  return "none";
+  if (score <= 0) return "transparent";
+  if (score >= 80) return "#15803D";
+  if (score >= 60) return "#D97706";
+  if (score >= 40) return "#f97316";
+  return "#B91C1C";
 }
 
-export default function SessionCard({ session, isNew }: SessionCardProps) {
+function confidenceLabel(score: number): { text: string; color: string } {
+  if (score >= 80) return { text: "High", color: "#15803D" };
+  if (score >= 60) return { text: "Review", color: "#D97706" };
+  return { text: "Needs Attention", color: "#B91C1C" };
+}
+
+export default function SessionCard({ session, isNew }: Props) {
   const [expanded, setExpanded] = useState(false);
+  const borderColor = confidenceBorder(session.confidence);
+  const badge = session.confidence > 0 ? confidenceLabel(session.confidence) : null;
 
   return (
-<div
-      className={`border-b border-border${isNew ? " session-new" : ""}`}
-      style={{ borderLeft: confidenceBorder(session.confidence) }}
+    <motion.div
+      className="ml-3 rounded-md cursor-pointer transition-shadow hover:shadow-card"
+      style={{ borderLeft: `2px solid ${borderColor}` }}
+      initial={isNew ? { opacity: 0, y: -8 } : false}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25 }}
     >
-      {/* Collapsed: two lines only */}
-      <div
-        className="py-3 px-4 cursor-pointer hover:bg-surface transition-colors"
-        onClick={() => setExpanded(!expanded)}
-      >
-        {/* Line 1: Agent + commit message + timestamp + chevron */}
+      <div className="px-3 py-2.5" onClick={() => setExpanded(!expanded)}>
+        {/* Line 1: description + time */}
         <div className="flex items-center gap-2">
-          <AgentLogo agent={session.agent} />
-          <span className="text-[13px] text-text-primary flex-shrink-0">
-            {agentDisplayName(session.agent)}
-          </span>
-          <span className="text-[14px] text-text-primary truncate flex-1 ml-1">
-            {session.description}
-          </span>
-          <span className="text-[12px] text-text-faint flex-shrink-0 ml-2">
-            {relativeTime(session.endTime)}
-          </span>
-          <span
-            style={{
-              color: "#52525b",
-              fontSize: "12px",
-              flexShrink: 0,
-              marginLeft: "4px",
-              transition: "transform 150ms ease",
-              display: "inline-block",
-            }}
-          >
-            {expanded ? "\u25BE" : "\u25B8"}
-          </span>
+          <p className="text-base text-text-primary truncate flex-1">{session.description}</p>
+          <span className="text-xs text-text-muted flex-shrink-0">{relativeTime(session.endTime)}</span>
+          <motion.span className="text-text-muted text-xs" animate={{ rotate: expanded ? 0 : -90 }} transition={{ duration: 0.15 }}>▾</motion.span>
         </div>
-
-        {/* Line 2: Stats (confidence removed from here) */}
-        <div className="flex items-center gap-1.5 pl-6 mt-1">
-          {session.hasWarning && (
-            <span className="w-1.5 h-1.5 rounded-full bg-warning flex-shrink-0" />
+        {/* Line 2: stats */}
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="text-sm text-text-muted">{session.files.length} file{session.files.length !== 1 ? "s" : ""}</span>
+          {badge && (
+            <span className="text-xs px-1.5 py-0.5 rounded-sm" style={{ color: badge.color, background: badge.color + "18" }}>{badge.text}</span>
           )}
-          <span className="text-[12px] text-text-muted">
-            {session.files.length} file{session.files.length !== 1 ? "s" : ""}
-          </span>
+          {session.costUsd > 0 && <span className="text-sm text-text-muted">{formatCost(session.costUsd)}</span>}
+          {session.hasWarning && <span className="w-1.5 h-1.5 rounded-full bg-amber" />}
         </div>
       </div>
 
-      {/* Expanded detail */}
-      <div
-        className="session-expand"
-        style={{
-          opacity: expanded ? 1 : 0,
-          maxHeight: expanded ? "2000px" : "0",
-          overflow: expanded ? "visible" : "hidden",
-        }}
-      >
-        {expanded && <SessionDetail session={session} />}
-      </div>
-    </div>
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="overflow-hidden"
+          >
+            <SessionDetail session={session} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 }

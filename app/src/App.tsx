@@ -1,77 +1,96 @@
 import { useState, useMemo, useRef, useEffect } from "react";
+import { AnimatePresence } from "framer-motion";
 import TopBar from "./components/TopBar";
-import BriefingCard from "./components/BriefingCard";
-import LivePulse from "./components/LivePulse";
-import ProjectSection from "./components/ProjectSection";
+import AgentSection from "./components/AgentSection";
+import CommandPalette from "./components/CommandPalette";
+import DemoBanner from "./components/DemoBanner";
+import SetupModal from "./components/SetupModal";
 import { useDaemonData } from "./hooks";
-import { groupEventsIntoSessions, relativeTime } from "./types";
+import { groupEventsIntoSessions } from "./types";
 import type { AgentEvent } from "./types";
 
 function filterByTime(events: AgentEvent[], range: string): AgentEvent[] {
   if (range === "all") return events;
   const now = Date.now();
-  const cutoffs: Record<string, number> = {
-    today: 24 * 60 * 60 * 1000,
-    "7d": 7 * 24 * 60 * 60 * 1000,
-    "30d": 30 * 24 * 60 * 60 * 1000,
-  };
-  const ms = cutoffs[range] ?? cutoffs["today"];
-  return events.filter((e) => now - new Date(e.timestamp).getTime() < ms);
+  const ms: Record<string, number> = { today: 86400000, "7d": 604800000, "30d": 2592000000 };
+  return events.filter((e) => now - new Date(e.timestamp).getTime() < (ms[range] ?? ms.today));
 }
 
 export default function App() {
   const data = useDaemonData();
   const [agentFilter, setAgentFilter] = useState("");
   const [timeRange, setTimeRange] = useState("today");
+  const [cmdOpen, setCmdOpen] = useState(false);
+  const [showSetup, setShowSetup] = useState(false);
+  const [demoDismissed, setDemoDismissed] = useState(false);
+  const [transitionMessage, setTransitionMessage] = useState<string | null>(null);
+  const wasDemoMode = useRef(false);
 
-  const allAgents = useMemo(() => {
-    const set = new Set(data.events.map((e) => e.agent));
-    return [...set].sort();
-  }, [data.events]);
+  // Track transition from demo to live
+  useEffect(() => {
+    if (wasDemoMode.current && data.connected && !data.demoMode) {
+      setTransitionMessage("Connected! Showing live data");
+      setTimeout(() => setTransitionMessage(null), 3000);
+    }
+    wasDemoMode.current = data.demoMode;
+  }, [data.connected, data.demoMode]);
+
+  const allAgents = useMemo(() => [...new Set(data.events.map((e) => e.agent))].sort(), [data.events]);
 
   const projects = useMemo(() => {
     let filtered = filterByTime(data.events, timeRange);
-    if (agentFilter) {
-      filtered = filtered.filter((e) => e.agent === agentFilter);
-    }
+    if (agentFilter) filtered = filtered.filter((e) => e.agent === agentFilter);
     return groupEventsIntoSessions(filtered, data.commitGroups, data.costSummary);
   }, [data.events, data.commitGroups, data.costSummary, agentFilter, timeRange]);
 
-  const prevSessionIds = useRef<Set<string>>(new Set());
-  const [newSessionIds, setNewSessionIds] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    const currentIds = new Set(projects.flatMap((p) => p.sessions.map((s) => s.id)));
-    const fresh = new Set<string>();
-    for (const id of currentIds) {
-      if (!prevSessionIds.current.has(id)) fresh.add(id);
+  // Group sessions by agent instead of project
+  const agentGroups = useMemo(() => {
+    const map = new Map<string, typeof projects[0]["sessions"]>();
+    for (const p of projects) {
+      for (const s of p.sessions) {
+        const existing = map.get(s.agent) ?? [];
+        existing.push(s);
+        map.set(s.agent, existing);
+      }
     }
-    prevSessionIds.current = currentIds;
-    if (fresh.size > 0) {
-      setNewSessionIds(fresh);
-      setTimeout(() => setNewSessionIds(new Set()), 400);
-    }
+    return [...map.entries()].map(([agent, sessions]) => ({
+      agent,
+      sessions: sessions.sort((a, b) => new Date(b.endTime).getTime() - new Date(a.endTime).getTime()),
+      totalCost: sessions.reduce((sum, s) => sum + s.costUsd, 0),
+    }));
   }, [projects]);
 
-  // Compute briefing stats
-  const briefingStats = useMemo(() => {
-    const allSessions = projects.flatMap((p) => p.sessions);
-    const agentCount = data.agentStats.length;
-    const filesChanged = data.workspaceSummary.files_changed_today;
-    const sessionCount = allSessions.length;
-    const costUsd = data.costSummary.total_cost_usd;
-    const collisionCount = data.collisions.length;
+  // Track new sessions for animations
+  const prevSessionIds = useRef<Set<string>>(new Set());
+  const [newSessionIds, setNewSessionIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    const currentIds = new Set(agentGroups.flatMap((g) => g.sessions.map((s) => s.id)));
+    const fresh = new Set<string>();
+    for (const id of currentIds) { if (!prevSessionIds.current.has(id)) fresh.add(id); }
+    prevSessionIds.current = currentIds;
+    if (fresh.size > 0) { setNewSessionIds(fresh); setTimeout(() => setNewSessionIds(new Set()), 500); }
+  }, [agentGroups]);
 
-    // Average confidence across sessions that have a confidence score
-    const scored = allSessions.filter((s) => s.confidence > 0);
-    const confidence = scored.length > 0
-      ? Math.round(scored.reduce((sum, s) => sum + s.confidence, 0) / scored.length)
-      : 0;
+  // Cmd+K shortcut
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") { e.preventDefault(); setCmdOpen(true); }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
-    const lowConfidenceCount = allSessions.filter((s) => s.confidence > 0 && s.confidence < 60).length;
+  const alertCount = data.collisions.length;
+  const totalCost = data.costSummary.total_cost_usd;
 
-    return { agentCount, filesChanged, confidence, sessionCount, costUsd, collisionCount, lowConfidenceCount };
-  }, [projects, data.agentStats, data.workspaceSummary, data.costSummary, data.collisions]);
+  function handleDemoDismiss() {
+    setDemoDismissed(true);
+    localStorage.setItem("vigil-demo-dismissed", "true");
+  }
+
+  const showDemoBanner = (data.demoMode && !demoDismissed) || transitionMessage !== null;
+  const showEmptyState = !data.connected && !data.demoMode;
+  const hasContent = data.connected || data.demoMode;
 
   return (
     <div className="h-screen w-full bg-bg flex flex-col font-sans">
@@ -83,58 +102,62 @@ export default function App() {
         onTimeRangeChange={setTimeRange}
         connected={data.connected}
         hasNewEvents={data.hasNewEvents}
+        agentCount={data.agentStats.length}
+        totalCost={totalCost}
+        alertCount={alertCount}
+        onOpenCmd={() => setCmdOpen(true)}
       />
-      {data.connected && (
-        <BriefingCard
-          agentCount={briefingStats.agentCount}
-          filesChanged={briefingStats.filesChanged}
-          confidence={briefingStats.confidence}
-          sessionCount={briefingStats.sessionCount}
-          costUsd={briefingStats.costUsd}
-          collisionCount={briefingStats.collisionCount}
-          lowConfidenceCount={briefingStats.lowConfidenceCount}
+
+      {showDemoBanner && (
+        <DemoBanner
+          onConnect={() => setShowSetup(true)}
+          onDismiss={handleDemoDismiss}
+          transitionMessage={transitionMessage}
         />
       )}
-      {data.connected && (
-        <LivePulse events={data.events} costSummary={data.costSummary} />
-      )}
-      <div className="flex-1 overflow-y-auto">
-        {!data.connected && (
-          <div className="flex flex-col items-center justify-center h-full px-8">
-            <div className="w-10 h-10 rounded-full border border-border flex items-center justify-center mb-4">
-              <span className="text-text-faint text-[18px]">V</span>
+
+      <SetupModal open={showSetup} onClose={() => setShowSetup(false)} />
+
+      <div className="flex-1 overflow-y-auto px-4 py-3">
+        {showEmptyState && (
+          <div className="flex flex-col items-center justify-center h-full">
+            <div className="w-12 h-12 rounded-lg bg-bg-secondary flex items-center justify-center mb-4 shadow-card">
+              <span className="text-text-muted text-xl">V</span>
             </div>
-            <p className="text-[14px] text-text-muted text-center mb-3">
-              Start the Vigil daemon to see agent activity
-            </p>
-            <code className="text-[13px] font-mono text-text-subtle bg-surface px-4 py-2 rounded">
+            <p className="text-sm text-text-muted mb-3">Start the Vigil daemon to see agent activity</p>
+            <code className="text-xs font-mono text-text-tertiary bg-bg-secondary px-4 py-2 rounded-md shadow-subtle selectable">
               vigil watch ~/projects
             </code>
           </div>
         )}
-        {data.connected && projects.length === 0 && (
-          <div className="px-5 py-12 text-center">
-            <p className="text-[14px] text-text-muted">No activity found</p>
-          </div>
-        )}
-        {projects.map((project) => (
-          <ProjectSection
-            key={project.repoPath}
-            project={project}
-            newSessionIds={newSessionIds}
-            collisions={data.collisions}
-          />
-        ))}
 
-        {/* Last updated footer */}
-        {data.connected && (
-          <div className="text-center py-4">
-            <span style={{ fontSize: "11px", color: "#3f3f46" }}>
-              Last updated: {relativeTime(new Date(data.lastUpdated).toISOString())}
-            </span>
+        {hasContent && agentGroups.length === 0 && (
+          <div className="flex items-center justify-center h-full">
+            <p className="text-sm text-text-muted">No activity found</p>
           </div>
         )}
+
+        <AnimatePresence>
+          {agentGroups.map((group) => (
+            <AgentSection
+              key={group.agent}
+              agent={group.agent}
+              sessions={group.sessions}
+              totalCost={group.totalCost}
+              collisions={data.collisions}
+              newSessionIds={newSessionIds}
+            />
+          ))}
+        </AnimatePresence>
       </div>
+
+      <CommandPalette
+        open={cmdOpen}
+        onOpenChange={setCmdOpen}
+        agents={allAgents}
+        onSelectAgent={(a) => { setAgentFilter(a); setCmdOpen(false); }}
+        onClearFilter={() => { setAgentFilter(""); setCmdOpen(false); }}
+      />
     </div>
   );
 }

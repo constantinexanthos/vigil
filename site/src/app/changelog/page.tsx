@@ -23,6 +23,18 @@ const itemVariants = {
 const shipped = [
   {
     date: "April 2026",
+    title: "Mission Control UI",
+    bullets: [
+      "Morning briefing card: at-a-glance stats for agents, files, cost, collisions",
+      "Live pulse: real-time agent activity with current file and running cost",
+      "Confidence as color: green/amber/orange/red left borders on session cards",
+      "Collision timeline cards: conflicts shown inline, not as dismissable banners",
+      "Plain-English summaries: auto-generated descriptions of what actually changed",
+      "GitHub-style diff viewer with line numbers and syntax coloring",
+    ],
+  },
+  {
+    date: "April 2026",
     title: "Session Feed Redesign",
     bullets: [
       "Complete UI overhaul: session-based feed grouped by project",

@@ -130,25 +130,17 @@ export default function SessionDetail({ session }: SessionDetailProps) {
   const plainSummary = buildPlainSummary(visibleFiles);
 
   return (
-    <div className="bg-surface border-t border-border pl-7 pr-4 pb-4 pt-3">
+    <div className="bg-bg-secondary border-t border-border pl-7 pr-4 pb-4 pt-3">
       {/* Description (from commit message) */}
       {session.description && (
-        <div style={{ fontSize: "13px", color: "#d4d4d8", marginBottom: "6px" }}>
+        <div className="text-base text-text-primary mb-1.5 selectable">
           {session.description}
         </div>
       )}
 
       {/* Plain-English summary */}
       {plainSummary && (
-        <div
-          style={{
-            fontSize: "13px",
-            color: "#a1a1aa",
-            fontFamily: "Inter, system-ui, sans-serif",
-            marginBottom: "10px",
-            lineHeight: "18px",
-          }}
-        >
+        <div className="text-base text-text-tertiary font-sans mb-2.5 leading-[18px] selectable">
           {plainSummary}
         </div>
       )}
@@ -157,12 +149,12 @@ export default function SessionDetail({ session }: SessionDetailProps) {
       <div className="flex items-baseline gap-4 mb-3">
         {session.confidence > 0 && (
           <div>
-            <span className="text-[12px] text-text-muted">
+            <span className="text-sm text-text-muted">
               Confidence: {session.confidence}/100 {"\u2014"} {confidenceExplanation(session.confidence)}
             </span>
           </div>
         )}
-        <span className="text-[12px] text-text-muted">
+        <span className="text-sm text-text-muted">
           Cost: {session.costUsd > 0 ? formatCost(session.costUsd) : "\u2014"}
         </span>
       </div>
@@ -178,19 +170,23 @@ export default function SessionDetail({ session }: SessionDetailProps) {
                   setExpandedFile(expandedFile === file.path ? null : file.path)
                 }
               >
-                <span className="font-mono text-[13px] text-text-subtle truncate">
+                <span className="font-mono text-base text-text-secondary truncate selectable">
                   {truncatePath(file.path)}
                 </span>
-                <span className="flex items-center gap-3 flex-shrink-0 ml-3 font-mono text-[12px]">
+                <span className="flex items-center gap-3 flex-shrink-0 ml-3 font-mono text-sm">
                   {file.added > 0 && (
                     <span style={{ color: "#4ade80" }}>+{file.added}</span>
                   )}
                   {file.removed > 0 && (
-                    <span style={{ color: "#ef4444" }}>-{file.removed}</span>
+                    <span style={{ color: "#f87171" }}>-{file.removed}</span>
                   )}
                 </span>
               </div>
-              {expandedFile === file.path && <DiffViewer diff={file.diff} />}
+              {expandedFile === file.path && (
+                <div className="selectable">
+                  <DiffViewer diff={file.diff} />
+                </div>
+              )}
             </div>
           ))}
         </div>
