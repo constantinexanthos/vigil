@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { AgentEvent, Collision, AgentStat, CostSummary, CommitGroup, WorkspaceSummary } from "./types";
+import { DEMO_EVENTS, DEMO_COMMIT_GROUPS, DEMO_COST_SUMMARY, DEMO_COLLISIONS } from "./demo-data";
 
 export interface AgentActivity {
   agent: string;
@@ -24,6 +25,7 @@ interface DaemonState {
   commitGroups: CommitGroup[];
   workspaceSummary: WorkspaceSummary;
   lastUpdated: number;
+  demoMode: boolean;
 }
 
 const POLL_INTERVAL = 2000;
@@ -44,6 +46,8 @@ export function useDaemonData(): DaemonState {
   const [commitGroups, setCommitGroups] = useState<CommitGroup[]>([]);
   const [lastUpdated, setLastUpdated] = useState<number>(Date.now());
   const [workspaceSummary, setWorkspaceSummary] = useState<WorkspaceSummary>({ commits_today: 0, files_changed_today: 0, total_cost_today: 0, agent_commits: [], active_collisions: [] });
+  const [demoMode, setDemoMode] = useState(false);
+  const hasEverConnected = useRef(false);
 
   const prevEventCountByAgent = useRef<Map<string, number>>(new Map());
   const sparklineBuffers = useRef<Map<string, number[]>>(new Map());
@@ -128,11 +132,26 @@ export function useDaemonData(): DaemonState {
       setConnected(true);
       setError(null);
       setAgentActivity(nextActivity);
+      hasEverConnected.current = true;
+      if (demoMode) setDemoMode(false);
     } catch (e) {
       setConnected(false);
       setError(
         e instanceof Error ? e.message : "Daemon not running. Start with: vigil watch <dir>",
       );
+      // Load demo data if never connected and demo not dismissed
+      if (!hasEverConnected.current && !demoMode) {
+        const dismissed = localStorage.getItem("vigil-demo-dismissed");
+        if (dismissed !== "true") {
+          setDemoMode(true);
+          setEvents(DEMO_EVENTS);
+          setCollisions(DEMO_COLLISIONS);
+          setCostSummary(DEMO_COST_SUMMARY);
+          setCommitGroups(DEMO_COMMIT_GROUPS);
+          setEventCount(DEMO_EVENTS.length);
+          setLastUpdated(Date.now());
+        }
+      }
     }
   }, []);
 
@@ -157,5 +176,6 @@ export function useDaemonData(): DaemonState {
     commitGroups,
     workspaceSummary,
     lastUpdated,
+    demoMode,
   };
 }
