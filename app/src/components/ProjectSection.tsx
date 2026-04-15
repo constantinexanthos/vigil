@@ -4,9 +4,10 @@ import type { ProjectGroup } from "../types";
 
 interface ProjectSectionProps {
   project: ProjectGroup;
+  newSessionIds?: Set<string>;
 }
 
-export default function ProjectSection({ project }: ProjectSectionProps) {
+export default function ProjectSection({ project, newSessionIds }: ProjectSectionProps) {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
@@ -51,7 +52,7 @@ export default function ProjectSection({ project }: ProjectSectionProps) {
           style={{ opacity: collapsed ? 0 : 1 }}
         >
           {project.sessions.map((session) => (
-            <SessionCard key={session.id} session={session} />
+            <SessionCard key={session.id} session={session} isNew={newSessionIds?.has(session.id)} />
           ))}
         </div>
       )}

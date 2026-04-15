@@ -6,9 +6,10 @@ import type { SessionGroup } from "../types";
 
 interface SessionCardProps {
   session: SessionGroup;
+  isNew?: boolean;
 }
 
-export default function SessionCard({ session }: SessionCardProps) {
+export default function SessionCard({ session, isNew }: SessionCardProps) {
   const [expanded, setExpanded] = useState(false);
 
   const statsText = [
@@ -20,7 +21,7 @@ export default function SessionCard({ session }: SessionCardProps) {
     .join(" \u2022 ");
 
   return (
-    <div className="border-b border-border">
+    <div className={`border-b border-border${isNew ? " session-new" : ""}`}>
       <div
         className="py-4 px-4 cursor-pointer"
         onClick={() => setExpanded(!expanded)}
