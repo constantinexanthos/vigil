@@ -19,23 +19,60 @@ export default function AgentSection({ agent, sessions, totalCost, collisions: _
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <motion.div className="mb-3" layout transition={spring}>
+    <motion.div
+      layout
+      transition={spring}
+      style={{
+        marginBottom: "24px",
+        borderBottom: "1px solid rgba(255,255,255,0.04)",
+        paddingBottom: "16px",
+      }}
+    >
       {/* Agent header */}
       <div
-        className="flex items-center justify-between px-3 py-2.5 rounded-md cursor-pointer hover:shadow-card transition-shadow"
         onClick={() => setCollapsed(!collapsed)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "12px 16px",
+          cursor: "pointer",
+          background: "#2C2C2E",
+          borderRadius: "8px",
+          marginBottom: collapsed ? 0 : "8px",
+        }}
       >
-        <div className="flex items-center gap-2.5">
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <AgentLogo agent={agent} />
-          <span className="text-lg font-medium text-text-primary">{agentDisplayName(agent)}</span>
-          <span className="text-sm text-text-muted">{sessions.length} session{sessions.length !== 1 ? "s" : ""}</span>
+          <span style={{
+            fontSize: "15px",
+            fontWeight: 600,
+            color: "#F9FAFB",
+            letterSpacing: "-0.01em",
+          }}>
+            {agentDisplayName(agent)}
+          </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <span style={{
+            fontSize: "12px",
+            color: "#9CA3AF",
+          }}>
+            {sessions.length} session{sessions.length !== 1 ? "s" : ""}
+          </span>
           {totalCost > 0 && (
-            <span className="text-xs text-text-muted bg-bg-secondary px-2 py-0.5 rounded-sm">{formatCost(totalCost)}</span>
+            <span style={{
+              fontSize: "12px",
+              color: "#9CA3AF",
+              background: "#3A3A3C",
+              padding: "2px 8px",
+              borderRadius: "4px",
+            }}>
+              {formatCost(totalCost)}
+            </span>
           )}
           <motion.span
-            className="text-text-muted text-xs"
+            style={{ color: "#6B7280", fontSize: "12px" }}
             animate={{ rotate: collapsed ? -90 : 0 }}
             transition={{ duration: 0.15 }}
           >

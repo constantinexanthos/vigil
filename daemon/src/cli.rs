@@ -267,13 +267,11 @@ pub async fn run_watch(dirs: Vec<PathBuf>) {
                         message,
                         &hash[..8]
                     );
-                    // Fetch the full commit diff via `git show`.
-                    let diff = git_show_diff(&git_event.repo_path, hash);
                     (
                         EventKind::GitCommit,
                         None,
                         Some(branch.clone()),
-                        diff,
+                        Some(format!("{} {}", &hash[..8.min(hash.len())], message)),
                     )
                 }
                 GitEventKind::BranchCreate { branch } => {

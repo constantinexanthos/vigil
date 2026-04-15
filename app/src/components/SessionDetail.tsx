@@ -7,7 +7,7 @@ interface SessionDetailProps {
   session: SessionGroup;
 }
 
-const BUILD_ARTIFACT_PATTERNS = ["/target/", "/build/", "/node_modules/", "/dist/", "/.next/"];
+const BUILD_ARTIFACT_PATTERNS = ["/target/", "/build/", "/node_modules/", "/dist/", "/.next/", ".tmp.", ".swp", "~"];
 
 function confidenceExplanation(score: number): string {
   if (score >= 80) return "High confidence \u2014 clean session with good patterns";

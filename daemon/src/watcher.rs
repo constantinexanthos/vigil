@@ -21,6 +21,9 @@ const IGNORE_PATTERNS: &[&str] = &[
     "/.superpowers/",
     "/coverage/",
     "/.playwright-mcp/",
+    ".tmp.",
+    ".swp",
+    "~",
 ];
 
 /// A structured file-system event emitted by the watcher.

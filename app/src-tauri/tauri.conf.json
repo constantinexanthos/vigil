@@ -17,15 +17,12 @@
     },
     "windows": [
       {
-        "title": "",
-        "titleBarStyle": "overlay",
-        "hiddenTitle": true,
+        "title": "Vigil",
         "width": 900,
         "height": 700,
         "minWidth": 500,
         "minHeight": 400,
         "resizable": true,
-        "transparent": true,
         "decorations": true,
         "visible": true
       }
