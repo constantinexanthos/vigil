@@ -67,8 +67,8 @@ export default function SessionDetail({ session }: Props) {
 
   return (
     <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", background: "#1C1C1E", padding: "12px 14px 16px 14px" }}>
-      {/* Plain-English summary */}
-      {plainSummary && (
+      {/* Plain-English summary — only show if different from description */}
+      {plainSummary && plainSummary !== session.description && (
         <div className="selectable" style={{ fontSize: 12, color: "#9CA3AF", marginBottom: 8, lineHeight: "17px" }}>
           {plainSummary}
         </div>

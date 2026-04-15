@@ -359,13 +359,18 @@ export function groupEventsIntoSessions(
     } else if (commitMsgFromDiff) {
       description = commitMsgFromDiff;
     } else {
-      // Generate summary from file paths
+      // Generate description from actual file names
       const fileCount = fileMap.size;
       if (fileCount > 0) {
-        const firstPath = filePaths[0];
-        const dir = firstPath.split("/").slice(0, -1).join("/");
-        const shortDir = dir.split("/").slice(-2).join("/");
-        description = `Modified ${fileCount} file${fileCount !== 1 ? "s" : ""} in ${shortDir || "/"}`;
+        const fileNames = [...fileMap.keys()].map((p) => {
+          const parts = p.split("/");
+          return parts[parts.length - 1] ?? p;
+        });
+        if (fileCount <= 3) {
+          description = fileNames.join(", ");
+        } else {
+          description = `${fileNames.slice(0, 2).join(", ")} and ${fileCount - 2} more`;
+        }
       } else {
         description = `${raw.events.length} event${raw.events.length !== 1 ? "s" : ""}`;
       }
