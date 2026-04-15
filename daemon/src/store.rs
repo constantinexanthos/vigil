@@ -107,7 +107,9 @@ impl Store {
             CREATE INDEX IF NOT EXISTS idx_events_session_id ON events(session_id);
             ",
         )?;
-        crate::cost::init_cost_schema(&self.conn)
+        crate::cost::init_cost_schema(&self.conn)?;
+        crate::hallucination::init_hallucination_schema(&self.conn)?;
+        crate::github::init_github_schema(&self.conn)
     }
 
     /// Insert a new event. Returns the row id.

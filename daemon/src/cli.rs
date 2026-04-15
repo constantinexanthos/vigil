@@ -6,7 +6,7 @@ use clap::{Parser, Subcommand};
 
 use crate::git::GitEventKind;
 use crate::hooks::claude;
-use crate::process::ProcessScanner;
+use crate::process::{Agent, ProcessScanner};
 use crate::store::{AgentEvent, EventKind, EventQuery, Store};
 use crate::watcher::FsEventKind;
 
@@ -66,11 +66,26 @@ pub enum Command {
         #[arg(long)]
         dry_run: bool,
     },
+    /// List unresolved phantom imports detected by hallucination scanner
+    Hallucinations {
+        /// Filter by agent name
+        #[arg(long)]
+        agent: Option<String>,
+        /// Time window (e.g. "1h", "24h", "7d"). Default: 24h
+        #[arg(long, default_value = "24h")]
+        since: String,
+    },
     /// Re-attribute "unknown-agent" events using neighboring event context
     Reattribute {
         /// Show what would change without modifying the database
         #[arg(long)]
         dry_run: bool,
+    },
+    /// Show pull requests for watched repos
+    Prs {
+        /// Filter by repo path
+        #[arg(long)]
+        repo: Option<String>,
     },
     /// Show cost and token usage by agent and session
     Cost {
@@ -168,6 +183,30 @@ pub async fn run_watch(dirs: Vec<PathBuf>) {
         }
     });
 
+    // Background GitHub PR sync — every 60 seconds.
+    let gh_db = Arc::clone(&db);
+    let gh_dirs = dirs.clone();
+    tokio::spawn(async move {
+        // Initial delay to let the daemon settle.
+        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+        loop {
+            interval.tick().await;
+            for dir in &gh_dirs {
+                if !crate::github::is_github_repo(dir) {
+                    continue;
+                }
+                let store = gh_db.lock().unwrap();
+                if let Some(pr) = crate::github::sync_pr_data(store.conn(), dir) {
+                    eprintln!(
+                        "vigil: PR #{} ({}) — {} +{}/-{}",
+                        pr.number, pr.state, pr.title, pr.additions, pr.deletions
+                    );
+                }
+            }
+        }
+    });
+
     // Handle new worktrees — log them. The git monitor already detects
     // worktree creation; this channel lets us add additional monitoring.
     tokio::spawn(async move {
@@ -178,6 +217,7 @@ pub async fn run_watch(dirs: Vec<PathBuf>) {
 
     // Git event consumer.
     let git_db = Arc::clone(&db);
+    let git_scanner = Arc::clone(&scanner);
     tokio::spawn(async move {
         while let Some(git_event) = git_rx.recv().await {
             let (kind, file_path, branch, diff) = match &git_event.kind {
@@ -219,12 +259,24 @@ pub async fn run_watch(dirs: Vec<PathBuf>) {
                 }
             };
 
+            let agent = {
+                let s = git_scanner.lock().unwrap();
+                let active = s.active_agents();
+                if active.len() == 1 {
+                    active[0].1
+                } else if active.is_empty() {
+                    Agent::Unknown
+                } else {
+                    active[0].1
+                }
+            };
+
             let agent_event = AgentEvent {
                 id: None,
                 timestamp: git_event.timestamp,
                 kind,
                 file_path,
-                agent: "unknown-agent".to_string(),
+                agent: agent.as_str().to_string(),
                 session_id: None,
                 repo_path: Some(git_event.repo_path.to_string_lossy().to_string()),
                 branch,
@@ -243,7 +295,16 @@ pub async fn run_watch(dirs: Vec<PathBuf>) {
     while let Some(fs_event) = fs_rx.recv().await {
         let agent = {
             let s = scanner.lock().unwrap();
-            s.identify_agent(0)
+            let active = s.active_agents();
+            if active.len() == 1 {
+                active[0].1
+            } else if active.is_empty() {
+                Agent::Unknown
+            } else {
+                // Multiple agents running -- pick the first known one.
+                // TODO: improve heuristic by matching agent working directory to file path.
+                active[0].1
+            }
         };
 
         let agent_event = AgentEvent {
@@ -388,6 +449,115 @@ pub fn run_status() {
         for (path, agents) in &collisions {
             println!("  {} -- [{}]", path, agents.join(", "));
         }
+    }
+}
+
+pub fn run_hallucinations(agent: Option<String>, since: String) {
+    let db_path = vigil_db_path();
+    if !db_path.exists() {
+        println!("No vigil database found at {}", db_path.display());
+        println!("Run `vigil watch <dir>` first.");
+        return;
+    }
+
+    let store = Store::open(&db_path).expect("failed to open store");
+    let since_dt = parse_duration_ago(&since);
+
+    let results = crate::hallucination::query_hallucinations(
+        store.conn(),
+        agent.as_deref(),
+        Some(&since_dt),
+    )
+    .unwrap_or_default();
+
+    if results.is_empty() {
+        println!("No phantom imports detected (last {since}).");
+        return;
+    }
+
+    println!("PHANTOM IMPORTS (last {})", since);
+    println!("{}", "-".repeat(70));
+
+    const TS_W: usize = 19;
+    const AGENT_W: usize = 15;
+
+    println!(
+        "{:<TS_W$}  {:<AGENT_W$}  LOCATION",
+        "TIMESTAMP", "AGENT",
+    );
+    println!("{}", "-".repeat(70));
+
+    for h in &results {
+        let ts = h.timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
+        println!(
+            "{:<TS_W$}  {:<AGENT_W$}  {}:{}  {}",
+            ts, h.agent, h.file_path, h.line_number, h.import_path,
+        );
+    }
+
+    println!();
+    println!("{} unresolved phantom import(s)", results.len());
+}
+
+pub fn run_prs(repo: Option<String>) {
+    let db_path = vigil_db_path();
+    if !db_path.exists() {
+        println!("No vigil database found at {}", db_path.display());
+        println!("Run `vigil watch <dir>` first.");
+        return;
+    }
+
+    let store = Store::open(&db_path).expect("failed to open store");
+
+    // If a specific repo is given, try to sync fresh data first.
+    if let Some(ref repo_path) = repo {
+        let path = std::path::Path::new(repo_path);
+        if path.is_dir() && crate::github::is_github_repo(path) {
+            crate::github::sync_pr_data(store.conn(), path);
+        }
+    }
+
+    let prs = crate::github::query_prs(store.conn(), repo.as_deref()).unwrap_or_default();
+
+    if prs.is_empty() {
+        println!("No pull requests found.");
+        println!("Run `vigil watch <dir>` on a GitHub repo to sync PR data.");
+        return;
+    }
+
+    println!("PULL REQUESTS");
+    println!("{}", "-".repeat(70));
+
+    for pr in &prs {
+        let state = pr.state.as_deref().unwrap_or("?");
+        let title = pr.title.as_deref().unwrap_or("(untitled)");
+        let branch = pr.branch.as_deref().unwrap_or("-");
+        let author = pr.author.as_deref().unwrap_or("?");
+        let review = pr.review_decision.as_deref().unwrap_or("-");
+
+        println!(
+            "  #{:<5}  {:<8}  {:<30}  {}",
+            pr.pr_number,
+            state,
+            truncate_str(title, 30),
+            branch,
+        );
+        println!(
+            "          +{:<5} -{:<5}  review: {:<15}  by {}",
+            pr.additions, pr.deletions, review, author,
+        );
+        if let Some(ref url) = pr.url {
+            println!("          {url}");
+        }
+        println!();
+    }
+}
+
+fn truncate_str(s: &str, max: usize) -> String {
+    if s.len() <= max {
+        s.to_string()
+    } else {
+        format!("{}...", &s[..max - 3])
     }
 }
 

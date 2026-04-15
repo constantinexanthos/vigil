@@ -6,6 +6,23 @@ use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 
+/// Directories and path fragments to ignore — build outputs, caches, dependencies.
+const IGNORE_PATTERNS: &[&str] = &[
+    "/target/",
+    "/node_modules/",
+    "/dist/",
+    "/.next/",
+    "/build/",
+    "/__pycache__/",
+    "/.venv/",
+    "/venv/",
+    "/.turbo/",
+    "/.vercel/",
+    "/.superpowers/",
+    "/coverage/",
+    "/.playwright-mcp/",
+];
+
 /// A structured file-system event emitted by the watcher.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FsEvent {
@@ -93,8 +110,13 @@ pub fn start(
             let kind = classify_event(&event.kind);
 
             for path in &event.paths {
-                // Skip hidden dirs/files (e.g. .git) — only check the
-                // path components *within* a watched root, not the root itself.
+                // Skip hidden dirs/files (e.g. .git) and build/cache directories.
+                let path_str = path.to_string_lossy();
+                let ignored = IGNORE_PATTERNS.iter().any(|p| path_str.contains(p));
+                if ignored {
+                    continue;
+                }
+
                 let dominated = watched.iter().any(|root| {
                     path.strip_prefix(root).is_ok_and(|rel| {
                         rel.components()

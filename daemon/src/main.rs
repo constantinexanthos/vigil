@@ -1,10 +1,13 @@
 mod cli;
 mod cost;
 mod git;
+mod github;
+mod hallucination;
 mod hooks;
 mod process;
 mod rollback;
 mod store;
+pub mod trust;
 mod watcher;
 
 use clap::Parser;
@@ -24,5 +27,7 @@ async fn main() {
         Command::Cost { agent, since, sessions } => cli::run_cost(agent, since, sessions),
         Command::Sessions { agent, since } => cli::run_sessions(agent, since),
         Command::Rollback { session_id, reject_all, dry_run } => cli::run_rollback(&session_id, reject_all, dry_run),
+        Command::Hallucinations { agent, since } => cli::run_hallucinations(agent, since),
+        Command::Prs { repo } => cli::run_prs(repo),
     }
 }
