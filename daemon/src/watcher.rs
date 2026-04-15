@@ -75,8 +75,8 @@ fn git_diff_snippet(path: &Path) -> Option<String> {
         return None;
     }
 
-    // Cap at ~2 KB to keep events lightweight.
-    const MAX_DIFF_BYTES: usize = 2048;
+    // Cap at ~8 KB to capture more complete diffs.
+    const MAX_DIFF_BYTES: usize = 8192;
     if trimmed.len() > MAX_DIFF_BYTES {
         Some(format!("{}…", &trimmed[..MAX_DIFF_BYTES]))
     } else {
