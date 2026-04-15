@@ -3,11 +3,7 @@ import DiffViewer from "./DiffViewer";
 import { formatCost, truncatePath } from "../types";
 import type { SessionGroup, SessionFile } from "../types";
 
-interface SessionDetailProps {
-  session: SessionGroup;
-}
-
-const BUILD_ARTIFACT_PATTERNS = ["/target/", "/build/", "/node_modules/", "/dist/", "/.next/", ".tmp.", ".swp", "~"];
+const BUILD_ARTIFACT_PATTERNS = ["/target/", "/build/", "/node_modules/", "/dist/", "/.next/"];
 
 function confidenceExplanation(score: number): string {
   if (score >= 80) return "High confidence \u2014 clean session with good patterns";
@@ -17,25 +13,10 @@ function confidenceExplanation(score: number): string {
 }
 
 const EXT_LABELS: Record<string, string> = {
-  ts: "TypeScript",
-  tsx: "TypeScript",
-  js: "JavaScript",
-  jsx: "JavaScript",
-  rs: "Rust",
-  py: "Python",
-  css: "CSS",
-  html: "HTML",
-  json: "JSON",
-  md: "Markdown",
-  toml: "TOML",
-  yaml: "YAML",
-  yml: "YAML",
-  sql: "SQL",
-  sh: "shell",
-  go: "Go",
-  java: "Java",
-  rb: "Ruby",
-  swift: "Swift",
+  ts: "TypeScript", tsx: "TypeScript", js: "JavaScript", jsx: "JavaScript",
+  rs: "Rust", py: "Python", css: "CSS", html: "HTML", json: "JSON",
+  md: "Markdown", toml: "TOML", yaml: "YAML", yml: "YAML",
+  sql: "SQL", sh: "shell", go: "Go", java: "Java", rb: "Ruby", swift: "Swift",
 };
 
 function actionLabel(kind: string): string {
@@ -46,146 +27,86 @@ function actionLabel(kind: string): string {
 
 function buildPlainSummary(files: SessionFile[]): string | null {
   if (files.length === 0) return null;
-
-  // Group by action + extension
-  const groups = new Map<string, Map<string, number>>(); // action -> ext -> count
+  const groups = new Map<string, Map<string, number>>();
   const dirs = new Set<string>();
-
   for (const f of files) {
     const parts = f.path.split("/");
     const filename = parts[parts.length - 1] ?? "";
     const dotIdx = filename.lastIndexOf(".");
     const ext = dotIdx >= 0 ? filename.slice(dotIdx + 1) : "";
-
     const action = actionLabel(f.kind);
     if (!groups.has(action)) groups.set(action, new Map());
-    const extMap = groups.get(action)!;
-    extMap.set(ext, (extMap.get(ext) ?? 0) + 1);
-
-    // Collect directories (last 2 segments of directory path)
-    if (parts.length > 1) {
-      const dirParts = parts.slice(0, -1);
-      const short = dirParts.slice(-2).join("/");
-      dirs.add(short);
-    }
+    groups.get(action)!.set(ext, (groups.get(action)!.get(ext) ?? 0) + 1);
+    if (parts.length > 1) dirs.add(parts.slice(0, -1).slice(-2).join("/"));
   }
-
-  // Build file description parts
   const descParts: string[] = [];
   for (const [action, extMap] of groups) {
-    const segments: string[] = [];
+    const segs: string[] = [];
     for (const [ext, count] of extMap) {
-      const label = EXT_LABELS[ext] ?? (ext || "unknown");
-      const isTest = files.some(
-        (f) =>
-          f.kind === (action === "created" ? "file_create" : action === "deleted" ? "file_delete" : f.kind) &&
-          (f.path.includes(".test.") || f.path.includes(".spec.") || f.path.includes("/test") || f.path.includes("/tests")),
-      );
-      if (isTest && ext && (ext === "ts" || ext === "tsx" || ext === "js" || ext === "jsx")) {
-        // Check which of these files are test files
-        const testCount = files.filter(
-          (f) =>
-            (f.path.includes(".test.") || f.path.includes(".spec.") || f.path.includes("/__tests__/")) &&
-            f.path.endsWith(`.${ext}`),
-        ).length;
-        const nonTestCount = count - testCount;
-        if (nonTestCount > 0) {
-          segments.push(`${nonTestCount} ${label} file${nonTestCount !== 1 ? "s" : ""}`);
-        }
-        if (testCount > 0) {
-          segments.push(`${testCount} test file${testCount !== 1 ? "s" : ""}`);
-        }
-      } else {
-        segments.push(`${count} ${label} file${count !== 1 ? "s" : ""}`);
-      }
+      segs.push(`${count} ${EXT_LABELS[ext] ?? (ext || "unknown")} file${count !== 1 ? "s" : ""}`);
     }
-    const actionCap = action.charAt(0).toUpperCase() + action.slice(1);
-    descParts.push(`${actionCap} ${segments.join(", ")}`);
+    descParts.push(`${action.charAt(0).toUpperCase() + action.slice(1)} ${segs.join(", ")}`);
   }
-
-  // Build scope description (top 2 directories)
   const dirArr = Array.from(dirs);
-  let scopePart = "";
+  let scope = "";
   if (dirArr.length > 0) {
-    const shown = dirArr.slice(0, 2);
-    scopePart = `Changes in ${shown.join(" and ")}`;
-    if (dirArr.length > 2) {
-      scopePart += ` and ${dirArr.length - 2} more`;
-    }
+    scope = `Changes in ${dirArr.slice(0, 2).join(" and ")}`;
+    if (dirArr.length > 2) scope += ` and ${dirArr.length - 2} more`;
   }
-
-  const parts: string[] = [];
-  if (descParts.length > 0) parts.push(descParts.join(". "));
-  if (scopePart) parts.push(scopePart);
-  return parts.join(". ") + ".";
+  return [descParts.join(". "), scope].filter(Boolean).join(". ") + ".";
 }
 
-export default function SessionDetail({ session }: SessionDetailProps) {
-  const [expandedFile, setExpandedFile] = useState<string | null>(null);
+interface Props { session: SessionGroup; }
 
+export default function SessionDetail({ session }: Props) {
+  const [expandedFile, setExpandedFile] = useState<string | null>(null);
   const visibleFiles = session.files.filter(
     (f) => !BUILD_ARTIFACT_PATTERNS.some((p) => f.path.includes(p)),
   );
-
   const plainSummary = buildPlainSummary(visibleFiles);
 
   return (
-    <div className="bg-bg-secondary border-t border-border pl-7 pr-4 pb-4 pt-3">
-      {/* Description (from commit message) */}
-      {session.description && (
-        <div className="text-base text-text-primary mb-1.5 selectable">
-          {session.description}
-        </div>
-      )}
-
+    <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", background: "#1C1C1E", padding: "12px 14px 16px 14px" }}>
       {/* Plain-English summary */}
       {plainSummary && (
-        <div className="text-base text-text-tertiary font-sans mb-2.5 leading-[18px] selectable">
+        <div className="selectable" style={{ fontSize: 12, color: "#9CA3AF", marginBottom: 8, lineHeight: "17px" }}>
           {plainSummary}
         </div>
       )}
 
-      {/* Confidence + Cost row */}
-      <div className="flex items-baseline gap-4 mb-3">
+      {/* Confidence + Cost */}
+      <div className="flex items-baseline gap-4" style={{ marginBottom: 10 }}>
         {session.confidence > 0 && (
-          <div>
-            <span className="text-sm text-text-muted">
-              Confidence: {session.confidence}/100 {"\u2014"} {confidenceExplanation(session.confidence)}
-            </span>
-          </div>
+          <span style={{ fontSize: 12, color: "#6B7280" }}>
+            Confidence: {session.confidence}/100 {"\u2014"} {confidenceExplanation(session.confidence)}
+          </span>
         )}
-        <span className="text-sm text-text-muted">
+        <span style={{ fontSize: 12, color: "#6B7280" }}>
           Cost: {session.costUsd > 0 ? formatCost(session.costUsd) : "\u2014"}
         </span>
       </div>
 
-      {/* File list table */}
+      {/* File list */}
       {visibleFiles.length > 0 && (
         <div>
-          {visibleFiles.map((file) => (
+          {visibleFiles.map((file, i) => (
             <div key={file.path}>
+              {i > 0 && <div style={{ height: 1, background: "rgba(255,255,255,0.04)" }} />}
               <div
-                className="flex items-center justify-between py-1.5 cursor-pointer hover:opacity-80"
-                onClick={() =>
-                  setExpandedFile(expandedFile === file.path ? null : file.path)
-                }
+                className="flex items-center justify-between cursor-pointer hover:opacity-80"
+                style={{ padding: "6px 0" }}
+                onClick={() => setExpandedFile(expandedFile === file.path ? null : file.path)}
               >
-                <span className="font-mono text-base text-text-secondary truncate selectable">
+                <span className="font-mono truncate selectable" style={{ fontSize: 12, color: "#9CA3AF" }}>
                   {truncatePath(file.path)}
                 </span>
-                <span className="flex items-center gap-3 flex-shrink-0 ml-3 font-mono text-sm">
-                  {file.added > 0 && (
-                    <span style={{ color: "#4ade80" }}>+{file.added}</span>
-                  )}
-                  {file.removed > 0 && (
-                    <span style={{ color: "#f87171" }}>-{file.removed}</span>
-                  )}
+                <span className="flex items-center gap-3 flex-shrink-0 ml-3 font-mono" style={{ fontSize: 12 }}>
+                  {file.added > 0 && <span style={{ color: "#4ade80" }}>+{file.added}</span>}
+                  {file.removed > 0 && <span style={{ color: "#f87171" }}>-{file.removed}</span>}
                 </span>
               </div>
               {expandedFile === file.path && (
-                <div className="selectable">
-                  <DiffViewer diff={file.diff} />
-                </div>
+                <div className="selectable"><DiffViewer diff={file.diff} /></div>
               )}
             </div>
           ))}

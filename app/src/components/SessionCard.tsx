@@ -7,9 +7,10 @@ import type { SessionGroup } from "../types";
 interface Props {
   session: SessionGroup;
   isNew?: boolean;
+  showDivider?: boolean;
 }
 
-function confidenceBorder(score: number): string {
+function confidenceBorderColor(score: number): string {
   if (score <= 0) return "transparent";
   if (score >= 80) return "#15803D";
   if (score >= 60) return "#D97706";
@@ -17,40 +18,44 @@ function confidenceBorder(score: number): string {
   return "#B91C1C";
 }
 
-function confidenceLabel(score: number): { text: string; color: string } {
+function confidenceLabel(score: number): { text: string; color: string } | null {
+  if (score <= 0) return null;
   if (score >= 80) return { text: "High", color: "#15803D" };
   if (score >= 60) return { text: "Review", color: "#D97706" };
-  return { text: "Needs Attention", color: "#B91C1C" };
+  return { text: "Low", color: "#B91C1C" };
 }
 
-export default function SessionCard({ session, isNew }: Props) {
+export default function SessionCard({ session, isNew, showDivider }: Props) {
   const [expanded, setExpanded] = useState(false);
-  const borderColor = confidenceBorder(session.confidence);
-  const badge = session.confidence > 0 ? confidenceLabel(session.confidence) : null;
+  const borderColor = confidenceBorderColor(session.confidence);
+  const badge = confidenceLabel(session.confidence);
 
   return (
     <motion.div
-      className="ml-3 cursor-pointer transition-shadow hover:shadow-card"
-      style={{ borderLeft: `3px solid ${borderColor}`, borderRadius: 0 }}
+      style={{ borderLeft: `3px solid ${borderColor}` }}
       initial={isNew ? { opacity: 0, y: -8 } : false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
     >
-      <div className="px-3 py-2.5" onClick={() => setExpanded(!expanded)}>
-        {/* Line 1: description + time */}
+      <div
+        className="cursor-pointer transition-colors"
+        style={{ padding: "10px 14px", background: "transparent" }}
+        onClick={() => setExpanded(!expanded)}
+        onMouseEnter={(e) => { e.currentTarget.style.background = "#2C2C2E"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+      >
+        {/* Line 1: commit message + timestamp */}
         <div className="flex items-center gap-2">
-          <p className="text-base text-text-primary truncate flex-1">{session.description}</p>
-          <span className="text-xs text-text-muted flex-shrink-0">{relativeTime(session.endTime)}</span>
-          <motion.span className="text-text-muted text-xs" animate={{ rotate: expanded ? 0 : -90 }} transition={{ duration: 0.15 }}>▾</motion.span>
+          <p className="truncate flex-1" style={{ fontSize: 13, color: "#D1D5DB", fontWeight: 400 }}>{session.description}</p>
+          <span className="flex-shrink-0" style={{ fontSize: 12, color: "#6B7280" }}>{relativeTime(session.endTime)}</span>
         </div>
         {/* Line 2: stats */}
-        <div className="flex items-center gap-2 mt-0.5">
-          <span className="text-sm text-text-muted">{session.files.length} file{session.files.length !== 1 ? "s" : ""}</span>
+        <div className="flex items-center gap-2" style={{ marginTop: 2 }}>
+          <span style={{ fontSize: 12, color: "#6B7280" }}>{session.files.length} file{session.files.length !== 1 ? "s" : ""}</span>
           {badge && (
-            <span className="text-xs px-1.5 py-0.5 rounded-sm" style={{ color: badge.color, background: badge.color + "18" }}>{badge.text}</span>
+            <span style={{ fontSize: 11, color: badge.color, background: badge.color + "18", padding: "1px 6px", borderRadius: 3 }}>{badge.text}</span>
           )}
-          {session.costUsd > 0 && <span className="text-sm text-text-muted">{formatCost(session.costUsd)}</span>}
-          {session.hasWarning && <span className="w-1.5 h-1.5 rounded-full bg-amber" />}
+          {session.costUsd > 0 && <span style={{ fontSize: 12, color: "#6B7280" }}>{formatCost(session.costUsd)}</span>}
         </div>
       </div>
 
@@ -67,6 +72,10 @@ export default function SessionCard({ session, isNew }: Props) {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {showDivider && !expanded && (
+        <div style={{ height: 1, background: "rgba(255,255,255,0.04)", marginLeft: 14, marginRight: 14 }} />
+      )}
     </motion.div>
   );
 }
