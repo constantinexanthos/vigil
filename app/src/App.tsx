@@ -1,5 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import TopBar from "./components/TopBar";
+import BriefingCard from "./components/BriefingCard";
+import LivePulse from "./components/LivePulse";
 import ProjectSection from "./components/ProjectSection";
 import { useDaemonData } from "./hooks";
 import { groupEventsIntoSessions, relativeTime } from "./types";
@@ -51,6 +53,26 @@ export default function App() {
     }
   }, [projects]);
 
+  // Compute briefing stats
+  const briefingStats = useMemo(() => {
+    const allSessions = projects.flatMap((p) => p.sessions);
+    const agentCount = data.agentStats.length;
+    const filesChanged = data.workspaceSummary.files_changed_today;
+    const sessionCount = allSessions.length;
+    const costUsd = data.costSummary.total_cost_usd;
+    const collisionCount = data.collisions.length;
+
+    // Average confidence across sessions that have a confidence score
+    const scored = allSessions.filter((s) => s.confidence > 0);
+    const confidence = scored.length > 0
+      ? Math.round(scored.reduce((sum, s) => sum + s.confidence, 0) / scored.length)
+      : 0;
+
+    const lowConfidenceCount = allSessions.filter((s) => s.confidence > 0 && s.confidence < 60).length;
+
+    return { agentCount, filesChanged, confidence, sessionCount, costUsd, collisionCount, lowConfidenceCount };
+  }, [projects, data.agentStats, data.workspaceSummary, data.costSummary, data.collisions]);
+
   return (
     <div className="h-screen w-full bg-bg flex flex-col font-sans">
       <TopBar
@@ -62,6 +84,20 @@ export default function App() {
         connected={data.connected}
         hasNewEvents={data.hasNewEvents}
       />
+      {data.connected && (
+        <BriefingCard
+          agentCount={briefingStats.agentCount}
+          filesChanged={briefingStats.filesChanged}
+          confidence={briefingStats.confidence}
+          sessionCount={briefingStats.sessionCount}
+          costUsd={briefingStats.costUsd}
+          collisionCount={briefingStats.collisionCount}
+          lowConfidenceCount={briefingStats.lowConfidenceCount}
+        />
+      )}
+      {data.connected && (
+        <LivePulse events={data.events} costSummary={data.costSummary} />
+      )}
       <div className="flex-1 overflow-y-auto">
         {!data.connected && (
           <div className="flex flex-col items-center justify-center h-full px-8">
@@ -82,7 +118,12 @@ export default function App() {
           </div>
         )}
         {projects.map((project) => (
-          <ProjectSection key={project.repoPath} project={project} newSessionIds={newSessionIds} />
+          <ProjectSection
+            key={project.repoPath}
+            project={project}
+            newSessionIds={newSessionIds}
+            collisions={data.collisions}
+          />
         ))}
 
         {/* Last updated footer */}
