@@ -4,8 +4,8 @@ interface SparklineProps {
 }
 
 export default function Sparkline({ data, color }: SparklineProps) {
-  const width = 90;
-  const height = 18;
+  const width = 80;
+  const height = 20;
   const barWidth = 2;
   const gap = 1;
   const maxVal = Math.max(...data, 1);
@@ -16,6 +16,8 @@ export default function Sparkline({ data, color }: SparklineProps) {
         const barHeight = value === 0 ? 1 : Math.max(2, (value / maxVal) * height);
         const x = i * (barWidth + gap);
         const y = height - barHeight;
+        const isRecent = i >= data.length - 3;
+        const opacity = isRecent ? 1 : 0.4;
 
         return (
           <rect
@@ -25,7 +27,7 @@ export default function Sparkline({ data, color }: SparklineProps) {
             width={barWidth}
             height={barHeight}
             fill={color}
-            opacity={0.4}
+            opacity={opacity}
             rx={0.5}
           />
         );

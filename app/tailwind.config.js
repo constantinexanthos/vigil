@@ -4,18 +4,18 @@ export default {
   theme: {
     extend: {
       colors: {
-        bg: "#0a0b0e",
-        surface: "#0f1115",
-        elevated: "#14161c",
-        border: "#1e2028",
-        "border-hover": "#2a2d38",
-        accent: "#22d3ee",
+        bg: "#0f1117",
+        surface: "#161820",
+        elevated: "#1c1e2a",
+        border: "#232530",
+        "border-hover": "#2d3040",
+        accent: "#3b82f6",
         amber: "#fbbf24",
         danger: "#ef4444",
         violet: "#a78bfa",
-        "text-primary": "#e4e4e7",
-        "text-secondary": "#9ca3af",
-        "text-muted": "#4b5563",
+        "text-primary": "#e8e9ed",
+        "text-secondary": "#8b8d98",
+        "text-muted": "#5c5e6a",
       },
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],

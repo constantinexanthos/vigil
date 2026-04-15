@@ -18,16 +18,16 @@ export interface AgentStat {
 }
 
 export const AGENT_COLORS: Record<string, string> = {
-  "claude-code": "#22d3ee",
-  cursor: "#4ade80",
+  "claude-code": "#00ff41",
+  cursor: "#00d9ff",
   conductor: "#a78bfa",
-  aider: "#fbbf24",
+  aider: "#ffb800",
   codex: "#f472b6",
-  cline: "#2dd4bf",
+  cline: "#34d399",
 };
 
 export function agentColor(agent: string): string {
-  return AGENT_COLORS[agent] ?? "#9ca3af";
+  return AGENT_COLORS[agent] ?? "#6b7084";
 }
 
 const DISPLAY_NAMES: Record<string, string> = {
@@ -43,20 +43,22 @@ export function agentDisplayName(agent: string): string {
   return DISPLAY_NAMES[agent] ?? agent;
 }
 
-const KIND_LABELS: Record<string, string> = {
-  file_write: "wrote",
-  file_create: "created",
-  file_delete: "deleted",
-  file_rename: "renamed",
-  file_modify: "modified",
-  git_commit: "committed",
-  git_branch_create: "branched",
-  git_worktree_create: "worktree",
-  checkpoint: "checkpoint",
+interface KindIconResult {
+  symbol: string;
+  color: string;
+}
+
+const KIND_ICONS: Record<string, KindIconResult> = {
+  file_write: { symbol: "W", color: "#00ff41" },
+  file_create: { symbol: "+", color: "#34d399" },
+  file_delete: { symbol: "x", color: "#ff3333" },
+  file_rename: { symbol: "~", color: "#ffb800" },
+  file_modify: { symbol: "M", color: "#00d9ff" },
+  checkpoint: { symbol: "C", color: "#a78bfa" },
 };
 
-export function kindLabel(kind: string): string {
-  return KIND_LABELS[kind] ?? kind.replace(/_/g, " ");
+export function kindIcon(kind: string): KindIconResult {
+  return KIND_ICONS[kind] ?? { symbol: ".", color: "#6b7084" };
 }
 
 export function truncatePath(path: string): string {
