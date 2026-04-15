@@ -19,23 +19,29 @@ export default function AgentSection({ agent, sessions, totalCost, collisions: _
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <motion.div className="mb-3" layout transition={spring}>
+    <motion.div style={{ marginBottom: 20 }} layout transition={spring}>
       {/* Agent header */}
       <div
-        className="flex items-center justify-between px-3 py-2.5 rounded-md cursor-pointer hover:shadow-card transition-shadow"
+        className="flex items-center justify-between cursor-pointer"
+        style={{
+          background: "#2C2C2E",
+          borderRadius: 8,
+          padding: "10px 14px",
+          marginBottom: 4,
+        }}
         onClick={() => setCollapsed(!collapsed)}
       >
         <div className="flex items-center gap-2.5">
-          <AgentLogo agent={agent} />
-          <span className="text-lg font-medium text-text-primary">{agentDisplayName(agent)}</span>
-          <span className="text-sm text-text-muted">{sessions.length} session{sessions.length !== 1 ? "s" : ""}</span>
+          <div style={{ width: 20, height: 20 }}><AgentLogo agent={agent} /></div>
+          <span style={{ fontSize: 15, fontWeight: 600, color: "#F9FAFB" }}>{agentDisplayName(agent)}</span>
+          <span style={{ fontSize: 12, color: "#6B7280" }}>{sessions.length} session{sessions.length !== 1 ? "s" : ""}</span>
         </div>
         <div className="flex items-center gap-2">
           {totalCost > 0 && (
-            <span className="text-xs text-text-muted bg-bg-secondary px-2 py-0.5 rounded-sm">{formatCost(totalCost)}</span>
+            <span style={{ fontSize: 12, color: "#6B7280" }}>{formatCost(totalCost)}</span>
           )}
           <motion.span
-            className="text-text-muted text-xs"
+            style={{ color: "#6B7280", fontSize: 11 }}
             animate={{ rotate: collapsed ? -90 : 0 }}
             transition={{ duration: 0.15 }}
           >
@@ -53,11 +59,12 @@ export default function AgentSection({ agent, sessions, totalCost, collisions: _
             transition={{ duration: 0.2, ease: "easeOut" }}
             className="overflow-hidden"
           >
-            {sessions.map((session) => (
+            {sessions.map((session, i) => (
               <SessionCard
                 key={session.id}
                 session={session}
                 isNew={newSessionIds.has(session.id)}
+                showDivider={i < sessions.length - 1}
               />
             ))}
           </motion.div>

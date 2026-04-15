@@ -28,7 +28,6 @@ export default function App() {
     return groupEventsIntoSessions(filtered, data.commitGroups, data.costSummary);
   }, [data.events, data.commitGroups, data.costSummary, agentFilter, timeRange]);
 
-  // Group sessions by agent instead of project
   const agentGroups = useMemo(() => {
     const map = new Map<string, typeof projects[0]["sessions"]>();
     for (const p of projects) {
@@ -45,7 +44,6 @@ export default function App() {
     }));
   }, [projects]);
 
-  // Track new sessions for animations
   const prevSessionIds = useRef<Set<string>>(new Set());
   const [newSessionIds, setNewSessionIds] = useState<Set<string>>(new Set());
   useEffect(() => {
@@ -56,7 +54,6 @@ export default function App() {
     if (fresh.size > 0) { setNewSessionIds(fresh); setTimeout(() => setNewSessionIds(new Set()), 500); }
   }, [agentGroups]);
 
-  // Cmd+K shortcut
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") { e.preventDefault(); setCmdOpen(true); }
@@ -67,6 +64,7 @@ export default function App() {
 
   const alertCount = data.collisions.length;
   const totalCost = data.costSummary.total_cost_usd;
+  const showEmpty = !data.connected || (data.connected && agentGroups.length === 0);
 
   return (
     <div className="h-screen w-full bg-bg flex flex-col font-sans">
@@ -84,22 +82,18 @@ export default function App() {
         onOpenCmd={() => setCmdOpen(true)}
       />
 
-      <div className="flex-1 overflow-y-auto px-4 py-3">
-        {!data.connected && (
+      <div className="flex-1 overflow-y-auto" style={{ padding: "12px 12px" }}>
+        {showEmpty && (
           <div className="flex flex-col items-center justify-center h-full">
-            <div className="w-12 h-12 rounded-lg bg-bg-secondary flex items-center justify-center mb-4 shadow-card">
-              <span className="text-text-muted text-xl">V</span>
-            </div>
-            <p className="text-sm text-text-muted mb-3">Start the Vigil daemon to see agent activity</p>
-            <code className="text-xs font-mono text-text-tertiary bg-bg-secondary px-4 py-2 rounded-md shadow-subtle selectable">
+            <img src="/logo.png" alt="" width={24} height={24} style={{ imageRendering: "auto", marginBottom: 12, opacity: 0.5 }}
+              onError={(e) => { (e.target as HTMLElement).style.display = "none"; }} />
+            <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 10 }}>No agent activity yet</p>
+            <code className="font-mono selectable" style={{
+              fontSize: 12, color: "#9CA3AF", background: "#2C2C2E",
+              padding: "6px 14px", borderRadius: 6,
+            }}>
               vigil watch ~/projects
             </code>
-          </div>
-        )}
-
-        {data.connected && agentGroups.length === 0 && (
-          <div className="flex items-center justify-center h-full">
-            <p className="text-sm text-text-muted">No activity found</p>
           </div>
         )}
 
