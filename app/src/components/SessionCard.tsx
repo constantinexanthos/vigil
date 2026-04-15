@@ -6,13 +6,14 @@ import type { SessionGroup } from "../types";
 
 interface SessionCardProps {
   session: SessionGroup;
+  isNew?: boolean;
 }
 
-export default function SessionCard({ session }: SessionCardProps) {
+export default function SessionCard({ session, isNew }: SessionCardProps) {
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className="border-b border-border">
+<div className={`border-b border-border${isNew ? " session-new" : ""}`}>
       {/* Collapsed: two lines only */}
       <div
         className="py-3 px-4 cursor-pointer hover:bg-surface transition-colors"

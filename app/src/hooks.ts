@@ -20,6 +20,7 @@ interface DaemonState {
   error: string | null;
   agentActivity: Map<string, AgentActivity>;
   newEventIds: Set<number>;
+  hasNewEvents: boolean;
   commitGroups: CommitGroup[];
   workspaceSummary: WorkspaceSummary;
   lastUpdated: number;
@@ -38,6 +39,7 @@ export function useDaemonData(): DaemonState {
   const [error, setError] = useState<string | null>(null);
   const [agentActivity, setAgentActivity] = useState<Map<string, AgentActivity>>(new Map());
   const [newEventIds, setNewEventIds] = useState<Set<number>>(new Set());
+  const [hasNewEvents, setHasNewEvents] = useState(false);
   const [costSummary, setCostSummary] = useState<CostSummary>({ total_cost_usd: 0, agents: [] });
   const [commitGroups, setCommitGroups] = useState<CommitGroup[]>([]);
   const [lastUpdated, setLastUpdated] = useState<number>(Date.now());
@@ -72,7 +74,11 @@ export function useDaemonData(): DaemonState {
 
       if (freshIds.size > 0) {
         setNewEventIds(freshIds);
-        setTimeout(() => setNewEventIds(new Set()), 400);
+        setHasNewEvents(true);
+        setTimeout(() => {
+          setNewEventIds(new Set());
+          setHasNewEvents(false);
+        }, 400);
       }
 
       // Compute sparkline deltas per agent
@@ -147,6 +153,7 @@ export function useDaemonData(): DaemonState {
     error,
     agentActivity,
     newEventIds,
+    hasNewEvents,
     commitGroups,
     workspaceSummary,
     lastUpdated,

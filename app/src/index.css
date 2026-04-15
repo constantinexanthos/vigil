@@ -47,3 +47,21 @@ body {
   max-height: 2000px;
   overflow: visible;
 }
+
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.status-pulse {
+  animation: status-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes session-fade-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.session-new {
+  animation: session-fade-in 300ms ease-out;
+}
