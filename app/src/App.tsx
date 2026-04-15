@@ -1,99 +1,64 @@
-import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import SessionList from "./components/SessionList";
-import SessionReview from "./components/SessionReview";
-import { getActiveAgents, getEventCount, type SessionResponse } from "./tauri";
+import { useState, useMemo } from "react";
+import TopBar from "./components/TopBar";
+import ProjectSection from "./components/ProjectSection";
+import { useDaemonData } from "./hooks";
+import { groupEventsIntoSessions } from "./types";
+import type { AgentEvent } from "./types";
 
-type Tab = "dashboard" | "sessions";
+function filterByTime(events: AgentEvent[], range: string): AgentEvent[] {
+  if (range === "all") return events;
+  const now = Date.now();
+  const cutoffs: Record<string, number> = {
+    today: 24 * 60 * 60 * 1000,
+    "7d": 7 * 24 * 60 * 60 * 1000,
+    "30d": 30 * 24 * 60 * 60 * 1000,
+  };
+  const ms = cutoffs[range] ?? cutoffs["today"];
+  return events.filter((e) => now - new Date(e.timestamp).getTime() < ms);
+}
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>("dashboard");
-  const [selectedSession, setSelectedSession] = useState<SessionResponse | null>(null);
-  const [agents, setAgents] = useState<string[]>([]);
-  const [eventCount, setEventCount] = useState<number>(0);
+  const data = useDaemonData();
+  const [agentFilter, setAgentFilter] = useState("");
+  const [timeRange, setTimeRange] = useState("today");
 
-  useEffect(() => {
-    getActiveAgents().then(setAgents).catch(() => {});
-    getEventCount().then(setEventCount).catch(() => {});
-  }, []);
+  const allAgents = useMemo(() => {
+    const set = new Set(data.events.map((e) => e.agent));
+    return [...set].sort();
+  }, [data.events]);
+
+  const projects = useMemo(() => {
+    let filtered = filterByTime(data.events, timeRange);
+    if (agentFilter) {
+      filtered = filtered.filter((e) => e.agent === agentFilter);
+    }
+    return groupEventsIntoSessions(filtered, data.commitGroups, data.costSummary);
+  }, [data.events, data.commitGroups, data.costSummary, agentFilter, timeRange]);
 
   return (
-    <div className="min-h-screen bg-bg">
-      {/* Header */}
-      <div className="px-4 pt-4 pb-2">
-        <h1 className="text-base font-semibold text-text">Vigil</h1>
-      </div>
-
-      {/* Tab bar */}
-      <div className="flex gap-0 border-b border-border px-4">
-        {(["dashboard", "sessions"] as Tab[]).map((t) => (
-          <button
-            key={t}
-            onClick={() => {
-              setTab(t);
-              setSelectedSession(null);
-            }}
-            className={`px-3 py-2 text-xs uppercase tracking-wider transition-colors cursor-pointer ${
-              tab === t
-                ? "text-cyan border-b-2 border-cyan"
-                : "text-text-muted hover:text-text border-b-2 border-transparent"
-            }`}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
-
-      {/* Content */}
-      <motion.div
-        key={tab + (selectedSession?.id ?? "")}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.15 }}
-      >
-        {tab === "dashboard" && (
-          <div className="p-4 flex flex-col gap-4">
-            <div className="rounded-lg border border-border bg-surface p-4">
-              <div className="text-[11px] uppercase tracking-wider text-text-muted mb-2">
-                Active Agents
-              </div>
-              {agents.length === 0 ? (
-                <div className="text-text-muted text-sm">None detected</div>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {agents.map((a) => (
-                    <span
-                      key={a}
-                      className="px-2 py-1 rounded border border-cyan/30 text-cyan text-xs"
-                    >
-                      {a}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="rounded-lg border border-border bg-surface p-4">
-              <div className="text-[11px] uppercase tracking-wider text-text-muted mb-2">
-                Events Today
-              </div>
-              <div className="text-2xl font-semibold text-text">
-                {eventCount}
-              </div>
-            </div>
+    <div className="h-screen w-full bg-bg flex flex-col font-sans">
+      <TopBar
+        agents={allAgents}
+        agentFilter={agentFilter}
+        onAgentFilterChange={setAgentFilter}
+        timeRange={timeRange}
+        onTimeRangeChange={setTimeRange}
+      />
+      <div className="flex-1 overflow-y-auto">
+        {!data.connected && data.error && (
+          <div className="px-5 py-8 text-center">
+            <p className="text-[14px] text-text-muted">{data.error}</p>
           </div>
         )}
-
-        {tab === "sessions" && !selectedSession && (
-          <SessionList onSelect={setSelectedSession} />
+        {data.connected && projects.length === 0 && (
+          <div className="px-5 py-8 text-center">
+            <p className="text-[14px] text-text-muted">No activity found</p>
+          </div>
         )}
-
-        {tab === "sessions" && selectedSession && (
-          <SessionReview
-            session={selectedSession}
-            onBack={() => setSelectedSession(null)}
-          />
-        )}
-      </motion.div>
+        {projects.map((project) => (
+          <ProjectSection key={project.repoPath} project={project} />
+        ))}
+      </div>
     </div>
   );
 }

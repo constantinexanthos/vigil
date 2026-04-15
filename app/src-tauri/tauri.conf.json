@@ -1,5 +1,5 @@
 {
-  "$schema": "https://schema.tauri.app/config/2",
+  "$schema": "https://raw.githubusercontent.com/nicekid1/tauri-v2-schemas/main/tauri.conf.schema.json",
   "productName": "Vigil",
   "version": "0.1.0",
   "identifier": "com.vigil.app",
@@ -10,19 +10,33 @@
     "beforeBuildCommand": "npm run build"
   },
   "app": {
-    "withGlobalTauri": true,
-    "windows": []
+    "withGlobalTauri": false,
+    "trayIcon": {
+      "iconPath": "icons/icon.png",
+      "iconAsTemplate": true
+    },
+    "windows": [
+      {
+        "title": "Vigil",
+        "width": 800,
+        "height": 700,
+        "minWidth": 420,
+        "minHeight": 500,
+        "resizable": true,
+        "decorations": true,
+        "transparent": false,
+        "visible": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
   },
   "bundle": {
     "active": true,
+    "targets": "all",
     "icon": [
       "icons/icon.png"
-    ],
-    "targets": "all"
-  },
-  "plugins": {
-    "shell": {
-      "open": true
-    }
+    ]
   }
 }

@@ -1,0 +1,368 @@
+export interface AgentEvent {
+  id: number;
+  timestamp: string;
+  kind: string;
+  file_path: string | null;
+  agent: string;
+  diff: string | null;
+}
+
+export interface Collision {
+  file_path: string;
+  agents: string[];
+}
+
+export interface AgentStat {
+  agent: string;
+  count: number;
+}
+
+export const AGENT_COLORS: Record<string, string> = {
+  "claude-code": "#00ff41",
+  cursor: "#00d9ff",
+  conductor: "#a78bfa",
+  aider: "#ffb800",
+  codex: "#f472b6",
+  cline: "#34d399",
+};
+
+export function agentColor(agent: string): string {
+  return AGENT_COLORS[agent] ?? "#6b7084";
+}
+
+const DISPLAY_NAMES: Record<string, string> = {
+  "claude-code": "Claude",
+  cursor: "Cursor",
+  conductor: "Conductor",
+  aider: "Aider",
+  codex: "Codex",
+  cline: "Cline",
+};
+
+export function agentDisplayName(agent: string): string {
+  return DISPLAY_NAMES[agent] ?? agent;
+}
+
+interface KindIconResult {
+  symbol: string;
+  color: string;
+}
+
+const KIND_ICONS: Record<string, KindIconResult> = {
+  file_write: { symbol: "W", color: "#00ff41" },
+  file_create: { symbol: "+", color: "#34d399" },
+  file_delete: { symbol: "x", color: "#ff3333" },
+  file_rename: { symbol: "~", color: "#ffb800" },
+  file_modify: { symbol: "M", color: "#00d9ff" },
+  checkpoint: { symbol: "C", color: "#a78bfa" },
+};
+
+export function kindIcon(kind: string): KindIconResult {
+  return KIND_ICONS[kind] ?? { symbol: ".", color: "#6b7084" };
+}
+
+export function truncatePath(path: string): string {
+  const parts = path.split("/");
+  return parts.length <= 2 ? path : parts.slice(-2).join("/");
+}
+
+export function fileName(path: string): string {
+  const parts = path.split("/");
+  return parts[parts.length - 1] ?? path;
+}
+
+export interface CostAgentSummary {
+  agent: string;
+  total_cost_usd: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+  event_count: number;
+}
+
+export interface CostSummary {
+  total_cost_usd: number;
+  agents: CostAgentSummary[];
+}
+
+export function formatCost(usd: number): string {
+  if (usd < 0.01) return `$${usd.toFixed(4)}`;
+  if (usd < 1) return `$${usd.toFixed(2)}`;
+  return `$${usd.toFixed(2)}`;
+}
+
+export function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return n.toString();
+}
+
+export interface FileChange {
+  path: string;
+  kind: string;
+  added: number;
+  removed: number;
+}
+
+export interface CommitGroup {
+  commit_hash: string;
+  commit_message: string;
+  agent: string;
+  timestamp: string;
+  files: FileChange[];
+  confidence_score: number;
+  cost_usd: number;
+}
+
+export interface AgentCommitCount {
+  agent: string;
+  commit_count: number;
+}
+
+export interface WorkspaceSummary {
+  commits_today: number;
+  files_changed_today: number;
+  total_cost_today: number;
+  agent_commits: AgentCommitCount[];
+  active_collisions: Collision[];
+}
+
+export function relativeTime(isoString: string): string {
+  const now = Date.now();
+  const then = new Date(isoString).getTime();
+  const diffSec = Math.floor((now - then) / 1000);
+  if (diffSec < 60) return "just now";
+  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
+  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
+  return `${Math.floor(diffSec / 86400)}d ago`;
+}
+
+export function confidenceColor(score: number): string {
+  if (score >= 75) return "#4ade80";
+  if (score >= 50) return "#fbbf24";
+  return "#ef4444";
+}
+
+// --- Session Feed Types ---
+
+export interface SessionFile {
+  path: string;
+  kind: string;
+  diff: string | null;
+  added: number;
+  removed: number;
+}
+
+export interface SessionGroup {
+  id: string;
+  agent: string;
+  repoPath: string;
+  startTime: string;
+  endTime: string;
+  description: string;
+  files: SessionFile[];
+  confidence: number;
+  costUsd: number;
+  hasWarning: boolean;
+}
+
+export interface ProjectGroup {
+  project: string;
+  repoPath: string;
+  agents: string[];
+  sessions: SessionGroup[];
+}
+
+function parseDiffCounts(diff: string): { added: number; removed: number } {
+  let added = 0;
+  let removed = 0;
+  for (const line of diff.split("\n")) {
+    if (line.startsWith("+") && !line.startsWith("+++")) added++;
+    if (line.startsWith("-") && !line.startsWith("---")) removed++;
+  }
+  return { added, removed };
+}
+
+function extractProjectName(repoPath: string): string {
+  const SKIP_SEGMENTS = new Set([
+    "target", "debug", "deps", "build", "release",
+    "node_modules", "dist", "src", ".next", ".git",
+    "components", "views",
+  ]);
+  const parts = repoPath.replace(/\/+$/, "").split("/").filter(Boolean);
+  const kept: string[] = [];
+  for (let i = parts.length - 1; i >= 0 && kept.length < 2; i--) {
+    if (!SKIP_SEGMENTS.has(parts[i])) {
+      kept.unshift(parts[i]);
+    }
+  }
+  if (kept.length >= 2) return kept.join("/");
+  if (kept.length === 1) return kept[0];
+  return repoPath || "unknown";
+}
+
+export function groupEventsIntoSessions(
+  events: AgentEvent[],
+  commitGroups: CommitGroup[],
+  costSummary: CostSummary,
+): ProjectGroup[] {
+  // 1. Sort events ascending by timestamp
+  const sorted = [...events].sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+  );
+
+  // 2. Group events by agent, splitting when gap > 5min
+  const SESSION_GAP_MS = 5 * 60 * 1000;
+  const rawSessions: { agent: string; events: AgentEvent[] }[] = [];
+
+  const agentBuffers = new Map<string, AgentEvent[]>();
+
+  for (const evt of sorted) {
+    const buf = agentBuffers.get(evt.agent);
+    if (buf && buf.length > 0) {
+      const lastTime = new Date(buf[buf.length - 1].timestamp).getTime();
+      const thisTime = new Date(evt.timestamp).getTime();
+      if (thisTime - lastTime > SESSION_GAP_MS) {
+        rawSessions.push({ agent: evt.agent, events: [...buf] });
+        agentBuffers.set(evt.agent, [evt]);
+      } else {
+        buf.push(evt);
+      }
+    } else {
+      agentBuffers.set(evt.agent, [evt]);
+    }
+  }
+
+  // Flush remaining buffers
+  for (const [agent, buf] of agentBuffers) {
+    if (buf.length > 0) {
+      rawSessions.push({ agent, events: buf });
+    }
+  }
+
+  // 3. Build SessionGroups
+  const costByAgent = new Map<string, number>();
+  for (const ac of costSummary.agents) {
+    costByAgent.set(ac.agent, ac.total_cost_usd);
+  }
+
+  const sessions: SessionGroup[] = rawSessions.map((raw, idx) => {
+    const startTime = raw.events[0].timestamp;
+    const endTime = raw.events[raw.events.length - 1].timestamp;
+    const startMs = new Date(startTime).getTime();
+    const endMs = new Date(endTime).getTime();
+
+    // Determine repo path from file paths
+    const filePaths = raw.events
+      .map((e) => e.file_path)
+      .filter((p): p is string => p !== null);
+    let repoPath = "";
+    if (filePaths.length > 0) {
+      // Use the common prefix directory
+      const parts = filePaths[0].split("/");
+      repoPath = parts.length > 2 ? parts.slice(0, -1).join("/") : filePaths[0];
+    }
+
+    // Collect unique files with diff stats
+    const fileMap = new Map<string, SessionFile>();
+    for (const evt of raw.events) {
+      if (evt.file_path) {
+        const existing = fileMap.get(evt.file_path);
+        const counts = evt.diff ? parseDiffCounts(evt.diff) : { added: 0, removed: 0 };
+        if (existing) {
+          existing.added += counts.added;
+          existing.removed += counts.removed;
+          if (evt.diff && !existing.diff) existing.diff = evt.diff;
+        } else {
+          fileMap.set(evt.file_path, {
+            path: evt.file_path,
+            kind: evt.kind,
+            diff: evt.diff,
+            added: counts.added,
+            removed: counts.removed,
+          });
+        }
+      }
+    }
+
+    // Find best commit message from commitGroups matching agent and time window
+    let description = "";
+    let confidence = 0;
+    let hasWarning = false;
+
+    const matchingCommit = commitGroups.find((cg) => {
+      if (cg.agent !== raw.agent) return false;
+      const commitMs = new Date(cg.timestamp).getTime();
+      return commitMs >= startMs - 60000 && commitMs <= endMs + 60000;
+    });
+
+    if (matchingCommit) {
+      description = matchingCommit.commit_message;
+      confidence = matchingCommit.confidence_score;
+      hasWarning = matchingCommit.confidence_score < 75;
+    } else {
+      // Generate summary from file paths
+      const fileCount = fileMap.size;
+      if (fileCount > 0) {
+        const firstPath = filePaths[0];
+        const dir = firstPath.split("/").slice(0, -1).join("/");
+        const shortDir = dir.split("/").slice(-2).join("/");
+        description = `Modified ${fileCount} file${fileCount !== 1 ? "s" : ""} in ${shortDir || "/"}`;
+      } else {
+        description = `${raw.events.length} event${raw.events.length !== 1 ? "s" : ""}`;
+      }
+    }
+
+    // Apportion cost by session count for this agent
+    const agentTotalCost = costByAgent.get(raw.agent) ?? 0;
+    const agentSessionCount = rawSessions.filter((s) => s.agent === raw.agent).length;
+    const costUsd = agentSessionCount > 0 ? agentTotalCost / agentSessionCount : 0;
+
+    return {
+      id: `${raw.agent}-${idx}-${startTime}`,
+      agent: raw.agent,
+      repoPath,
+      startTime,
+      endTime,
+      description,
+      files: Array.from(fileMap.values()),
+      confidence,
+      costUsd,
+      hasWarning,
+    };
+  });
+
+  // 5. Group sessions by repoPath into ProjectGroups
+  const projectMap = new Map<string, SessionGroup[]>();
+  for (const session of sessions) {
+    const key = session.repoPath || "unknown";
+    const list = projectMap.get(key) ?? [];
+    list.push(session);
+    projectMap.set(key, list);
+  }
+
+  const projects: ProjectGroup[] = [];
+  for (const [repoPath, projectSessions] of projectMap) {
+    const agents = [...new Set(projectSessions.map((s) => s.agent))];
+    // Sort sessions within project by most recent first
+    projectSessions.sort(
+      (a, b) => new Date(b.endTime).getTime() - new Date(a.endTime).getTime(),
+    );
+    projects.push({
+      project: extractProjectName(repoPath),
+      repoPath,
+      agents,
+      sessions: projectSessions,
+    });
+  }
+
+  // 6. Sort projects by most recent session first
+  projects.sort((a, b) => {
+    const aLatest = a.sessions[0]?.endTime ?? "";
+    const bLatest = b.sessions[0]?.endTime ?? "";
+    return new Date(bLatest).getTime() - new Date(aLatest).getTime();
+  });
+
+  return projects;
+}

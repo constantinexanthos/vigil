@@ -1,90 +1,131 @@
-"use client";
+"use client"
 
-import { useState } from "react";
+import { motion } from "framer-motion"
 
-const LINES = [
-  { text: "$ vigil status", style: "text-text-muted" },
-  { text: "", style: "" },
-  { text: "AGENTS", style: "text-cyan font-semibold" },
-  {
-    text: "----------------------------------------",
-    style: "text-border",
-  },
-  { text: "  claude-code    pid 48201  ~/projects/vigil", style: "text-text" },
-  { text: "  cursor         pid 51092  ~/projects/vigil", style: "text-text" },
-  { text: "  aider          pid 53887  ~/projects/api", style: "text-text" },
-  { text: "", style: "" },
-  { text: "COLLISIONS (last 5 min)", style: "text-cyan font-semibold" },
-  {
-    text: "----------------------------------------",
-    style: "text-border",
-  },
-  {
-    text: "  src/main.rs -- [claude-code, cursor]",
-    style: "text-amber-400",
-  },
-  { text: "", style: "" },
-  {
-    text: "3 agents active, 1 collision detected",
-    style: "text-text-muted",
-  },
-];
-
-export default function TerminalDemo() {
-  return (
-    <div className="w-full rounded-lg border border-border bg-surface overflow-hidden shadow-2xl shadow-cyan/5">
-      {/* Title bar */}
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
-        <span className="w-3 h-3 rounded-full bg-[#ff5f57]" />
-        <span className="w-3 h-3 rounded-full bg-[#febc2e]" />
-        <span className="w-3 h-3 rounded-full bg-[#28c840]" />
-        <span className="ml-3 text-xs text-text-muted font-mono">vigil</span>
-      </div>
-
-      {/* Terminal body */}
-      <div className="p-4 sm:p-6 font-mono text-sm leading-relaxed min-h-[340px]">
-        {LINES.map((line, i) => (
-          <div
-            key={i}
-            className={`terminal-line ${line.style}`}
-            style={{ animationDelay: `${i * 200}ms` }}
-          >
-            {line.text || "\u00A0"}
-          </div>
-        ))}
-        <span
-          className="terminal-line inline-block w-2 h-4 bg-cyan cursor-blink mt-1"
-          style={{ animationDelay: `${LINES.length * 200}ms` }}
-        />
-      </div>
-    </div>
-  );
+interface TerminalLine {
+  content: React.ReactNode
+  delay: number
 }
 
-export function InstallCommand() {
-  const [copied, setCopied] = useState(false);
+const lines: TerminalLine[] = [
+  {
+    content: (
+      <>
+        <span className="text-[#22d3ee]" style={{ textShadow: "0 0 6px rgba(34, 211, 238, 0.4)" }}>$</span>
+        {" "}vigil status
+      </>
+    ),
+    delay: 0.2,
+  },
+  { content: "\u00A0", delay: 0.8 },
+  { content: <span className="text-[#6b7084]">AGENTS</span>, delay: 1.0 },
+  {
+    content: <span className="text-[#3d4150]">{"─".repeat(40)}</span>,
+    delay: 1.2,
+  },
+  {
+    content: (
+      <>
+        {"  "}
+        <span className="text-[#22d3ee] font-semibold">claude-code</span>
+        <span className="text-[#6b7084]">{"    pid 41823   ~/projects/vigil      12 events"}</span>
+      </>
+    ),
+    delay: 1.6,
+  },
+  {
+    content: (
+      <>
+        {"  "}
+        <span className="text-[#22d3ee] font-semibold">cursor</span>
+        <span className="text-[#6b7084]">{"          pid 9102    ~/projects/vigil      8 events"}</span>
+      </>
+    ),
+    delay: 2.0,
+  },
+  {
+    content: (
+      <>
+        {"  "}
+        <span className="text-[#22d3ee] font-semibold">codex</span>
+        <span className="text-[#6b7084]">{"           pid 55201   ~/projects/api        3 events"}</span>
+      </>
+    ),
+    delay: 2.4,
+  },
+  { content: "\u00A0", delay: 3.0 },
+  {
+    content: <span className="text-[#6b7084]">COLLISIONS (last 5 min)</span>,
+    delay: 3.2,
+  },
+  {
+    content: <span className="text-[#3d4150]">{"─".repeat(40)}</span>,
+    delay: 3.4,
+  },
+  {
+    content: (
+      <>
+        {"  "}
+        <span className="text-[#fbbf24]" style={{ textShadow: "0 0 8px rgba(251, 191, 36, 0.3)" }}>
+          src/api/auth.ts
+        </span>
+        <span className="text-[#6b7084]">{" -- ["}</span>
+        <span className="text-[#22d3ee] font-semibold">claude-code</span>
+        <span className="text-[#6b7084]">, </span>
+        <span className="text-[#22d3ee] font-semibold">cursor</span>
+        <span className="text-[#6b7084]">]</span>
+      </>
+    ),
+    delay: 3.8,
+  },
+  { content: "\u00A0", delay: 4.4 },
+  {
+    content: (
+      <>
+        <span className="text-[#22d3ee]" style={{ textShadow: "0 0 6px rgba(34, 211, 238, 0.4)" }}>$</span>
+        {" "}
+        <span className="animate-pulse">_</span>
+      </>
+    ),
+    delay: 4.6,
+  },
+]
 
-  const copy = async () => {
-    await navigator.clipboard.writeText("brew install vigil");
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
+export function TerminalDemo() {
   return (
-    <button
-      onClick={copy}
-      className={`
-        group flex items-center gap-3 px-5 py-3 rounded-md border border-border
-        bg-surface font-mono text-sm transition-colors
-        hover:border-cyan/40 hover:bg-surface/80 cursor-pointer
-        ${copied ? "copy-flash" : ""}
-      `}
-    >
-      <span className="text-text-muted">$</span>
-      <span className="text-cyan">brew install vigil</span>
-      <span className="ml-2 text-text-muted text-xs transition-colors group-hover:text-text">
-        {copied ? "copied" : "click to copy"}
-      </span>
-    </button>
-  );
+    <section className="w-full py-20 border-t border-[#1a1d23]">
+      <div className="mx-auto max-w-4xl px-6">
+        <div
+          className="font-mono bg-[#0d0f12] border border-[#2a2e37] overflow-hidden"
+          style={{
+            boxShadow:
+              "0 0 30px rgba(34, 211, 238, 0.03), 0 4px 60px rgba(0, 0, 0, 0.4)",
+          }}
+        >
+          {/* Terminal bar */}
+          <div className="bg-[#0a0b0d] px-4 py-2.5 flex items-center gap-2 border-b border-[#1a1d23]">
+            <div className="w-2.5 h-2.5 rounded-full bg-[#ff5f57]" />
+            <div className="w-2.5 h-2.5 rounded-full bg-[#ffbd2e]" />
+            <div className="w-2.5 h-2.5 rounded-full bg-[#28c840]" />
+            <span className="text-[#6b7084] text-xs ml-2">vigil status</span>
+          </div>
+
+          {/* Terminal body */}
+          <div className="p-5 text-[13px] leading-[1.8]">
+            {lines.map((line, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 4 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: line.delay, duration: 0.3, ease: "easeOut" }}
+              >
+                {line.content}
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  )
 }

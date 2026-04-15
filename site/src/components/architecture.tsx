@@ -1,76 +1,71 @@
-const LAYERS = [
-  {
-    number: "3",
-    title: "Trust Intelligence",
-    description:
-      "Confidence scoring, hallucination detection, collision alerts, selective rollback",
-    accent: "border-cyan text-cyan",
-  },
-  {
-    number: "2",
-    title: "Deep Hooks",
-    description:
-      "Claude Code hooks API, Cursor extension, OpenTelemetry collector",
-    accent: "border-cyan/60 text-cyan/80",
-  },
-  {
-    number: "1",
-    title: "Universal Capture",
-    description:
-      "File system events, git activity monitor, process detection",
-    accent: "border-cyan/30 text-cyan/60",
-  },
-];
+"use client"
 
-export default function Architecture() {
+import { motion } from "framer-motion"
+
+const layers = [
+  {
+    num: "L3",
+    name: "Trust Intelligence",
+    tech: "Confidence + Hallucination + Collision",
+  },
+  {
+    num: "L2",
+    name: "Deep Hooks",
+    tech: "Claude Code + Cursor + OTLP",
+  },
+  {
+    num: "L1",
+    name: "Universal Capture",
+    tech: "FS events + Git + Process detection",
+  },
+]
+
+export function Architecture() {
   return (
-    <section className="px-6 py-24 sm:px-8">
-      <div className="mx-auto max-w-5xl">
-        <h2 className="font-mono text-2xl font-semibold text-text mb-2">
-          Architecture
+    <section className="w-full py-20 border-t border-[#1a1d23]">
+      <div className="mx-auto max-w-4xl px-6">
+        <span
+          className="block text-[#22d3ee] text-xs uppercase tracking-[0.15em] font-mono mb-3"
+          style={{ textShadow: "0 0 10px rgba(34, 211, 238, 0.25)" }}
+        >
+          // architecture
+        </span>
+        <h2 className="text-xl font-bold text-[#e4e4e7] font-mono mb-3">
+          Three layers of intelligence
         </h2>
-        <p className="text-text-muted mb-12 max-w-2xl">
-          Three layers. Each one adds depth. The product is useful before any
-          deep integration exists.
+        <p className="text-sm text-[#6b7084] mb-10 max-w-lg">
+          Works with everything out of the box. Gets smarter with each
+          integration.
         </p>
 
-        <div className="flex flex-col gap-3 max-w-2xl mx-auto">
-          {LAYERS.map((layer) => (
-            <div
-              key={layer.number}
-              className={`rounded-lg border ${layer.accent} bg-surface p-5 transition-colors`}
+        <div className="flex flex-col gap-[2px]">
+          {layers.map((layer, i) => (
+            <motion.div
+              key={layer.num}
+              initial={{ opacity: 0, y: 8 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.1 * (i + 1), duration: 0.4, ease: "easeOut" }}
+              className="group bg-[#0d0f12] border border-[#2a2e37] p-5 flex justify-between items-center transition-all duration-200 hover:border-[#22d3ee] hover:bg-[rgba(34,211,238,0.06)] hover:shadow-[0_0_8px_rgba(34,211,238,0.12),0_0_24px_rgba(34,211,238,0.04),inset_0_0_8px_rgba(34,211,238,0.02)] cursor-default"
             >
-              <div className="flex items-baseline gap-3 mb-1">
-                <span className="font-mono text-xs text-text-muted">
-                  Layer {layer.number}
+              <div className="flex items-center gap-4">
+                <span
+                  className="text-[#22d3ee] font-bold text-xs font-mono min-w-[24px]"
+                  style={{ textShadow: "0 0 6px rgba(34, 211, 238, 0.3)" }}
+                >
+                  {layer.num}
                 </span>
-                <h3 className={`font-mono text-sm font-semibold ${layer.accent}`}>
-                  {layer.title}
-                </h3>
+                <span className="text-[#e4e4e7] font-semibold text-[13px] font-mono">
+                  {layer.name}
+                </span>
               </div>
-              <p className="text-sm text-text-muted leading-relaxed">
-                {layer.description}
-              </p>
-            </div>
+              <span className="text-[#6b7084] text-xs font-mono hidden sm:block">
+                {layer.tech}
+              </span>
+            </motion.div>
           ))}
-        </div>
-
-        {/* Arrow indicators between layers */}
-        <div className="flex flex-col items-center mt-6 gap-1">
-          <span className="text-text-muted text-xs font-mono">
-            data flows up
-          </span>
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            className="w-4 h-4 text-text-muted rotate-180"
-          >
-            <path d="M12 5v14M5 12l7-7 7 7" />
-          </svg>
         </div>
       </div>
     </section>
-  );
+  )
 }

@@ -2,23 +2,48 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
+* {
   margin: 0;
   padding: 0;
-  font-family: "IBM Plex Mono", ui-monospace, monospace;
-  background: #07080a;
-  color: #e4e4e7;
-  font-size: 13px;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "Inter", system-ui, sans-serif;
+  background: #111113;
+  color: #d4d4d8;
   -webkit-font-smoothing: antialiased;
 }
 
-/* PrismJS overrides */
-pre[class*="language-"],
-code[class*="language-"] {
-  background: #07080a !important;
-  font-size: 12px !important;
-  font-family: "IBM Plex Mono", ui-monospace, monospace !important;
+::-webkit-scrollbar {
+  width: 5px;
 }
 
-.token.inserted { color: #4ade80 !important; }
-.token.deleted { color: #ef4444 !important; }
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e1e21;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #2a2a2e;
+}
+
+.session-expand {
+  transition: opacity 150ms ease, max-height 150ms ease;
+}
+
+.session-expand-enter {
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+}
+
+.session-expand-active {
+  opacity: 1;
+  max-height: 2000px;
+  overflow: visible;
+}

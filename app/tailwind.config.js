@@ -1,21 +1,24 @@
 /** @type {import('tailwindcss').Config} */
-module.exports = {
-  content: ["./src/**/*.{html,tsx,ts}"],
+export default {
+  content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
-        bg: "#07080a",
-        surface: "#0d0f12",
-        border: "#2a2e37",
-        cyan: "#22d3ee",
-        "cyan-dim": "#0e7490",
-        green: "#4ade80",
-        red: "#ef4444",
-        text: "#e4e4e7",
+        bg: "#111113",
+        surface: "#151518",
+        border: "#1e1e21",
+        "text-heading": "#fafafa",
+        "text-primary": "#d4d4d8",
         "text-muted": "#71717a",
+        "text-faint": "#52525b",
+        "text-subtle": "#a1a1aa",
+        warning: "#fbbf24",
+        danger: "#ef4444",
+        success: "#4ade80",
       },
       fontFamily: {
-        mono: ['"IBM Plex Mono"', "ui-monospace", "monospace"],
+        sans: ["Inter", "system-ui", "sans-serif"],
+        mono: ['"IBM Plex Mono"', "monospace"],
       },
     },
   },
