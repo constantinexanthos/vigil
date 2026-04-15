@@ -184,6 +184,37 @@ export interface AgentGroup {
   totalCost: number;
 }
 
+/** Extract just the commit message from a git show/log output or raw commit string */
+function extractCommitMessage(raw: string): string {
+  // If it starts with a hash, it's "hash message" format from the daemon
+  const hashMsgMatch = raw.match(/^[0-9a-f]{7,40}\s+(.+)/);
+  if (hashMsgMatch) return hashMsgMatch[1].trim();
+
+  // If it looks like full git show output, extract the indented message after Date:
+  if (raw.includes("Author:") && raw.includes("Date:")) {
+    const lines = raw.split("\n");
+    const msgLines: string[] = [];
+    let pastDate = false;
+    for (const line of lines) {
+      if (line.startsWith("Date:")) {
+        pastDate = true;
+        continue;
+      }
+      if (pastDate) {
+        if (line.startsWith("---") || line.startsWith("diff ") || line.match(/^\s*\d+ file/)) break;
+        if (line.startsWith("    Co-Authored-By:")) continue;
+        const trimmed = line.replace(/^    /, "").trim();
+        if (trimmed) msgLines.push(trimmed);
+      }
+    }
+    if (msgLines.length > 0) return msgLines.join(" ");
+  }
+
+  // If it's a clean commit message already, return as-is (truncated)
+  const firstLine = raw.split("\n")[0].trim();
+  return firstLine.length > 120 ? firstLine.slice(0, 120) + "..." : firstLine;
+}
+
 function parseDiffCounts(diff: string): { added: number; removed: number } {
   let added = 0;
   let removed = 0;
@@ -311,6 +342,10 @@ export function groupEventsIntoSessions(
     let confidence = 0;
     let hasWarning = false;
 
+    // Also check git_commit events in this session for a commit message
+    const gitCommitEvent = raw.events.find((e) => e.kind === "git_commit" && e.diff);
+    const commitMsgFromDiff = gitCommitEvent?.diff ? extractCommitMessage(gitCommitEvent.diff) : null;
+
     const matchingCommit = commitGroups.find((cg) => {
       if (cg.agent !== raw.agent) return false;
       const commitMs = new Date(cg.timestamp).getTime();
@@ -318,9 +353,11 @@ export function groupEventsIntoSessions(
     });
 
     if (matchingCommit) {
-      description = matchingCommit.commit_message;
+      description = extractCommitMessage(matchingCommit.commit_message);
       confidence = matchingCommit.confidence_score;
       hasWarning = matchingCommit.confidence_score < 75;
+    } else if (commitMsgFromDiff) {
+      description = commitMsgFromDiff;
     } else {
       // Generate summary from file paths
       const fileCount = fileMap.size;
