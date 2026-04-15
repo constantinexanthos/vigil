@@ -1,7 +1,7 @@
 const AGENT_LOGOS: Record<string, string> = {
   "claude-code": "/agents/claude.svg",
   cursor: "/agents/cursor.webp",
-  conductor: "/agents/conductor.svg",
+  conductor: "/agents/conductor.png",
   aider: "/agents/aider.png",
   codex: "/agents/codex.webp",
   cline: "/agents/cline.png",
