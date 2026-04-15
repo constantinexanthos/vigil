@@ -23,6 +23,16 @@ const itemVariants = {
 const shipped = [
   {
     date: "April 2026",
+    title: "Live Dashboard & Smart Alerts",
+    bullets: [
+      "Real-time workspace summary with burn rate, active agents, and confidence",
+      "Smart alerts: collisions, low confidence, cost spikes, scope creep",
+      "Partial cost tracking awareness (\u2014 for agents without cost data)",
+      "vigil dashboard CLI with live-updating terminal view",
+    ],
+  },
+  {
+    date: "April 2026",
     title: "GitHub Integration",
     bullets: [
       "PR data via gh CLI: status, diff stats, checks, review decisions",
