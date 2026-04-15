@@ -30,8 +30,8 @@ export default function SessionCard({ session, isNew }: Props) {
 
   return (
     <motion.div
-      className="ml-3 rounded-md cursor-pointer transition-shadow hover:shadow-card"
-      style={{ borderLeft: `2px solid ${borderColor}` }}
+      className="ml-3 cursor-pointer transition-shadow hover:shadow-card"
+      style={{ borderLeft: `3px solid ${borderColor}`, borderRadius: 0 }}
       initial={isNew ? { opacity: 0, y: -8 } : false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
