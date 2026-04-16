@@ -315,10 +315,10 @@ export function groupEventsIntoSessions(
       repoPath = parts.length > 2 ? parts.slice(0, -1).join("/") : filePaths[0];
     }
 
-    // Collect unique files with diff stats
+    // Collect unique files with diff stats (skip directory-only paths)
     const fileMap = new Map<string, SessionFile>();
     for (const evt of raw.events) {
-      if (evt.file_path) {
+      if (evt.file_path && evt.file_path.split("/").pop()?.includes(".")) {
         const existing = fileMap.get(evt.file_path);
         const counts = evt.diff ? parseDiffCounts(evt.diff) : { added: 0, removed: 0 };
         if (existing) {
@@ -359,13 +359,27 @@ export function groupEventsIntoSessions(
     } else if (commitMsgFromDiff) {
       description = commitMsgFromDiff;
     } else {
-      // Generate summary from file paths
+      // Generate description from actual file names
       const fileCount = fileMap.size;
       if (fileCount > 0) {
-        const firstPath = filePaths[0];
-        const dir = firstPath.split("/").slice(0, -1).join("/");
-        const shortDir = dir.split("/").slice(-2).join("/");
-        description = `Modified ${fileCount} file${fileCount !== 1 ? "s" : ""} in ${shortDir || "/"}`;
+        // Get unique short file names, skip directory-only entries
+        const seen = new Set<string>();
+        const fileNames: string[] = [];
+        for (const p of fileMap.keys()) {
+          const parts = p.split("/");
+          const name = parts[parts.length - 1] ?? "";
+          // Skip if it looks like a directory (no extension) or already seen
+          if (!name || !name.includes(".") || seen.has(name)) continue;
+          seen.add(name);
+          fileNames.push(name);
+        }
+        if (fileNames.length === 0) {
+          description = `${fileCount} file${fileCount !== 1 ? "s" : ""} changed`;
+        } else if (fileNames.length <= 3) {
+          description = fileNames.join(", ");
+        } else {
+          description = `${fileNames.slice(0, 2).join(", ")} and ${fileNames.length - 2} more`;
+        }
       } else {
         description = `${raw.events.length} event${raw.events.length !== 1 ? "s" : ""}`;
       }

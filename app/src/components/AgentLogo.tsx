@@ -11,17 +11,20 @@ const AGENT_LOGOS: Record<string, string> = {
 
 interface AgentLogoProps {
   agent: string;
+  size?: number;
 }
 
-export default function AgentLogo({ agent }: AgentLogoProps) {
+export default function AgentLogo({ agent, size = 24 }: AgentLogoProps) {
   const src = AGENT_LOGOS[agent];
 
   if (!src) {
     return (
       <span
-        className="inline-block w-4 h-4 rounded-full flex-shrink-0"
-        style={{ background: "#52525b" }}
-      />
+        className="inline-flex items-center justify-center rounded flex-shrink-0"
+        style={{ width: size, height: size, background: "#3A3A3C", fontSize: size * 0.45, fontWeight: 600, color: "#9CA3AF" }}
+      >
+        {agent.charAt(0).toUpperCase()}
+      </span>
     );
   }
 
@@ -29,7 +32,8 @@ export default function AgentLogo({ agent }: AgentLogoProps) {
     <img
       src={src}
       alt={agent}
-      className="w-4 h-4 flex-shrink-0"
+      className="flex-shrink-0"
+      style={{ width: size, height: size, borderRadius: 5, objectFit: "contain" }}
     />
   );
 }

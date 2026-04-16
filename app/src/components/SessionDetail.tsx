@@ -1,116 +1,146 @@
 import { useState } from "react";
 import DiffViewer from "./DiffViewer";
-import { formatCost, truncatePath } from "../types";
-import type { SessionGroup, SessionFile } from "../types";
+import { formatCost } from "../types";
+import type { SessionGroup } from "../types";
 
-const BUILD_ARTIFACT_PATTERNS = ["/target/", "/build/", "/node_modules/", "/dist/", "/.next/"];
+const SKIP_PATTERNS = ["/target/", "/build/", "/node_modules/", "/dist/", "/.next/"];
 
-function confidenceExplanation(score: number): string {
-  if (score >= 80) return "High confidence \u2014 clean session with good patterns";
-  if (score >= 60) return "Moderate confidence \u2014 some patterns worth reviewing";
-  if (score >= 40) return "Low confidence \u2014 multiple concerns detected";
-  return "Very low confidence \u2014 careful review recommended";
+function isFile(path: string): boolean {
+  const last = path.split("/").pop() ?? "";
+  return last.includes(".");
 }
 
-const EXT_LABELS: Record<string, string> = {
-  ts: "TypeScript", tsx: "TypeScript", js: "JavaScript", jsx: "JavaScript",
-  rs: "Rust", py: "Python", css: "CSS", html: "HTML", json: "JSON",
-  md: "Markdown", toml: "TOML", yaml: "YAML", yml: "YAML",
-  sql: "SQL", sh: "shell", go: "Go", java: "Java", rb: "Ruby", swift: "Swift",
-};
-
-function actionLabel(kind: string): string {
-  if (kind === "file_create") return "created";
-  if (kind === "file_delete") return "deleted";
-  return "modified";
+function shortPath(path: string): string {
+  const parts = path.split("/");
+  if (parts.length <= 2) return path;
+  return parts.slice(-2).join("/");
 }
 
-function buildPlainSummary(files: SessionFile[]): string | null {
-  if (files.length === 0) return null;
-  const groups = new Map<string, Map<string, number>>();
-  const dirs = new Set<string>();
-  for (const f of files) {
-    const parts = f.path.split("/");
-    const filename = parts[parts.length - 1] ?? "";
-    const dotIdx = filename.lastIndexOf(".");
-    const ext = dotIdx >= 0 ? filename.slice(dotIdx + 1) : "";
-    const action = actionLabel(f.kind);
-    if (!groups.has(action)) groups.set(action, new Map());
-    groups.get(action)!.set(ext, (groups.get(action)!.get(ext) ?? 0) + 1);
-    if (parts.length > 1) dirs.add(parts.slice(0, -1).slice(-2).join("/"));
+function confidenceText(score: number): { label: string; color: string; explanation: string } {
+  if (score >= 80) return { label: "High", color: "#15803D", explanation: "Clean session -- good patterns, limited scope" };
+  if (score >= 60) return { label: "Moderate", color: "#D97706", explanation: "Worth reviewing -- broader changes detected" };
+  if (score >= 40) return { label: "Low", color: "#f97316", explanation: "Multiple concerns -- review carefully" };
+  return { label: "Very Low", color: "#B91C1C", explanation: "Significant concerns -- needs thorough review" };
+}
+
+function buildSummary(session: SessionGroup): string {
+  const files = session.files.filter((f) => isFile(f.path) && !SKIP_PATTERNS.some((p) => f.path.includes(p)));
+  if (files.length === 0) return "No source files changed in this session.";
+
+  const created = files.filter((f) => f.kind === "file_create");
+  const modified = files.filter((f) => f.kind !== "file_create" && f.kind !== "file_delete");
+  const deleted = files.filter((f) => f.kind === "file_delete");
+
+  const totalAdded = files.reduce((s, f) => s + f.added, 0);
+  const totalRemoved = files.reduce((s, f) => s + f.removed, 0);
+
+  const parts: string[] = [];
+
+  if (created.length > 0) {
+    const names = created.slice(0, 2).map((f) => f.path.split("/").pop());
+    parts.push(`Created ${names.join(", ")}${created.length > 2 ? ` and ${created.length - 2} more` : ""}`);
   }
-  const descParts: string[] = [];
-  for (const [action, extMap] of groups) {
-    const segs: string[] = [];
-    for (const [ext, count] of extMap) {
-      segs.push(`${count} ${EXT_LABELS[ext] ?? (ext || "unknown")} file${count !== 1 ? "s" : ""}`);
-    }
-    descParts.push(`${action.charAt(0).toUpperCase() + action.slice(1)} ${segs.join(", ")}`);
+  if (modified.length > 0) {
+    const names = modified.slice(0, 2).map((f) => f.path.split("/").pop());
+    parts.push(`Updated ${names.join(", ")}${modified.length > 2 ? ` and ${modified.length - 2} more` : ""}`);
   }
-  const dirArr = Array.from(dirs);
-  let scope = "";
-  if (dirArr.length > 0) {
-    scope = `Changes in ${dirArr.slice(0, 2).join(" and ")}`;
-    if (dirArr.length > 2) scope += ` and ${dirArr.length - 2} more`;
+  if (deleted.length > 0) {
+    parts.push(`Removed ${deleted.length} file${deleted.length !== 1 ? "s" : ""}`);
   }
-  return [descParts.join(". "), scope].filter(Boolean).join(". ") + ".";
+
+  let summary = parts.join(". ");
+  if (totalAdded > 0 || totalRemoved > 0) {
+    const changes: string[] = [];
+    if (totalAdded > 0) changes.push(`+${totalAdded} lines`);
+    if (totalRemoved > 0) changes.push(`-${totalRemoved} lines`);
+    summary += ` (${changes.join(", ")})`;
+  }
+  return summary + ".";
 }
 
 interface Props { session: SessionGroup; }
 
 export default function SessionDetail({ session }: Props) {
   const [expandedFile, setExpandedFile] = useState<string | null>(null);
+
   const visibleFiles = session.files.filter(
-    (f) => !BUILD_ARTIFACT_PATTERNS.some((p) => f.path.includes(p)),
+    (f) => isFile(f.path) && !SKIP_PATTERNS.some((p) => f.path.includes(p)),
   );
-  const plainSummary = buildPlainSummary(visibleFiles);
+
+  const summary = buildSummary(session);
+  const conf = session.confidence > 0 ? confidenceText(session.confidence) : null;
 
   return (
-    <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", background: "#1C1C1E", padding: "12px 14px 16px 14px" }}>
-      {/* Plain-English summary */}
-      {plainSummary && (
-        <div className="selectable" style={{ fontSize: 12, color: "#9CA3AF", marginBottom: 8, lineHeight: "17px" }}>
-          {plainSummary}
-        </div>
-      )}
+    <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", background: "#1C1C1E", padding: "14px 16px 16px 16px" }}>
 
-      {/* Confidence + Cost */}
-      <div className="flex items-baseline gap-4" style={{ marginBottom: 10 }}>
-        {session.confidence > 0 && (
-          <span style={{ fontSize: 12, color: "#6B7280" }}>
-            Confidence: {session.confidence}/100 {"\u2014"} {confidenceExplanation(session.confidence)}
-          </span>
+      {/* Plain English summary */}
+      <p className="selectable" style={{ fontSize: 13, color: "#D1D5DB", lineHeight: "20px", marginBottom: 12 }}>
+        {summary}
+      </p>
+
+      {/* Confidence + Cost row */}
+      <div className="flex items-center gap-4" style={{ marginBottom: 14 }}>
+        {conf && (
+          <div className="flex items-center gap-2">
+            <span style={{
+              fontSize: 11, fontWeight: 500, color: conf.color,
+              background: conf.color + "18", padding: "2px 8px", borderRadius: 4,
+            }}>
+              {conf.label} ({session.confidence})
+            </span>
+            <span style={{ fontSize: 11, color: "#6B7280" }}>{conf.explanation}</span>
+          </div>
         )}
-        <span style={{ fontSize: 12, color: "#6B7280" }}>
-          Cost: {session.costUsd > 0 ? formatCost(session.costUsd) : "\u2014"}
+        {!conf && <span style={{ fontSize: 11, color: "#6B7280" }}>No confidence data</span>}
+        <span style={{ fontSize: 11, color: "#4B5563" }}>|</span>
+        <span style={{ fontSize: 11, color: "#6B7280" }}>
+          {session.costUsd > 0 ? formatCost(session.costUsd) : "No cost data"}
         </span>
       </div>
 
+      {/* Files changed header */}
+      {visibleFiles.length > 0 && (
+        <div style={{ marginBottom: 6 }}>
+          <span style={{ fontSize: 11, fontWeight: 500, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            Files changed ({visibleFiles.length})
+          </span>
+        </div>
+      )}
+
       {/* File list */}
       {visibleFiles.length > 0 && (
-        <div>
+        <div style={{ background: "#2C2C2E", borderRadius: 6, overflow: "hidden" }}>
           {visibleFiles.map((file, i) => (
             <div key={file.path}>
               {i > 0 && <div style={{ height: 1, background: "rgba(255,255,255,0.04)" }} />}
               <div
-                className="flex items-center justify-between cursor-pointer hover:opacity-80"
-                style={{ padding: "6px 0" }}
+                className="flex items-center justify-between cursor-pointer"
+                style={{ padding: "8px 12px" }}
                 onClick={() => setExpandedFile(expandedFile === file.path ? null : file.path)}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
               >
                 <span className="font-mono truncate selectable" style={{ fontSize: 12, color: "#9CA3AF" }}>
-                  {truncatePath(file.path)}
+                  {shortPath(file.path)}
                 </span>
                 <span className="flex items-center gap-3 flex-shrink-0 ml-3 font-mono" style={{ fontSize: 12 }}>
                   {file.added > 0 && <span style={{ color: "#4ade80" }}>+{file.added}</span>}
                   {file.removed > 0 && <span style={{ color: "#f87171" }}>-{file.removed}</span>}
+                  <span style={{ color: "#4B5563", fontSize: 10 }}>{expandedFile === file.path ? "▾" : "▸"}</span>
                 </span>
               </div>
               {expandedFile === file.path && (
-                <div className="selectable"><DiffViewer diff={file.diff} /></div>
+                <div className="selectable" style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
+                  <DiffViewer diff={file.diff} />
+                </div>
               )}
             </div>
           ))}
         </div>
+      )}
+
+      {visibleFiles.length === 0 && (
+        <p style={{ fontSize: 12, color: "#6B7280" }}>No source files in this session.</p>
       )}
     </div>
   );
