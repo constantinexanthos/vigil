@@ -359,27 +359,32 @@ export function groupEventsIntoSessions(
     } else if (commitMsgFromDiff) {
       description = commitMsgFromDiff;
     } else {
-      // Generate description from actual file names
-      const fileCount = fileMap.size;
-      if (fileCount > 0) {
-        // Get unique short file names, skip directory-only entries
-        const seen = new Set<string>();
-        const fileNames: string[] = [];
-        for (const p of fileMap.keys()) {
-          const parts = p.split("/");
-          const name = parts[parts.length - 1] ?? "";
-          // Skip if it looks like a directory (no extension) or already seen
-          if (!name || !name.includes(".") || seen.has(name)) continue;
-          seen.add(name);
-          fileNames.push(name);
-        }
-        if (fileNames.length === 0) {
-          description = `${fileCount} file${fileCount !== 1 ? "s" : ""} changed`;
-        } else if (fileNames.length <= 3) {
-          description = fileNames.join(", ");
-        } else {
-          description = `${fileNames.slice(0, 2).join(", ")} and ${fileNames.length - 2} more`;
-        }
+      // Generate plain English description from file changes
+      const files = [...fileMap.values()].filter((f) => {
+        const name = f.path.split("/").pop() ?? "";
+        return name.includes(".");
+      });
+      const created = files.filter((f) => f.kind === "file_create");
+      const modified = files.filter((f) => f.kind !== "file_create" && f.kind !== "file_delete");
+      const deleted = files.filter((f) => f.kind === "file_delete");
+
+      const parts: string[] = [];
+      if (created.length > 0) {
+        const names = created.slice(0, 2).map((f) => f.path.split("/").pop());
+        parts.push("Created " + names.join(", ") + (created.length > 2 ? ` and ${created.length - 2} more` : ""));
+      }
+      if (modified.length > 0) {
+        const names = modified.slice(0, 2).map((f) => f.path.split("/").pop());
+        parts.push("Updated " + names.join(", ") + (modified.length > 2 ? ` and ${modified.length - 2} more` : ""));
+      }
+      if (deleted.length > 0) {
+        parts.push(`Deleted ${deleted.length} file${deleted.length !== 1 ? "s" : ""}`);
+      }
+
+      if (parts.length > 0) {
+        description = parts.join(", ");
+      } else if (files.length > 0) {
+        description = `Changed ${files.length} file${files.length !== 1 ? "s" : ""}`;
       } else {
         description = `${raw.events.length} event${raw.events.length !== 1 ? "s" : ""}`;
       }
