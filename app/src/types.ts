@@ -253,6 +253,85 @@ function extractProjectName(repoPath: string): string {
   return repoPath || "unknown";
 }
 
+
+const FILE_DESCRIPTIONS: Record<string, string> = {
+  md: "documentation",
+  mdx: "documentation",
+  txt: "documentation",
+  ts: "TypeScript code",
+  tsx: "React components",
+  js: "JavaScript code",
+  jsx: "React components",
+  rs: "Rust code",
+  py: "Python code",
+  css: "styles",
+  scss: "styles",
+  html: "markup",
+  json: "configuration",
+  toml: "configuration",
+  yaml: "configuration",
+  yml: "configuration",
+  sql: "database schema",
+  sh: "shell scripts",
+  go: "Go code",
+  java: "Java code",
+  rb: "Ruby code",
+  swift: "Swift code",
+  svg: "graphics",
+  png: "images",
+};
+
+function describeFileChanges(files: SessionFile[]): string {
+  if (files.length === 0) return "Working session with no file changes";
+
+  // Group files by their type description
+  const groups = new Map<string, { created: number; modified: number; deleted: number }>();
+  const dirs = new Set<string>();
+
+  for (const f of files) {
+    const name = f.path.split("/").pop() ?? "";
+    const ext = name.includes(".") ? name.split(".").pop()!.toLowerCase() : "";
+    const typeDesc = FILE_DESCRIPTIONS[ext] ?? "files";
+
+    const g = groups.get(typeDesc) ?? { created: 0, modified: 0, deleted: 0 };
+    if (f.kind === "file_create") g.created++;
+    else if (f.kind === "file_delete") g.deleted++;
+    else g.modified++;
+    groups.set(typeDesc, g);
+
+    // Track project areas
+    const parts = f.path.split("/");
+    if (parts.length >= 2) {
+      const dir = parts.slice(-2, -1)[0];
+      if (dir && !["src", "app", "lib", "public"].includes(dir)) dirs.add(dir);
+    }
+  }
+
+  // Build natural description
+  const parts: string[] = [];
+  for (const [type, counts] of groups) {
+    const actions: string[] = [];
+    if (counts.created > 0) actions.push("added");
+    if (counts.modified > 0) actions.push("updated");
+    if (counts.deleted > 0) actions.push("removed");
+    parts.push(`${actions.join(" and ")} ${type}`);
+  }
+
+  let desc = parts.length > 0
+    ? parts[0].charAt(0).toUpperCase() + parts[0].slice(1) + (parts.length > 1 ? ", " + parts.slice(1).join(", ") : "")
+    : `Changed ${files.length} files`;
+
+  // Add scope context
+  const dirList = [...dirs];
+  if (dirList.length === 1) {
+    desc += ` in ${dirList[0]}`;
+  } else if (dirList.length > 1) {
+    desc += ` across ${dirList.slice(0, 2).join(" and ")}`;
+  }
+
+  return desc;
+}
+
 export function groupEventsIntoSessions(
   events: AgentEvent[],
   commitGroups: CommitGroup[],
@@ -358,31 +437,18 @@ export function groupEventsIntoSessions(
       hasWarning = matchingCommit.confidence_score < 75;
     } else if (commitMsgFromDiff) {
       description = commitMsgFromDiff;
+      // Compute confidence from file heuristics when no commit data
+      const fc = fileMap.size;
+      confidence = fc <= 3 ? 85 : fc <= 8 ? 70 : fc <= 15 ? 55 : 40;
     } else {
-      // Generate description from actual file names
-      const fileCount = fileMap.size;
-      if (fileCount > 0) {
-        // Get unique short file names, skip directory-only entries
-        const seen = new Set<string>();
-        const fileNames: string[] = [];
-        for (const p of fileMap.keys()) {
-          const parts = p.split("/");
-          const name = parts[parts.length - 1] ?? "";
-          // Skip if it looks like a directory (no extension) or already seen
-          if (!name || !name.includes(".") || seen.has(name)) continue;
-          seen.add(name);
-          fileNames.push(name);
-        }
-        if (fileNames.length === 0) {
-          description = `${fileCount} file${fileCount !== 1 ? "s" : ""} changed`;
-        } else if (fileNames.length <= 3) {
-          description = fileNames.join(", ");
-        } else {
-          description = `${fileNames.slice(0, 2).join(", ")} and ${fileNames.length - 2} more`;
-        }
-      } else {
-        description = `${raw.events.length} event${raw.events.length !== 1 ? "s" : ""}`;
-      }
+      // Generate plain English description from file changes
+      const fc = fileMap.size;
+      confidence = fc <= 3 ? 85 : fc <= 8 ? 70 : fc <= 15 ? 55 : 40;
+      const sessionFiles = [...fileMap.values()].filter((f) => {
+        const name = f.path.split("/").pop() ?? "";
+        return name.includes(".");
+      });
+      description = describeFileChanges(sessionFiles);
     }
 
     // Apportion cost by session count for this agent

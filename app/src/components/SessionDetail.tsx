@@ -17,45 +17,10 @@ function shortPath(path: string): string {
 }
 
 function confidenceText(score: number): { label: string; color: string; explanation: string } {
-  if (score >= 80) return { label: "High", color: "#15803D", explanation: "Clean session -- good patterns, limited scope" };
-  if (score >= 60) return { label: "Moderate", color: "#D97706", explanation: "Worth reviewing -- broader changes detected" };
-  if (score >= 40) return { label: "Low", color: "#f97316", explanation: "Multiple concerns -- review carefully" };
-  return { label: "Very Low", color: "#B91C1C", explanation: "Significant concerns -- needs thorough review" };
-}
-
-function buildSummary(session: SessionGroup): string {
-  const files = session.files.filter((f) => isFile(f.path) && !SKIP_PATTERNS.some((p) => f.path.includes(p)));
-  if (files.length === 0) return "No source files changed in this session.";
-
-  const created = files.filter((f) => f.kind === "file_create");
-  const modified = files.filter((f) => f.kind !== "file_create" && f.kind !== "file_delete");
-  const deleted = files.filter((f) => f.kind === "file_delete");
-
-  const totalAdded = files.reduce((s, f) => s + f.added, 0);
-  const totalRemoved = files.reduce((s, f) => s + f.removed, 0);
-
-  const parts: string[] = [];
-
-  if (created.length > 0) {
-    const names = created.slice(0, 2).map((f) => f.path.split("/").pop());
-    parts.push(`Created ${names.join(", ")}${created.length > 2 ? ` and ${created.length - 2} more` : ""}`);
-  }
-  if (modified.length > 0) {
-    const names = modified.slice(0, 2).map((f) => f.path.split("/").pop());
-    parts.push(`Updated ${names.join(", ")}${modified.length > 2 ? ` and ${modified.length - 2} more` : ""}`);
-  }
-  if (deleted.length > 0) {
-    parts.push(`Removed ${deleted.length} file${deleted.length !== 1 ? "s" : ""}`);
-  }
-
-  let summary = parts.join(". ");
-  if (totalAdded > 0 || totalRemoved > 0) {
-    const changes: string[] = [];
-    if (totalAdded > 0) changes.push(`+${totalAdded} lines`);
-    if (totalRemoved > 0) changes.push(`-${totalRemoved} lines`);
-    summary += ` (${changes.join(", ")})`;
-  }
-  return summary + ".";
+  if (score >= 80) return { label: "High", color: "#15803D", explanation: "Clean session with limited, focused changes" };
+  if (score >= 60) return { label: "Moderate", color: "#D97706", explanation: "Broader changes -- worth a quick review" };
+  if (score >= 40) return { label: "Low", color: "#f97316", explanation: "Large scope of changes -- review carefully" };
+  return { label: "Needs review", color: "#B91C1C", explanation: "Significant changes across many files" };
 }
 
 interface Props { session: SessionGroup; }
@@ -67,42 +32,43 @@ export default function SessionDetail({ session }: Props) {
     (f) => isFile(f.path) && !SKIP_PATTERNS.some((p) => f.path.includes(p)),
   );
 
-  const summary = buildSummary(session);
-  const conf = session.confidence > 0 ? confidenceText(session.confidence) : null;
+  const totalAdded = visibleFiles.reduce((s, f) => s + f.added, 0);
+  const totalRemoved = visibleFiles.reduce((s, f) => s + f.removed, 0);
+  const conf = confidenceText(session.confidence);
 
   return (
     <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", background: "#1C1C1E", padding: "14px 16px 16px 16px" }}>
 
-      {/* Plain English summary */}
-      <p className="selectable" style={{ fontSize: 13, color: "#D1D5DB", lineHeight: "20px", marginBottom: 12 }}>
-        {summary}
-      </p>
-
-      {/* Confidence + Cost row */}
-      <div className="flex items-center gap-4" style={{ marginBottom: 14 }}>
-        {conf && (
-          <div className="flex items-center gap-2">
-            <span style={{
-              fontSize: 11, fontWeight: 500, color: conf.color,
-              background: conf.color + "18", padding: "2px 8px", borderRadius: 4,
-            }}>
-              {conf.label} ({session.confidence})
-            </span>
-            <span style={{ fontSize: 11, color: "#6B7280" }}>{conf.explanation}</span>
-          </div>
-        )}
-        {!conf && <span style={{ fontSize: 11, color: "#6B7280" }}>No confidence data</span>}
-        <span style={{ fontSize: 11, color: "#4B5563" }}>|</span>
+      {/* Confidence + Cost + Stats row */}
+      <div className="flex items-center gap-3 flex-wrap" style={{ marginBottom: 14 }}>
+        <span style={{
+          fontSize: 11, fontWeight: 500, color: conf.color,
+          background: conf.color + "18", padding: "2px 8px", borderRadius: 4,
+        }}>
+          Confidence {session.confidence}/100
+        </span>
+        <span style={{ fontSize: 11, color: "#6B7280" }}>{conf.explanation}</span>
+        <span style={{ fontSize: 11, color: "#3A3A3C" }}>|</span>
         <span style={{ fontSize: 11, color: "#6B7280" }}>
-          {session.costUsd > 0 ? formatCost(session.costUsd) : "No cost data"}
+          {session.costUsd > 0 ? `Cost: ${formatCost(session.costUsd)}` : "Cost tracking not available for this agent"}
         </span>
       </div>
+
+      {/* Change summary */}
+      {(totalAdded > 0 || totalRemoved > 0) && (
+        <div style={{ fontSize: 12, color: "#9CA3AF", marginBottom: 12 }}>
+          {totalAdded > 0 && <span style={{ color: "#4ade80" }}>+{totalAdded}</span>}
+          {totalAdded > 0 && totalRemoved > 0 && " "}
+          {totalRemoved > 0 && <span style={{ color: "#f87171" }}>-{totalRemoved}</span>}
+          <span> lines across {visibleFiles.length} file{visibleFiles.length !== 1 ? "s" : ""}</span>
+        </div>
+      )}
 
       {/* Files changed header */}
       {visibleFiles.length > 0 && (
         <div style={{ marginBottom: 6 }}>
           <span style={{ fontSize: 11, fontWeight: 500, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-            Files changed ({visibleFiles.length})
+            Files changed
           </span>
         </div>
       )}
@@ -137,10 +103,6 @@ export default function SessionDetail({ session }: Props) {
             </div>
           ))}
         </div>
-      )}
-
-      {visibleFiles.length === 0 && (
-        <p style={{ fontSize: 12, color: "#6B7280" }}>No source files in this session.</p>
       )}
     </div>
   );

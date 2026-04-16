@@ -32,7 +32,7 @@ export default function AgentSection({ agent, sessions, totalCost, collisions: _
         onClick={() => setCollapsed(!collapsed)}
       >
         <div className="flex items-center gap-2.5">
-          <div style={{ width: 20, height: 20 }}><AgentLogo agent={agent} /></div>
+          <AgentLogo agent={agent} size={24} />
           <span style={{ fontSize: 15, fontWeight: 600, color: "#F9FAFB" }}>{agentDisplayName(agent)}</span>
           <span style={{ fontSize: 12, color: "#6B7280" }}>{sessions.length} session{sessions.length !== 1 ? "s" : ""}</span>
         </div>
