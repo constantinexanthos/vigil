@@ -12,6 +12,16 @@ interface Props {
   onOpenCmd: () => void;
 }
 
+const controlStyle: React.CSSProperties = {
+  fontSize: 12,
+  height: 28,
+  padding: "0 8px",
+  borderRadius: 6,
+  border: "none",
+  outline: "none",
+  cursor: "pointer",
+};
+
 export default function TopBar({
   agents, agentFilter, onAgentFilterChange, timeRange, onTimeRangeChange,
   connected, hasNewEvents, onOpenCmd,
@@ -35,22 +45,20 @@ export default function TopBar({
       </div>
       <div className="flex items-center gap-2" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
         <select value={agentFilter} onChange={(e) => onAgentFilterChange(e.target.value)}
-          className="bg-bg-tertiary text-text-tertiary px-2 py-1 rounded cursor-pointer border-none outline-none"
-          style={{ fontSize: 12 }}>
+          className="bg-bg-tertiary text-text-tertiary" style={controlStyle}>
           <option value="">All Agents</option>
           {agents.map((a) => <option key={a} value={a}>{a}</option>)}
         </select>
         <select value={timeRange} onChange={(e) => onTimeRangeChange(e.target.value)}
-          className="bg-bg-tertiary text-text-tertiary px-2 py-1 rounded cursor-pointer border-none outline-none"
-          style={{ fontSize: 12 }}>
+          className="bg-bg-tertiary text-text-tertiary" style={controlStyle}>
           <option value="today">Today</option>
           <option value="7d">7 days</option>
           <option value="30d">30 days</option>
           <option value="all">All time</option>
         </select>
         <button onClick={onOpenCmd}
-          className="text-text-muted bg-bg-tertiary px-2 py-1 rounded cursor-pointer hover:bg-bg-elevated transition-colors border-none"
-          style={{ fontSize: 11 }}>
+          className="bg-bg-tertiary text-text-muted hover:bg-bg-elevated transition-colors"
+          style={{ ...controlStyle, fontSize: 11 }}>
           ⌘K
         </button>
       </div>

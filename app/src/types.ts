@@ -315,10 +315,10 @@ export function groupEventsIntoSessions(
       repoPath = parts.length > 2 ? parts.slice(0, -1).join("/") : filePaths[0];
     }
 
-    // Collect unique files with diff stats
+    // Collect unique files with diff stats (skip directory-only paths)
     const fileMap = new Map<string, SessionFile>();
     for (const evt of raw.events) {
-      if (evt.file_path) {
+      if (evt.file_path && evt.file_path.split("/").pop()?.includes(".")) {
         const existing = fileMap.get(evt.file_path);
         const counts = evt.diff ? parseDiffCounts(evt.diff) : { added: 0, removed: 0 };
         if (existing) {

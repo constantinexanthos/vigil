@@ -14,14 +14,14 @@ interface AgentLogoProps {
   size?: number;
 }
 
-export default function AgentLogo({ agent, size = 20 }: AgentLogoProps) {
+export default function AgentLogo({ agent, size = 24 }: AgentLogoProps) {
   const src = AGENT_LOGOS[agent];
 
   if (!src) {
     return (
       <span
         className="inline-flex items-center justify-center rounded flex-shrink-0"
-        style={{ width: size, height: size, background: "#3A3A3C", fontSize: size * 0.55, color: "#9CA3AF" }}
+        style={{ width: size, height: size, background: "#3A3A3C", fontSize: size * 0.45, fontWeight: 600, color: "#9CA3AF" }}
       >
         {agent.charAt(0).toUpperCase()}
       </span>
@@ -33,7 +33,7 @@ export default function AgentLogo({ agent, size = 20 }: AgentLogoProps) {
       src={src}
       alt={agent}
       className="flex-shrink-0"
-      style={{ width: size, height: size, borderRadius: 4 }}
+      style={{ width: size, height: size, borderRadius: 5, objectFit: "contain" }}
     />
   );
 }
