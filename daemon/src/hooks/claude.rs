@@ -120,6 +120,9 @@ pub fn hook_event_to_agent_event(event: &ClaudeHookEvent) -> AgentEvent {
         branch: None,
         diff: None,
         metadata: serde_json::to_string(&metadata).ok(),
+        host_kind: None,
+        model: None,
+        is_live: false,
     }
 }
 

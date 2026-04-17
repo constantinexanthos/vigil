@@ -315,6 +315,9 @@ pub async fn run_watch(dirs: Vec<PathBuf>) {
                 branch,
                 diff,
                 metadata: None,
+                host_kind: None,
+                model: None,
+                is_live: false,
             };
 
             let store = git_db.lock().unwrap();
@@ -351,6 +354,9 @@ pub async fn run_watch(dirs: Vec<PathBuf>) {
             branch: None,
             diff: fs_event.diff,
             metadata: None,
+            host_kind: None,
+            model: None,
+            is_live: false,
         };
 
         {

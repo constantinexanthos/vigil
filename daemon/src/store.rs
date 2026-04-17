@@ -51,6 +51,9 @@ pub struct AgentEvent {
     pub branch: Option<String>,
     pub diff: Option<String>,
     pub metadata: Option<String>,
+    pub host_kind: Option<String>,
+    pub model: Option<String>,
+    pub is_live: bool,
 }
 
 /// Query filters for retrieving events.
@@ -98,7 +101,10 @@ impl Store {
                 repo_path   TEXT,
                 branch      TEXT,
                 diff        TEXT,
-                metadata    TEXT
+                metadata    TEXT,
+                host_kind   TEXT,
+                model       TEXT,
+                is_live     INTEGER NOT NULL DEFAULT 0
             );
 
             CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp);
@@ -107,6 +113,13 @@ impl Store {
             CREATE INDEX IF NOT EXISTS idx_events_session_id ON events(session_id);
             ",
         )?;
+        // Defensive migrations for existing databases that predate these columns.
+        // ALTER will fail harmlessly if the columns already exist (fresh DBs).
+        let _ = self.conn.execute("ALTER TABLE events ADD COLUMN host_kind TEXT", []);
+        let _ = self.conn.execute("ALTER TABLE events ADD COLUMN model TEXT", []);
+        let _ = self
+            .conn
+            .execute("ALTER TABLE events ADD COLUMN is_live INTEGER NOT NULL DEFAULT 0", []);
         crate::cost::init_cost_schema(&self.conn)?;
         crate::hallucination::init_hallucination_schema(&self.conn)?;
         crate::github::init_github_schema(&self.conn)
@@ -116,8 +129,8 @@ impl Store {
     /// If the event has metadata with cost info, also inserts into cost_events.
     pub fn insert(&self, event: &AgentEvent) -> Result<i64> {
         self.conn.execute(
-            "INSERT INTO events (timestamp, kind, file_path, agent, session_id, repo_path, branch, diff, metadata)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            "INSERT INTO events (timestamp, kind, file_path, agent, session_id, repo_path, branch, diff, metadata, host_kind, model, is_live)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
             params![
                 event.timestamp.to_rfc3339(),
                 event.kind.as_str(),
@@ -128,6 +141,9 @@ impl Store {
                 event.branch,
                 event.diff,
                 event.metadata,
+                event.host_kind,
+                event.model,
+                event.is_live as i32,
             ],
         )?;
         let event_id = self.conn.last_insert_rowid();
@@ -154,7 +170,7 @@ impl Store {
 
     /// Query events with optional filters, ordered by timestamp descending.
     pub fn query(&self, q: &EventQuery) -> Result<Vec<AgentEvent>> {
-        let mut sql = String::from("SELECT id, timestamp, kind, file_path, agent, session_id, repo_path, branch, diff, metadata FROM events WHERE 1=1");
+        let mut sql = String::from("SELECT id, timestamp, kind, file_path, agent, session_id, repo_path, branch, diff, metadata, host_kind, model, is_live FROM events WHERE 1=1");
         let mut param_values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
 
         if let Some(ref agent) = q.agent {
@@ -192,6 +208,7 @@ impl Store {
         let rows = stmt.query_map(params_ref.as_slice(), |row| {
             let kind_str: String = row.get(2)?;
             let ts_str: String = row.get(1)?;
+            let is_live_int: i64 = row.get(12)?;
             Ok(AgentEvent {
                 id: Some(row.get(0)?),
                 timestamp: DateTime::parse_from_rfc3339(&ts_str)
@@ -205,6 +222,9 @@ impl Store {
                 branch: row.get(7)?,
                 diff: row.get(8)?,
                 metadata: row.get(9)?,
+                host_kind: row.get(10)?,
+                model: row.get(11)?,
+                is_live: is_live_int != 0,
             })
         })?;
 
@@ -336,6 +356,9 @@ mod tests {
             branch: Some("main".to_string()),
             diff: None,
             metadata: None,
+            host_kind: None,
+            model: None,
+            is_live: false,
         }
     }
 
@@ -438,6 +461,9 @@ mod tests {
             branch: None,
             diff: None,
             metadata: None,
+            host_kind: None,
+            model: None,
+            is_live: false,
         }
     }
 
@@ -509,5 +535,20 @@ mod tests {
 
         let results = store.reattribute_unknown(false).unwrap();
         assert_eq!(results.len(), 0);
+    }
+
+    #[test]
+    fn schema_has_host_kind_and_model_columns() {
+        let store = Store::open_in_memory().unwrap();
+        let conn = store.conn();
+        let mut stmt = conn.prepare("PRAGMA table_info(events)").unwrap();
+        let cols: Vec<String> = stmt
+            .query_map([], |row| row.get::<_, String>(1))
+            .unwrap()
+            .filter_map(Result::ok)
+            .collect();
+        assert!(cols.contains(&"host_kind".to_string()), "missing host_kind column");
+        assert!(cols.contains(&"model".to_string()), "missing model column");
+        assert!(cols.contains(&"is_live".to_string()), "missing is_live column");
     }
 }
