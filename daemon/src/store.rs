@@ -56,6 +56,16 @@ pub struct AgentEvent {
     pub is_live: bool,
 }
 
+/// A single conversational turn captured from a session's JSONL transcript.
+#[derive(Debug, Clone)]
+pub struct SessionTurnRecord {
+    pub session_id: String,
+    pub timestamp: DateTime<Utc>,
+    pub role: String,
+    pub text: String,
+    pub tool_names: Vec<String>,
+}
+
 /// Query filters for retrieving events.
 #[derive(Debug, Default)]
 pub struct EventQuery {
@@ -111,6 +121,17 @@ impl Store {
             CREATE INDEX IF NOT EXISTS idx_events_agent ON events(agent);
             CREATE INDEX IF NOT EXISTS idx_events_file_path ON events(file_path);
             CREATE INDEX IF NOT EXISTS idx_events_session_id ON events(session_id);
+
+            CREATE TABLE IF NOT EXISTS session_turns (
+                id          INTEGER PRIMARY KEY,
+                session_id  TEXT NOT NULL,
+                timestamp   TEXT NOT NULL,
+                role        TEXT NOT NULL,
+                text        TEXT NOT NULL,
+                tool_names  TEXT NOT NULL DEFAULT '[]'
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_session_turns_session_id ON session_turns(session_id);
             ",
         )?;
         // Defensive migrations for existing databases that predate these columns.
@@ -337,6 +358,48 @@ impl Store {
             .path()
             .map(|p| PathBuf::from(p))
     }
+
+    /// Insert a single session turn. Returns the row id.
+    pub fn insert_session_turn(&self, turn: &SessionTurnRecord) -> Result<i64> {
+        let tool_names = serde_json::to_string(&turn.tool_names).unwrap_or_else(|_| "[]".to_string());
+        self.conn.execute(
+            "INSERT INTO session_turns (session_id, timestamp, role, text, tool_names) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![
+                turn.session_id,
+                turn.timestamp.to_rfc3339(),
+                turn.role,
+                turn.text,
+                tool_names,
+            ],
+        )?;
+        Ok(self.conn.last_insert_rowid())
+    }
+
+    /// Retrieve the most recent `limit` turns for a session, ordered ascending by insertion.
+    pub fn recent_turns(&self, session_id: &str, limit: i64) -> Result<Vec<SessionTurnRecord>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT session_id, timestamp, role, text, tool_names \
+             FROM session_turns WHERE session_id = ?1 \
+             ORDER BY id DESC LIMIT ?2",
+        )?;
+        let rows = stmt.query_map(params![session_id, limit], |row| {
+            let ts_str: String = row.get(1)?;
+            let tn_str: String = row.get(4)?;
+            let tool_names: Vec<String> = serde_json::from_str(&tn_str).unwrap_or_default();
+            Ok(SessionTurnRecord {
+                session_id: row.get(0)?,
+                timestamp: DateTime::parse_from_rfc3339(&ts_str)
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .unwrap_or_else(|_| Utc::now()),
+                role: row.get(2)?,
+                text: row.get(3)?,
+                tool_names,
+            })
+        })?;
+        let mut out: Vec<SessionTurnRecord> = rows.filter_map(Result::ok).collect();
+        out.reverse(); // ascending by insertion
+        Ok(out)
+    }
 }
 
 #[cfg(test)]
@@ -535,6 +598,29 @@ mod tests {
 
         let results = store.reattribute_unknown(false).unwrap();
         assert_eq!(results.len(), 0);
+    }
+
+    #[test]
+    fn session_turns_round_trip() {
+        let store = Store::open_in_memory().unwrap();
+        store.insert_session_turn(&SessionTurnRecord {
+            session_id: "sess-1".to_string(),
+            timestamp: chrono::Utc::now(),
+            role: "assistant".to_string(),
+            text: "I'm editing foo.rs".to_string(),
+            tool_names: vec!["Edit".to_string()],
+        }).unwrap();
+        store.insert_session_turn(&SessionTurnRecord {
+            session_id: "sess-1".to_string(),
+            timestamp: chrono::Utc::now(),
+            role: "user".to_string(),
+            text: "Continue".to_string(),
+            tool_names: vec![],
+        }).unwrap();
+
+        let turns = store.recent_turns("sess-1", 10).unwrap();
+        assert_eq!(turns.len(), 2);
+        assert_eq!(turns[0].text, "I'm editing foo.rs");
     }
 
     #[test]
