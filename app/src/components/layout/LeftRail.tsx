@@ -1,9 +1,9 @@
 import { useMemo } from "react";
 import { HostGroup } from "../HostGroup";
 import { hostToken } from "../../lib/host-tokens";
+import { partitionSessionsByHost } from "../../lib/partition";
 import { useSelection } from "../../store/selection";
-import type { HostKind, SessionGroup } from "../../types";
-import { HOST_KINDS } from "../../types";
+import type { SessionGroup } from "../../types";
 
 interface Props {
   sessions: SessionGroup[];
@@ -13,7 +13,7 @@ export function LeftRail({ sessions }: Props) {
   const selectedId = useSelection((s) => s.selectedSessionId);
   const setSelected = useSelection((s) => s.setSelected);
 
-  const { groups, idleHosts, totalLive } = useMemo(() => partition(sessions), [sessions]);
+  const { groups, idleHosts, totalLive } = useMemo(() => partitionSessionsByHost(sessions), [sessions]);
 
   return (
     <aside
@@ -62,20 +62,3 @@ export function LeftRail({ sessions }: Props) {
   );
 }
 
-function partition(sessions: SessionGroup[]) {
-  const byHost = new Map<HostKind, SessionGroup[]>();
-  for (const s of sessions) {
-    const kind = s.hostKind;
-    if (!byHost.has(kind)) byHost.set(kind, []);
-    byHost.get(kind)!.push(s);
-  }
-  const seenKinds = new Set(byHost.keys());
-  const groups = Array.from(byHost.entries())
-    .map(([kind, items]) => ({ kind, items: [...items].sort((a, b) => b.endTime.localeCompare(a.endTime)) }))
-    .sort((a, b) => b.items.length - a.items.length);
-
-  const idleHosts = HOST_KINDS.filter((k) => !seenKinds.has(k) && k !== "unknown");
-  const totalLive = sessions.filter((s) => s.isLive).length;
-
-  return { groups, idleHosts, totalLive };
-}
