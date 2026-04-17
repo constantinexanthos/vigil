@@ -8,6 +8,7 @@ mod hooks;
 mod host;
 mod process;
 mod rollback;
+mod sessionlog;
 mod store;
 pub mod trust;
 mod watcher;
