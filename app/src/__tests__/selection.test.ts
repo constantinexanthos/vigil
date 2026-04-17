@@ -1,0 +1,36 @@
+import { describe, it, expect, beforeEach } from "vitest";
+import { useSelection } from "../store/selection";
+
+describe("useSelection", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    useSelection.setState({
+      selectedSessionId: null,
+      leftWidth: 280,
+      rightWidth: 320,
+    });
+  });
+
+  it("starts with nothing selected", () => {
+    expect(useSelection.getState().selectedSessionId).toBeNull();
+  });
+
+  it("setSelected updates state", () => {
+    useSelection.getState().setSelected("sess-abc");
+    expect(useSelection.getState().selectedSessionId).toBe("sess-abc");
+  });
+
+  it("clamps left width to allowed range", () => {
+    useSelection.getState().setLeftWidth(50);
+    expect(useSelection.getState().leftWidth).toBe(200);
+    useSelection.getState().setLeftWidth(9000);
+    expect(useSelection.getState().leftWidth).toBe(480);
+  });
+
+  it("clamps right width to allowed range", () => {
+    useSelection.getState().setRightWidth(10);
+    expect(useSelection.getState().rightWidth).toBe(240);
+    useSelection.getState().setRightWidth(9999);
+    expect(useSelection.getState().rightWidth).toBe(520);
+  });
+});
