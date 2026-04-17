@@ -128,16 +128,18 @@ impl std::fmt::Display for SummaryError {
 
 impl std::error::Error for SummaryError {}
 
-use crate::store::Store;
-
 pub async fn generate_and_cache(
-    store: &Store,
+    store: &std::sync::Arc<std::sync::Mutex<crate::store::Store>>,
     session_id: &str,
     recent_files: Vec<String>,
     diff_stats: Option<(u32, u32)>,
 ) -> Result<String, SummaryError> {
-    let turns = store.recent_turns(session_id, 16)
-        .map_err(|e| SummaryError::Wait(e.to_string()))?;
+    // rusqlite::Connection is !Send, so the MutexGuard must not cross any .await.
+    let turns = {
+        let s = store.lock().unwrap();
+        s.recent_turns(session_id, 16)
+            .map_err(|e| SummaryError::Wait(e.to_string()))?
+    };
     if turns.is_empty() {
         return Err(SummaryError::NonZeroExit("no turns for session".to_string()));
     }
@@ -157,8 +159,11 @@ pub async fn generate_and_cache(
             return Err(SummaryError::NonZeroExit("no CLI available".to_string()));
         }
     };
-    store.upsert_summary(session_id, &text, "claude")
-        .map_err(|e| SummaryError::Wait(e.to_string()))?;
+    {
+        let s = store.lock().unwrap();
+        s.upsert_summary(session_id, &text, "claude")
+            .map_err(|e| SummaryError::Wait(e.to_string()))?;
+    }
     Ok(text)
 }
 

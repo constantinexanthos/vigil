@@ -349,6 +349,10 @@ pub async fn run_watch(dirs: Vec<PathBuf>) {
             .join("refresh-triggers");
         // Create the directory up front so later reads don't fail.
         let _ = std::fs::create_dir_all(&trigger_dir);
+
+        let mut last_summary: HashMap<String, Instant> = HashMap::new();
+        let debounce = std::time::Duration::from_secs(30);
+
         loop {
             if let Ok(entries) = std::fs::read_dir(&trigger_dir) {
                 for entry in entries.flatten() {
@@ -362,58 +366,28 @@ pub async fn run_watch(dirs: Vec<PathBuf>) {
                     let session_id = session_id_raw.replace('_', "/");
                     let _ = std::fs::remove_file(&path);
 
+                    // Per-session debounce -- skip if we regenerated within the window.
+                    let due = match last_summary.get(&session_id).copied() {
+                        Some(t) => t.elapsed() >= debounce,
+                        None => true,
+                    };
+                    if !due {
+                        continue;
+                    }
+                    last_summary.insert(session_id.clone(), Instant::now());
+
                     let trigger_db_inner = Arc::clone(&trigger_db);
                     let sid = session_id.clone();
                     tokio::spawn(async move {
-                        // Mirror the Task 13 summary pipeline: drop the MutexGuard
-                        // before awaiting the Claude CLI, re-acquire for upsert.
-                        let turns = {
-                            let store = trigger_db_inner.lock().unwrap();
-                            store.recent_turns(&sid, 16)
-                        };
-                        let turns = match turns {
-                            Ok(t) => t,
-                            Err(e) => {
-                                eprintln!(
-                                    "vigil: refresh recent_turns failed for {}: {}",
-                                    sid, e
-                                );
-                                return;
-                            }
-                        };
-                        if turns.is_empty() {
-                            eprintln!("vigil: refresh {}: no turns", sid);
-                            return;
-                        }
-                        let input = summarizer::SummaryInput {
-                            turns: &turns,
-                            diff_stats: None,
-                            recent_files: Vec::new(),
-                        };
-                        let prompt = summarizer::build_prompt(&input);
-                        let system = summarizer::system_prompt();
-                        let text = match summarizer::detect_backend() {
-                            summarizer::SummaryBackend::Claude => {
-                                match summarizer::run_claude(&prompt, system).await {
-                                    Ok(t) => t,
-                                    Err(e) => {
-                                        eprintln!(
-                                            "vigil: refresh run_claude failed for {}: {}",
-                                            sid, e
-                                        );
-                                        return;
-                                    }
-                                }
-                            }
-                            summarizer::SummaryBackend::Codex
-                            | summarizer::SummaryBackend::None => {
-                                eprintln!("vigil: refresh {}: no claude backend", sid);
-                                return;
-                            }
-                        };
-                        let store = trigger_db_inner.lock().unwrap();
-                        if let Err(e) = store.upsert_summary(&sid, &text, "claude") {
-                            eprintln!("vigil: refresh upsert failed for {}: {}", sid, e);
+                        if let Err(e) = summarizer::generate_and_cache(
+                            &trigger_db_inner,
+                            &sid,
+                            Vec::new(),
+                            None,
+                        )
+                        .await
+                        {
+                            eprintln!("vigil: refresh summary failed for {}: {}", sid, e);
                         }
                     });
                 }
@@ -474,54 +448,16 @@ pub async fn run_watch(dirs: Vec<PathBuf>) {
                     let summary_db_inner = Arc::clone(&summary_db);
                     let session_id_inner = session_id.clone();
                     tokio::spawn(async move {
-                        // Pull the recent turns while holding the lock, then release
-                        // before we call out to the Claude CLI (which awaits).
-                        // rusqlite::Connection is not Send, so the guard must be
-                        // dropped before the .await boundary.
-                        let turns = {
-                            let store = summary_db_inner.lock().unwrap();
-                            store.recent_turns(&session_id_inner, 16)
-                        };
-                        let turns = match turns {
-                            Ok(t) => t,
-                            Err(e) => {
-                                eprintln!(
-                                    "vigil: summary recent_turns failed for {}: {}",
-                                    session_id_inner, e
-                                );
-                                return;
-                            }
-                        };
-                        if turns.is_empty() {
-                            return;
-                        }
-                        let input = summarizer::SummaryInput {
-                            turns: &turns,
-                            diff_stats: None,
-                            recent_files: Vec::new(),
-                        };
-                        let prompt = summarizer::build_prompt(&input);
-                        let system = summarizer::system_prompt();
-                        let text = match summarizer::detect_backend() {
-                            summarizer::SummaryBackend::Claude => {
-                                match summarizer::run_claude(&prompt, system).await {
-                                    Ok(t) => t,
-                                    Err(e) => {
-                                        eprintln!(
-                                            "vigil: summary failed for {}: {}",
-                                            session_id_inner, e
-                                        );
-                                        return;
-                                    }
-                                }
-                            }
-                            summarizer::SummaryBackend::Codex
-                            | summarizer::SummaryBackend::None => return,
-                        };
-                        let store = summary_db_inner.lock().unwrap();
-                        if let Err(e) = store.upsert_summary(&session_id_inner, &text, "claude") {
+                        if let Err(e) = summarizer::generate_and_cache(
+                            &summary_db_inner,
+                            &session_id_inner,
+                            Vec::new(),
+                            None,
+                        )
+                        .await
+                        {
                             eprintln!(
-                                "vigil: summary upsert failed for {}: {}",
+                                "vigil: summary failed for {}: {}",
                                 session_id_inner, e
                             );
                         }
