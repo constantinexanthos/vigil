@@ -5,6 +5,7 @@ mod git;
 mod github;
 mod hallucination;
 mod hooks;
+mod host;
 mod process;
 mod rollback;
 mod store;
