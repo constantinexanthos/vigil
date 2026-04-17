@@ -1,5 +1,7 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 use chrono::{DateTime, Duration, Utc};
 use clap::{Parser, Subcommand};
@@ -7,7 +9,9 @@ use clap::{Parser, Subcommand};
 use crate::git::GitEventKind;
 use crate::hooks::claude;
 use crate::process::{Agent, ProcessScanner};
-use crate::store::{AgentEvent, EventKind, EventQuery, Store};
+use crate::sessionlog::start_tailer;
+use crate::store::{AgentEvent, EventKind, EventQuery, SessionTurnRecord, Store};
+use crate::summarizer;
 use crate::watcher::FsEventKind;
 
 #[derive(Parser)]
@@ -155,6 +159,12 @@ fn fs_event_kind_to_store(kind: &FsEventKind) -> EventKind {
         FsEventKind::Delete => EventKind::FileDelete,
         FsEventKind::Rename | FsEventKind::Other => EventKind::FileModify,
     }
+}
+
+/// Extract the session id from a JSONL file path. Claude Code writes session
+/// transcripts as `<session-id>.jsonl`, so the file stem IS the session id.
+fn extract_session_id_from_path(path: &std::path::Path) -> Option<String> {
+    path.file_stem()?.to_str().map(|s| s.to_string())
 }
 
 pub async fn run_watch(dirs: Vec<PathBuf>) {
@@ -326,6 +336,122 @@ pub async fn run_watch(dirs: Vec<PathBuf>) {
             }
         }
     });
+
+    // JSONL session tailer -- watches ~/.claude/projects for new turns, persists
+    // them to session_turns, and debounces a per-session summary regeneration
+    // (30s interval) via the summarizer.
+    let claude_projects_root: PathBuf = home::home_dir()
+        .map(|h| h.join(".claude").join("projects"))
+        .expect("home dir");
+    std::fs::create_dir_all(&claude_projects_root).ok();
+
+    match start_tailer(&claude_projects_root) {
+        Ok((sess_watcher, mut sess_rx)) => {
+            // Keep the watcher alive for the life of the daemon.
+            // Leaking is acceptable here -- the daemon runs until killed.
+            Box::leak(Box::new(sess_watcher));
+
+            let tailer_db = Arc::clone(&db);
+            let summary_db = Arc::clone(&db);
+            tokio::spawn(async move {
+                let mut last_summary: HashMap<String, Instant> = HashMap::new();
+                let debounce = std::time::Duration::from_secs(30);
+
+                while let Some(ev) = sess_rx.recv().await {
+                    let Some(session_id) = extract_session_id_from_path(&ev.path) else {
+                        continue;
+                    };
+                    let record = SessionTurnRecord {
+                        session_id: session_id.clone(),
+                        timestamp: Utc::now(),
+                        role: ev.turn.role,
+                        text: ev.turn.text,
+                        tool_names: ev.turn.tool_names,
+                    };
+                    {
+                        let store = tailer_db.lock().unwrap();
+                        if let Err(e) = store.insert_session_turn(&record) {
+                            eprintln!("vigil: insert turn failed: {}", e);
+                            continue;
+                        }
+                    }
+
+                    // Per-session debounce -- skip if we regenerated within the window.
+                    let due = match last_summary.get(&session_id).copied() {
+                        Some(t) => t.elapsed() >= debounce,
+                        None => true,
+                    };
+                    if !due {
+                        continue;
+                    }
+                    last_summary.insert(session_id.clone(), Instant::now());
+
+                    let summary_db_inner = Arc::clone(&summary_db);
+                    let session_id_inner = session_id.clone();
+                    tokio::spawn(async move {
+                        // Pull the recent turns while holding the lock, then release
+                        // before we call out to the Claude CLI (which awaits).
+                        // rusqlite::Connection is not Send, so the guard must be
+                        // dropped before the .await boundary.
+                        let turns = {
+                            let store = summary_db_inner.lock().unwrap();
+                            store.recent_turns(&session_id_inner, 16)
+                        };
+                        let turns = match turns {
+                            Ok(t) => t,
+                            Err(e) => {
+                                eprintln!(
+                                    "vigil: summary recent_turns failed for {}: {}",
+                                    session_id_inner, e
+                                );
+                                return;
+                            }
+                        };
+                        if turns.is_empty() {
+                            return;
+                        }
+                        let input = summarizer::SummaryInput {
+                            turns: &turns,
+                            diff_stats: None,
+                            recent_files: Vec::new(),
+                        };
+                        let prompt = summarizer::build_prompt(&input);
+                        let system = summarizer::system_prompt();
+                        let text = match summarizer::detect_backend() {
+                            summarizer::SummaryBackend::Claude => {
+                                match summarizer::run_claude(&prompt, system).await {
+                                    Ok(t) => t,
+                                    Err(e) => {
+                                        eprintln!(
+                                            "vigil: summary failed for {}: {}",
+                                            session_id_inner, e
+                                        );
+                                        return;
+                                    }
+                                }
+                            }
+                            summarizer::SummaryBackend::Codex
+                            | summarizer::SummaryBackend::None => return,
+                        };
+                        let store = summary_db_inner.lock().unwrap();
+                        if let Err(e) = store.upsert_summary(&session_id_inner, &text, "claude") {
+                            eprintln!(
+                                "vigil: summary upsert failed for {}: {}",
+                                session_id_inner, e
+                            );
+                        }
+                    });
+                }
+            });
+            eprintln!(
+                "vigil: session tailer watching {}",
+                claude_projects_root.display()
+            );
+        }
+        Err(e) => {
+            eprintln!("vigil: failed to start session tailer: {}", e);
+        }
+    }
 
     // Main file event loop.
     while let Some(fs_event) = fs_rx.recv().await {
