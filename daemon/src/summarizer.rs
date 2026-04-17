@@ -128,6 +128,40 @@ impl std::fmt::Display for SummaryError {
 
 impl std::error::Error for SummaryError {}
 
+use crate::store::Store;
+
+pub async fn generate_and_cache(
+    store: &Store,
+    session_id: &str,
+    recent_files: Vec<String>,
+    diff_stats: Option<(u32, u32)>,
+) -> Result<String, SummaryError> {
+    let turns = store.recent_turns(session_id, 16)
+        .map_err(|e| SummaryError::Wait(e.to_string()))?;
+    if turns.is_empty() {
+        return Err(SummaryError::NonZeroExit("no turns for session".to_string()));
+    }
+    let input = SummaryInput {
+        turns: &turns,
+        diff_stats,
+        recent_files,
+    };
+    let prompt = build_prompt(&input);
+    let system = system_prompt();
+    let text = match detect_backend() {
+        SummaryBackend::Claude => run_claude(&prompt, system).await?,
+        SummaryBackend::Codex => {
+            return Err(SummaryError::NonZeroExit("codex backend not yet wired".to_string()));
+        }
+        SummaryBackend::None => {
+            return Err(SummaryError::NonZeroExit("no CLI available".to_string()));
+        }
+    };
+    store.upsert_summary(session_id, &text, "claude")
+        .map_err(|e| SummaryError::Wait(e.to_string()))?;
+    Ok(text)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

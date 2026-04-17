@@ -141,6 +141,15 @@ impl Store {
         let _ = self
             .conn
             .execute("ALTER TABLE events ADD COLUMN is_live INTEGER NOT NULL DEFAULT 0", []);
+        self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS session_summaries (\
+                session_id TEXT PRIMARY KEY, \
+                text TEXT NOT NULL, \
+                generated_at TEXT NOT NULL, \
+                backend TEXT NOT NULL\
+            )",
+            [],
+        )?;
         crate::cost::init_cost_schema(&self.conn)?;
         crate::hallucination::init_hallucination_schema(&self.conn)?;
         crate::github::init_github_schema(&self.conn)
@@ -373,6 +382,29 @@ impl Store {
             ],
         )?;
         Ok(self.conn.last_insert_rowid())
+    }
+
+    pub fn upsert_summary(&self, session_id: &str, text: &str, backend: &str) -> rusqlite::Result<()> {
+        let now = Utc::now().to_rfc3339();
+        self.conn.execute(
+            "INSERT INTO session_summaries (session_id, text, generated_at, backend) VALUES (?1, ?2, ?3, ?4) \
+             ON CONFLICT(session_id) DO UPDATE SET text = excluded.text, generated_at = excluded.generated_at, backend = excluded.backend",
+            rusqlite::params![session_id, text, now, backend],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_summary(&self, session_id: &str) -> rusqlite::Result<Option<(String, String, String)>> {
+        let row: Result<(String, String, String), _> = self.conn.query_row(
+            "SELECT text, generated_at, backend FROM session_summaries WHERE session_id = ?1",
+            rusqlite::params![session_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        );
+        match row {
+            Ok(tup) => Ok(Some(tup)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e),
+        }
     }
 
     /// Retrieve the most recent `limit` turns for a session, ordered ascending by insertion.
@@ -621,6 +653,18 @@ mod tests {
         let turns = store.recent_turns("sess-1", 10).unwrap();
         assert_eq!(turns.len(), 2);
         assert_eq!(turns[0].text, "I'm editing foo.rs");
+    }
+
+    #[test]
+    fn summary_upsert_and_get() {
+        let store = Store::open_in_memory().unwrap();
+        assert!(store.get_summary("s1").unwrap().is_none());
+        store.upsert_summary("s1", "first draft", "claude").unwrap();
+        let got = store.get_summary("s1").unwrap().unwrap();
+        assert_eq!(got.0, "first draft");
+        store.upsert_summary("s1", "revised", "claude").unwrap();
+        let got = store.get_summary("s1").unwrap().unwrap();
+        assert_eq!(got.0, "revised");
     }
 
     #[test]
