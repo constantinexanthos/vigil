@@ -310,6 +310,71 @@ impl Store {
         })
     }
 
+    /// Distinct host_kind values with active session counts over the last N minutes.
+    /// Rows with NULL host_kind are reported as "unknown".
+    pub fn query_hosts(&self, since_minutes: i64) -> Result<Vec<HostRow>> {
+        let since = format!("-{since_minutes} minutes");
+        let mut stmt = self.conn.prepare(
+            "SELECT COALESCE(host_kind, 'unknown') AS hk, \
+                    COUNT(DISTINCT COALESCE(session_id, '')) AS n \
+             FROM events \
+             WHERE timestamp >= datetime('now', ?1) \
+               AND COALESCE(session_id, '') != '' \
+             GROUP BY hk \
+             ORDER BY n DESC",
+        )?;
+        let rows = stmt.query_map(params![since], |row| {
+            Ok(HostRow {
+                kind: row.get::<_, String>(0)?,
+                active_sessions: row.get::<_, i64>(1)? as u32,
+            })
+        })?;
+        rows.collect()
+    }
+
+    /// Live sessions with events in the last N minutes. Joins session_summaries for the
+    /// description text. Returns one row per session_id.
+    pub fn query_live_sessions(&self, since_minutes: i64) -> Result<Vec<LiveSessionRow>> {
+        let since = format!("-{since_minutes} minutes");
+        let mut stmt = self.conn.prepare(
+            "SELECT \
+                e.session_id, \
+                COALESCE(MAX(e.host_kind), 'unknown') AS host_kind, \
+                MAX(e.agent) AS agent, \
+                MAX(e.repo_path) AS repo_path, \
+                MIN(e.timestamp) AS started_at, \
+                MAX(e.timestamp) AS ended_at, \
+                MAX(e.model) AS model, \
+                MAX(e.is_live) AS is_live, \
+                COALESCE(MAX(ss.text), '') AS description \
+             FROM events e \
+             LEFT JOIN session_summaries ss ON ss.session_id = e.session_id \
+             WHERE e.timestamp >= datetime('now', ?1) \
+               AND e.session_id IS NOT NULL \
+             GROUP BY e.session_id \
+             ORDER BY ended_at DESC",
+        )?;
+        let rows = stmt.query_map(params![since], |row| {
+            let is_live: i64 = row.get::<_, Option<i64>>(7)?.unwrap_or(0);
+            Ok(LiveSessionRow {
+                session_id: row.get::<_, String>(0)?,
+                host_kind: row.get::<_, String>(1)?,
+                agent: row.get::<_, String>(2)?,
+                repo_path: row.get::<_, Option<String>>(3)?,
+                started_at: row.get::<_, String>(4)?,
+                ended_at: row.get::<_, String>(5)?,
+                model: row.get::<_, Option<String>>(6)?,
+                is_live: is_live != 0,
+                description: row.get::<_, String>(8)?,
+                files_added: 0,
+                files_removed: 0,
+                cost_usd: 0.0,
+                confidence: 0,
+            })
+        })?;
+        rows.collect()
+    }
+
     /// Query pull requests from the pull_requests table.
     pub fn query_pull_requests(&self, repo_path: Option<&str>) -> Result<Vec<PrRow>> {
         let table_exists: bool = self.conn.query_row(
@@ -437,6 +502,29 @@ pub struct WorkspaceSummaryRow {
 pub struct AgentCommitCount {
     pub agent: String,
     pub commit_count: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct HostRow {
+    pub kind: String,
+    pub active_sessions: u32,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct LiveSessionRow {
+    pub session_id: String,
+    pub host_kind: String,
+    pub agent: String,
+    pub repo_path: Option<String>,
+    pub started_at: String,
+    pub ended_at: String,
+    pub model: Option<String>,
+    pub is_live: bool,
+    pub description: String,
+    pub files_added: u32,
+    pub files_removed: u32,
+    pub cost_usd: f64,
+    pub confidence: u32,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]

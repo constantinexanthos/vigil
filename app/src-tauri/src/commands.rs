@@ -1,6 +1,6 @@
 use crate::store::{
-    default_db_path, AgentStatRow, CollisionRow, CommitGroup, CostTotalRow, EventRow, PrRow, Store,
-    WorkspaceSummaryRow, LiveSummaryRow,
+    default_db_path, AgentStatRow, CollisionRow, CommitGroup, CostTotalRow, EventRow, HostRow,
+    LiveSessionRow, LiveSummaryRow, PrRow, Store, WorkspaceSummaryRow,
 };
 
 pub fn try_open_store() -> Option<Store> {
@@ -94,5 +94,21 @@ pub fn get_live_summary() -> Result<LiveSummaryRow, String> {
     let store = open_store()?;
     store
         .query_live_summary()
+        .map_err(|e| format!("Query failed: {e}"))
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn get_hosts() -> Result<Vec<HostRow>, String> {
+    let store = open_store()?;
+    store
+        .query_hosts(10)
+        .map_err(|e| format!("Query failed: {e}"))
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn get_live_sessions() -> Result<Vec<LiveSessionRow>, String> {
+    let store = open_store()?;
+    store
+        .query_live_sessions(60)
         .map_err(|e| format!("Query failed: {e}"))
 }
