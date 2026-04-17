@@ -6,3 +6,4 @@ dist/
 *.sqlite
 app/src-tauri/gen/
 .superpowers/
+.worktrees/
