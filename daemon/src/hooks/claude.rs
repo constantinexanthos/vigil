@@ -120,6 +120,9 @@ pub fn hook_event_to_agent_event(event: &ClaudeHookEvent) -> AgentEvent {
         branch: None,
         diff: None,
         metadata: serde_json::to_string(&metadata).ok(),
+        host_kind: None,
+        model: event.model.clone(),
+        is_live: true,
     }
 }
 
@@ -257,10 +260,22 @@ fn remove_hook_entry(entries: &mut serde_json::Value, command: &str) {
 /// Process a hook event from stdin and write it to the store.
 /// Called when `vigil hook claude` is invoked by Claude Code.
 pub fn process_hook_stdin(store_path: &Path) -> Result<(), String> {
+    use crate::host::{detect_host, HostKind};
+    use sysinfo::System;
+
     let event = read_hook_event_from_stdin()
         .ok_or("No valid hook event on stdin")?;
 
-    let agent_event = hook_event_to_agent_event(&event);
+    let mut agent_event = hook_event_to_agent_event(&event);
+
+    // After converting to AgentEvent, detect the host from our parent chain:
+    // vigil-hook is spawned by Claude Code; our own PID's parent chain leads to the host.
+    let host_kind: HostKind = {
+        let pid = std::process::id();
+        let sys = System::new_all();
+        detect_host(&sys, pid)
+    };
+    agent_event.host_kind = Some(host_kind.as_str().to_string());
 
     let store = crate::store::Store::open(store_path)
         .map_err(|e| format!("Failed to open store: {e}"))?;
@@ -335,5 +350,27 @@ mod tests {
     fn hook_command_format() {
         let bin = PathBuf::from("/usr/local/bin/vigil");
         assert_eq!(hook_command(&bin), "/usr/local/bin/vigil hook claude");
+    }
+
+    #[test]
+    fn hook_event_to_agent_event_carries_host_kind_field() {
+        let event = ClaudeHookEvent {
+            hook_type: Some("PostToolUse".to_string()),
+            session_id: Some("sess-123".to_string()),
+            tool_name: Some("Edit".to_string()),
+            tool_input: Some(serde_json::json!({"file_path": "/tmp/x.rs"})),
+            tool_output: None,
+            cwd: Some("/tmp".to_string()),
+            token_usage: None,
+            model: Some("claude-opus-4-7".to_string()),
+            cost_usd: None,
+            message: None,
+        };
+        let agent_event = hook_event_to_agent_event(&event);
+        // Model is known; host_kind/is_live are set by the ingestion layer, not the converter.
+        assert_eq!(agent_event.model.as_deref(), Some("claude-opus-4-7"));
+        // The struct has the fields (compile-time check); default values from converter are fine.
+        let _ = agent_event.host_kind;
+        let _ = agent_event.is_live;
     }
 }

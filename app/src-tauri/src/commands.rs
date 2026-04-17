@@ -1,7 +1,8 @@
 use crate::store::{
-    default_db_path, AgentStatRow, CollisionRow, CommitGroup, CostTotalRow, EventRow, PrRow, Store,
-    WorkspaceSummaryRow, LiveSummaryRow,
+    default_db_path, AgentStatRow, CollisionRow, CommitGroup, CostTotalRow, EventRow, HostRow,
+    LiveSessionRow, LiveSummaryRow, PrRow, Store, WorkspaceSummaryRow,
 };
+use serde::{Deserialize, Serialize};
 
 pub fn try_open_store() -> Option<Store> {
     let path = default_db_path();
@@ -95,4 +96,97 @@ pub fn get_live_summary() -> Result<LiveSummaryRow, String> {
     store
         .query_live_summary()
         .map_err(|e| format!("Query failed: {e}"))
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn get_hosts() -> Result<Vec<HostRow>, String> {
+    let store = open_store()?;
+    store
+        .query_hosts(10)
+        .map_err(|e| format!("Query failed: {e}"))
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn get_live_sessions() -> Result<Vec<LiveSessionRow>, String> {
+    let store = open_store()?;
+    store
+        .query_live_sessions(60)
+        .map_err(|e| format!("Query failed: {e}"))
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct SummaryResponse {
+    pub text: String,
+    pub generated_at: String,
+    pub backend: String,
+    pub stale_seconds: i64,
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn get_summary(session_id: String) -> Result<Option<SummaryResponse>, String> {
+    let store = open_store()?;
+    let row = store
+        .query_summary(&session_id)
+        .map_err(|e| format!("Query failed: {e}"))?;
+    let Some((text, generated_at, backend)) = row else {
+        return Ok(None);
+    };
+    let parsed = chrono::DateTime::parse_from_rfc3339(&generated_at)
+        .map_err(|e| format!("parse generated_at: {e}"))?
+        .with_timezone(&chrono::Utc);
+    let stale = (chrono::Utc::now() - parsed).num_seconds();
+    Ok(Some(SummaryResponse {
+        text,
+        generated_at,
+        backend,
+        stale_seconds: stale,
+    }))
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn refresh_summary(session_id: String) -> Result<(), String> {
+    let home = home::home_dir().ok_or_else(|| "no home dir".to_string())?;
+    let trigger_dir = home.join(".vigil").join("refresh-triggers");
+    std::fs::create_dir_all(&trigger_dir).map_err(|e| e.to_string())?;
+    // Replace '/' with '_' so session IDs containing slashes don't create subdirs.
+    let sanitized = session_id.replace('/', "_");
+    let trigger = trigger_dir.join(format!("{}.flag", sanitized));
+    std::fs::write(&trigger, chrono::Utc::now().to_rfc3339()).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[derive(Serialize, Clone)]
+pub struct CliStatus {
+    pub claude: bool,
+    pub codex: bool,
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn detect_cli() -> CliStatus {
+    let claude = std::process::Command::new("claude")
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    let codex = std::process::Command::new("codex")
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    CliStatus { claude, codex }
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn save_api_key(provider: String, key: String) -> Result<(), String> {
+    let entry = keyring::Entry::new("vigil", &format!("api-key-{}", provider))
+        .map_err(|e| e.to_string())?;
+    entry.set_password(&key).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn has_api_key(provider: String) -> bool {
+    keyring::Entry::new("vigil", &format!("api-key-{}", provider))
+        .and_then(|e| e.get_password())
+        .is_ok()
 }

@@ -49,6 +49,13 @@ fn main() {
             commands::get_workspace_summary,
             commands::get_pull_requests,
             commands::get_live_summary,
+            commands::get_hosts,
+            commands::get_live_sessions,
+            commands::get_summary,
+            commands::refresh_summary,
+            commands::detect_cli,
+            commands::save_api_key,
+            commands::has_api_key,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,67 +1,29 @@
+import logo from "/logo.png";
+
 interface Props {
-  agents: string[];
-  agentFilter: string;
-  onAgentFilterChange: (v: string) => void;
-  timeRange: string;
-  onTimeRangeChange: (v: string) => void;
   connected: boolean;
   hasNewEvents: boolean;
-  agentCount: number;
-  totalCost: number;
-  alertCount: number;
   onOpenCmd: () => void;
 }
 
-const controlStyle: React.CSSProperties = {
-  fontSize: 12,
-  height: 28,
-  padding: "0 8px",
-  borderRadius: 6,
-  border: "none",
-  outline: "none",
-  cursor: "pointer",
-};
-
-export default function TopBar({
-  agents, agentFilter, onAgentFilterChange, timeRange, onTimeRangeChange,
-  connected, hasNewEvents, onOpenCmd,
-}: Props) {
+export function TopBar({ connected, hasNewEvents, onOpenCmd }: Props) {
   return (
-    <div
-      className="flex-shrink-0 flex items-center justify-between px-4 bg-bg"
-      style={{
-        height: 44,
-        boxShadow: "0 1px 0 rgba(255,255,255,0.04)",
-        WebkitAppRegion: "drag",
-      } as React.CSSProperties}
-    >
-      <div className="flex items-center gap-2" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
-        <img src="/logo.png" alt="" width={18} height={18} style={{ imageRendering: "auto" }}
-          onError={(e) => { (e.target as HTMLElement).style.display = "none"; }} />
-        <span style={{ fontSize: 14, fontWeight: 500, color: "#F9FAFB" }}>Vigil</span>
-        {connected && (
-          <span className={`w-1.5 h-1.5 rounded-full bg-green ${hasNewEvents ? "animate-pulse" : ""}`} />
-        )}
+    <header className="h-11 flex items-center justify-between px-3.5 border-b border-white/5 bg-[#121214]">
+      <div className="flex items-center gap-2">
+        <img src={logo} alt="Vigil" className="w-5 h-5" />
+        <span className="text-[13px] text-white font-semibold">Vigil</span>
+        <span
+          className={`w-1.5 h-1.5 rounded-full ml-1.5 ${connected ? "bg-emerald-400" : "bg-rose-400"}`}
+          style={{ boxShadow: connected ? `0 0 6px ${hasNewEvents ? "#4ade80" : "#10b981"}` : "none" }}
+        />
       </div>
-      <div className="flex items-center gap-2" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
-        <select value={agentFilter} onChange={(e) => onAgentFilterChange(e.target.value)}
-          className="bg-bg-tertiary text-text-tertiary" style={controlStyle}>
-          <option value="">All Agents</option>
-          {agents.map((a) => <option key={a} value={a}>{a}</option>)}
-        </select>
-        <select value={timeRange} onChange={(e) => onTimeRangeChange(e.target.value)}
-          className="bg-bg-tertiary text-text-tertiary" style={controlStyle}>
-          <option value="today">Today</option>
-          <option value="7d">7 days</option>
-          <option value="30d">30 days</option>
-          <option value="all">All time</option>
-        </select>
-        <button onClick={onOpenCmd}
-          className="bg-bg-tertiary text-text-muted hover:bg-bg-elevated transition-colors"
-          style={{ ...controlStyle, fontSize: 11 }}>
-          ⌘K
-        </button>
-      </div>
-    </div>
+      <button
+        type="button"
+        onClick={onOpenCmd}
+        className="text-[11px] text-white/50 hover:text-white/80 border border-white/10 px-2 py-0.5 rounded font-mono"
+      >
+        ⌘K
+      </button>
+    </header>
   );
 }

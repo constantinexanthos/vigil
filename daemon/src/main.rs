@@ -5,9 +5,12 @@ mod git;
 mod github;
 mod hallucination;
 mod hooks;
+mod host;
 mod process;
 mod rollback;
+mod sessionlog;
 mod store;
+mod summarizer;
 pub mod trust;
 mod watcher;
 
