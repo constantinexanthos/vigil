@@ -1,3 +1,36 @@
+export type HostKind =
+  | "ghostty"
+  | "iterm2"
+  | "terminal"
+  | "warp"
+  | "kitty"
+  | "alacritty"
+  | "conductor"
+  | "cursor"
+  | "vscode"
+  | "zed"
+  | "windsurf"
+  | "unknown";
+
+export const HOST_KINDS: HostKind[] = [
+  "ghostty",
+  "iterm2",
+  "terminal",
+  "warp",
+  "kitty",
+  "alacritty",
+  "conductor",
+  "cursor",
+  "vscode",
+  "zed",
+  "windsurf",
+  "unknown",
+];
+
+export function isHostKind(v: string): v is HostKind {
+  return (HOST_KINDS as string[]).includes(v);
+}
+
 export interface AgentEvent {
   id: number;
   timestamp: string;
@@ -167,6 +200,13 @@ export interface SessionGroup {
   confidence: number;
   costUsd: number;
   hasWarning: boolean;
+  // NEW below:
+  hostKind: HostKind;
+  hostPid: number | null;
+  model: string | null;
+  isLive: boolean;
+  summaryPlainEnglish: string | null;
+  summaryGeneratedAt: string | null;
 }
 
 export interface ProjectGroup {
@@ -467,6 +507,12 @@ export function groupEventsIntoSessions(
       confidence,
       costUsd,
       hasWarning,
+      hostKind: "unknown",
+      hostPid: null,
+      model: null,
+      isLive: false,
+      summaryPlainEnglish: null,
+      summaryGeneratedAt: null,
     };
   });
 
