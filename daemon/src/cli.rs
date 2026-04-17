@@ -337,6 +337,91 @@ pub async fn run_watch(dirs: Vec<PathBuf>) {
         }
     });
 
+    // Refresh-trigger poll loop. The Tauri app writes flag files into
+    // ~/.vigil/refresh-triggers/<session_id>.flag to ask for immediate
+    // re-summarization. We scan the directory every 5 seconds, remove each flag,
+    // and regenerate the summary using the same pipeline as the JSONL tailer.
+    let trigger_db = Arc::clone(&db);
+    tokio::spawn(async move {
+        let trigger_dir = home::home_dir()
+            .expect("home dir")
+            .join(".vigil")
+            .join("refresh-triggers");
+        // Create the directory up front so later reads don't fail.
+        let _ = std::fs::create_dir_all(&trigger_dir);
+        loop {
+            if let Ok(entries) = std::fs::read_dir(&trigger_dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.extension().and_then(|e| e.to_str()) != Some("flag") {
+                        continue;
+                    }
+                    let Some(session_id_raw) = path.file_stem().and_then(|s| s.to_str()) else {
+                        continue;
+                    };
+                    let session_id = session_id_raw.replace('_', "/");
+                    let _ = std::fs::remove_file(&path);
+
+                    let trigger_db_inner = Arc::clone(&trigger_db);
+                    let sid = session_id.clone();
+                    tokio::spawn(async move {
+                        // Mirror the Task 13 summary pipeline: drop the MutexGuard
+                        // before awaiting the Claude CLI, re-acquire for upsert.
+                        let turns = {
+                            let store = trigger_db_inner.lock().unwrap();
+                            store.recent_turns(&sid, 16)
+                        };
+                        let turns = match turns {
+                            Ok(t) => t,
+                            Err(e) => {
+                                eprintln!(
+                                    "vigil: refresh recent_turns failed for {}: {}",
+                                    sid, e
+                                );
+                                return;
+                            }
+                        };
+                        if turns.is_empty() {
+                            eprintln!("vigil: refresh {}: no turns", sid);
+                            return;
+                        }
+                        let input = summarizer::SummaryInput {
+                            turns: &turns,
+                            diff_stats: None,
+                            recent_files: Vec::new(),
+                        };
+                        let prompt = summarizer::build_prompt(&input);
+                        let system = summarizer::system_prompt();
+                        let text = match summarizer::detect_backend() {
+                            summarizer::SummaryBackend::Claude => {
+                                match summarizer::run_claude(&prompt, system).await {
+                                    Ok(t) => t,
+                                    Err(e) => {
+                                        eprintln!(
+                                            "vigil: refresh run_claude failed for {}: {}",
+                                            sid, e
+                                        );
+                                        return;
+                                    }
+                                }
+                            }
+                            summarizer::SummaryBackend::Codex
+                            | summarizer::SummaryBackend::None => {
+                                eprintln!("vigil: refresh {}: no claude backend", sid);
+                                return;
+                            }
+                        };
+                        let store = trigger_db_inner.lock().unwrap();
+                        if let Err(e) = store.upsert_summary(&sid, &text, "claude") {
+                            eprintln!("vigil: refresh upsert failed for {}: {}", sid, e);
+                        }
+                    });
+                }
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        }
+    });
+
     // JSONL session tailer -- watches ~/.claude/projects for new turns, persists
     // them to session_turns, and debounces a per-session summary regeneration
     // (30s interval) via the summarizer.

@@ -375,6 +375,24 @@ impl Store {
         rows.collect()
     }
 
+    /// Fetch the cached summary row for a session, if present.
+    /// Returns (text, generated_at, backend).
+    pub fn query_summary(
+        &self,
+        session_id: &str,
+    ) -> Result<Option<(String, String, String)>> {
+        let row: Result<(String, String, String)> = self.conn.query_row(
+            "SELECT text, generated_at, backend FROM session_summaries WHERE session_id = ?1",
+            params![session_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        );
+        match row {
+            Ok(tup) => Ok(Some(tup)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
     /// Query pull requests from the pull_requests table.
     pub fn query_pull_requests(&self, repo_path: Option<&str>) -> Result<Vec<PrRow>> {
         let table_exists: bool = self.conn.query_row(
