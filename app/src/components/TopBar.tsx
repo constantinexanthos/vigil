@@ -13,6 +13,8 @@ export function TopBar({ connected, hasNewEvents, onOpenCmd }: Props) {
         <img src={logo} alt="Vigil" className="w-5 h-5" />
         <span className="text-[13px] text-white font-semibold">Vigil</span>
         <span
+          role="status"
+          aria-label={connected ? "Daemon connected" : "Daemon disconnected"}
           className={`w-1.5 h-1.5 rounded-full ml-1.5 ${connected ? "bg-emerald-400" : "bg-rose-400"}`}
           style={{ boxShadow: connected ? `0 0 6px ${hasNewEvents ? "#4ade80" : "#10b981"}` : "none" }}
         />
@@ -20,6 +22,8 @@ export function TopBar({ connected, hasNewEvents, onOpenCmd }: Props) {
       <button
         type="button"
         onClick={onOpenCmd}
+        aria-label="Open command palette"
+        title="Open command palette (⌘K)"
         className="text-[11px] text-white/50 hover:text-white/80 border border-white/10 px-2 py-0.5 rounded font-mono"
       >
         ⌘K
