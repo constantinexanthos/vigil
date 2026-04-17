@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::process::Command;
+use std::time::Duration;
+use tokio::process::Command as TokioCommand;
+use tokio::time::timeout;
 
 use crate::store::SessionTurnRecord;
 
@@ -75,6 +78,56 @@ fn truncate(s: &str, max_chars: usize) -> String {
 
 pub fn system_prompt() -> &'static str { SYSTEM_PROMPT }
 
+pub async fn run_claude(prompt: &str, system: &str) -> Result<String, SummaryError> {
+    run_claude_with_bin("claude", prompt, system).await
+}
+
+async fn run_claude_with_bin(bin: &str, prompt: &str, system: &str) -> Result<String, SummaryError> {
+    let child = TokioCommand::new(bin)
+        .arg("-p")
+        .arg(prompt)
+        .arg("--system-prompt").arg(system)
+        .arg("--model").arg("claude-haiku-4-5-20251001")
+        .arg("--output-format").arg("text")
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .map_err(|e| SummaryError::Spawn(e.to_string()))?;
+
+    let output = timeout(Duration::from_secs(20), child.wait_with_output())
+        .await
+        .map_err(|_| SummaryError::Timeout)?
+        .map_err(|e| SummaryError::Wait(e.to_string()))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(SummaryError::NonZeroExit(stderr));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+#[derive(Debug)]
+pub enum SummaryError {
+    Spawn(String),
+    Wait(String),
+    NonZeroExit(String),
+    Timeout,
+}
+
+impl std::fmt::Display for SummaryError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SummaryError::Spawn(s) => write!(f, "spawn failed: {}", s),
+            SummaryError::Wait(s) => write!(f, "wait failed: {}", s),
+            SummaryError::NonZeroExit(s) => write!(f, "non-zero exit: {}", s),
+            SummaryError::Timeout => write!(f, "timed out"),
+        }
+    }
+}
+
+impl std::error::Error for SummaryError {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -128,5 +181,13 @@ mod tests {
         let sp = system_prompt();
         assert!(sp.contains("non-programmer"));
         assert!(sp.contains("middleware"));  // in the list of jargon to avoid
+    }
+
+    #[tokio::test]
+    async fn run_claude_errors_cleanly_when_binary_missing() {
+        let err = run_claude_with_bin("definitely-not-a-real-binary-zyxw", "prompt", "system")
+            .await
+            .expect_err("should error");
+        assert!(matches!(err, SummaryError::Spawn(_)));
     }
 }
