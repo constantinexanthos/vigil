@@ -1,44 +1,21 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { ActivityStream } from "../ActivityStream";
 import { SessionFooter } from "../SessionFooter";
 import { SessionHeader } from "../SessionHeader";
 import { SummaryBlock } from "../SummaryBlock";
 import type { SessionGroup } from "../../types";
+import type { ServerSummary } from "../../hooks";
 
 interface Props {
   session: SessionGroup | null;
   hasCli: boolean;
+  /** Latest cached summary for `session`, supplied by useDaemonData's unified polling. */
+  summary: ServerSummary | null;
 }
 
-interface ServerSummary {
-  text: string;
-  generated_at: string;
-  backend: string;
-  stale_seconds: number;
-}
-
-export function MiddlePane({ session, hasCli }: Props) {
-  const [summary, setSummary] = useState<ServerSummary | null>(null);
+export function MiddlePane({ session, hasCli, summary }: Props) {
   const [refreshing, setRefreshing] = useState(false);
-
-  useEffect(() => {
-    setSummary(null);
-    if (!session) return;
-    const sessionId = session.id;
-    let cancelled = false;
-    async function load() {
-      try {
-        const res = await invoke<ServerSummary | null>("get_summary", { sessionId });
-        if (!cancelled) setSummary(res);
-      } catch (_) {
-        if (!cancelled) setSummary(null);
-      }
-    }
-    load();
-    const id = window.setInterval(load, 5000);
-    return () => { cancelled = true; window.clearInterval(id); };
-  }, [session?.id]);
 
   if (!session) {
     return (
@@ -58,14 +35,9 @@ export function MiddlePane({ session, hasCli }: Props) {
     setRefreshing(true);
     try {
       await invoke("refresh_summary", { sessionId: session.id });
-      window.setTimeout(async () => {
-        try {
-          const res = await invoke<ServerSummary | null>("get_summary", { sessionId: session.id });
-          setSummary(res);
-        } finally {
-          setRefreshing(false);
-        }
-      }, 1500);
+      // The next useDaemonData poll (2s cadence) picks up the regenerated summary.
+      // Hold the refreshing flag briefly so the UI shows feedback.
+      window.setTimeout(() => setRefreshing(false), 2500);
     } catch {
       setRefreshing(false);
     }
