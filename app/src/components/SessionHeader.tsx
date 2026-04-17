@@ -1,6 +1,7 @@
 // app/src/components/SessionHeader.tsx
 import { motion } from "framer-motion";
 import { hostToken } from "../lib/host-tokens";
+import { elapsedSince, repoName } from "../lib/formatters";
 import type { SessionGroup } from "../types";
 import { relativeTime } from "../types";
 
@@ -45,18 +46,3 @@ export function SessionHeader({ session }: Props) {
   );
 }
 
-function repoName(p: string): string {
-  const parts = (p ?? "").split("/").filter(Boolean);
-  return parts[parts.length - 1] ?? p;
-}
-
-function elapsedSince(startIso: string): string {
-  const start = new Date(startIso).getTime();
-  const ms = Math.max(0, Date.now() - start);
-  const s = Math.floor(ms / 1000);
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ${s % 60}s`;
-  const h = Math.floor(m / 60);
-  return `${h}h ${m % 60}m`;
-}

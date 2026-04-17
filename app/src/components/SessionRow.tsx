@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { hostToken } from "../lib/host-tokens";
+import { repoName, shortModel } from "../lib/formatters";
 import type { SessionGroup } from "../types";
 
 interface Props {
@@ -53,17 +54,3 @@ function tallyFiles(s: SessionGroup) {
   );
 }
 
-function repoName(p: string): string {
-  if (!p) return "";
-  const parts = p.split("/").filter(Boolean);
-  return parts[parts.length - 1] ?? p;
-}
-
-function shortModel(model: string | null): string {
-  if (!model) return "";
-  if (model.includes("opus")) return "Opus";
-  if (model.includes("sonnet")) return "Sonnet";
-  if (model.includes("haiku")) return "Haiku";
-  if (model.includes("gpt")) return "GPT";
-  return model.split("-")[0] ?? "";
-}

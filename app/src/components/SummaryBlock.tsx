@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { hostToken } from "../lib/host-tokens";
+import { humanModel, relativeTimeFromIso } from "../lib/formatters";
 import type { HostKind } from "../types";
 
 interface Props {
@@ -75,17 +76,3 @@ function ShimmerLines() {
   );
 }
 
-function relativeTimeFromIso(iso: string): string {
-  const diff = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
-  if (diff < 60) return `${Math.floor(diff)}s ago`;
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  return `${Math.floor(diff / 3600)}h ago`;
-}
-
-function humanModel(m: string): string {
-  if (m.includes("opus")) return "Claude Opus";
-  if (m.includes("sonnet")) return "Claude Sonnet";
-  if (m.includes("haiku")) return "Claude Haiku";
-  if (m.includes("gpt")) return "GPT";
-  return m;
-}

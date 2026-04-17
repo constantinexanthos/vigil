@@ -1,4 +1,5 @@
 import { hostToken } from "../lib/host-tokens";
+import { humanModel } from "../lib/formatters";
 import type { SessionGroup } from "../types";
 import { formatCost } from "../types";
 
@@ -25,12 +26,3 @@ export function SessionFooter({ session }: Props) {
   );
 }
 
-function humanModel(m: string | null): string {
-  if (!m) return "unknown";
-  if (m.includes("opus")) return "Claude Opus";
-  if (m.includes("sonnet")) return "Claude Sonnet";
-  if (m.includes("haiku")) return "Claude Haiku";
-  if (m.includes("gpt-5")) return "GPT-5";
-  if (m.includes("gpt")) return "GPT";
-  return m;
-}
