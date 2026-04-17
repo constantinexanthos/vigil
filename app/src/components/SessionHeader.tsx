@@ -30,6 +30,7 @@ export function SessionHeader({ session }: Props) {
           animate={{ opacity: 1 }}
         >
           <motion.span
+            aria-hidden
             className="w-1.5 h-1.5 rounded-full"
             style={{ background: token.color }}
             animate={{ opacity: [0.6, 1, 0.6] }}
