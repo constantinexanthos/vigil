@@ -1,4 +1,5 @@
 mod cli;
+mod codexlog;
 mod cursorlog;
 mod digest;
 mod cost;
