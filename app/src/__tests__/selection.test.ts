@@ -8,6 +8,7 @@ describe("useSelection", () => {
       selectedSessionId: null,
       leftWidth: 280,
       rightWidth: 320,
+      rightTab: "changes",
     });
   });
 
@@ -32,5 +33,28 @@ describe("useSelection", () => {
     expect(useSelection.getState().rightWidth).toBe(240);
     useSelection.getState().setRightWidth(9999);
     expect(useSelection.getState().rightWidth).toBe(520);
+  });
+
+  it("defaults rightTab to 'changes'", () => {
+    expect(useSelection.getState().rightTab).toBe("changes");
+  });
+
+  it("setRightTab updates state", () => {
+    useSelection.getState().setRightTab("review");
+    expect(useSelection.getState().rightTab).toBe("review");
+  });
+
+  it("persists rightTab through the persist middleware", () => {
+    useSelection.getState().setRightTab("checks");
+    const raw = localStorage.getItem("vigil-selection");
+    expect(raw).toBeTruthy();
+    expect(raw).toContain("checks");
+  });
+
+  it("accepts all four tab values", () => {
+    for (const t of ["all", "changes", "checks", "review"] as const) {
+      useSelection.getState().setRightTab(t);
+      expect(useSelection.getState().rightTab).toBe(t);
+    }
   });
 });

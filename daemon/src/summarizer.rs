@@ -107,6 +107,42 @@ async fn run_claude_with_bin(bin: &str, prompt: &str, system: &str) -> Result<St
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
+pub async fn run_codex(prompt: &str, system: &str) -> Result<String, SummaryError> {
+    run_codex_with_bin("codex", prompt, system).await
+}
+
+async fn run_codex_with_bin(bin: &str, prompt: &str, system: &str) -> Result<String, SummaryError> {
+    // TODO(v1.5.1): flags are a best guess — `codex exec --help` was not available
+    // on the dev machine during implementation. Verify against a real Codex CLI
+    // before shipping to users whose only backend is Codex.
+    //
+    // Compose the system prompt + user prompt into a single exec input. Codex
+    // CLI's `exec -p` treats the argument as the user prompt; system prompts
+    // are not first-class, so we prepend as a directive block.
+    let composed = format!("System:\n{system}\n\nUser:\n{prompt}");
+    let child = TokioCommand::new(bin)
+        .arg("exec")
+        .arg("-p")
+        .arg(&composed)
+        .arg("--output-format").arg("text")
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .map_err(|e| SummaryError::Spawn(e.to_string()))?;
+
+    let output = timeout(Duration::from_secs(20), child.wait_with_output())
+        .await
+        .map_err(|_| SummaryError::Timeout)?
+        .map_err(|e| SummaryError::Wait(e.to_string()))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(SummaryError::NonZeroExit(stderr));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
 #[derive(Debug)]
 pub enum SummaryError {
     Spawn(String),
@@ -150,18 +186,22 @@ pub async fn generate_and_cache(
     };
     let prompt = build_prompt(&input);
     let system = system_prompt();
-    let text = match detect_backend() {
+    let backend = detect_backend();
+    let text = match backend {
         SummaryBackend::Claude => run_claude(&prompt, system).await?,
-        SummaryBackend::Codex => {
-            return Err(SummaryError::NonZeroExit("codex backend not yet wired".to_string()));
-        }
+        SummaryBackend::Codex => run_codex(&prompt, system).await?,
         SummaryBackend::None => {
             return Err(SummaryError::NonZeroExit("no CLI available".to_string()));
         }
     };
+    let backend_str = match backend {
+        SummaryBackend::Claude => "claude",
+        SummaryBackend::Codex => "codex",
+        SummaryBackend::None => "none",
+    };
     {
         let s = store.lock().unwrap();
-        s.upsert_summary(session_id, &text, "claude")
+        s.upsert_summary(session_id, &text, backend_str)
             .map_err(|e| SummaryError::Wait(e.to_string()))?;
     }
     Ok(text)
@@ -193,6 +233,7 @@ mod tests {
                 role: "user".to_string(),
                 text: "fix the login page".to_string(),
                 tool_names: vec![],
+                source: "claude".to_string(),
             },
             SessionTurnRecord {
                 session_id: "s1".to_string(),
@@ -200,6 +241,7 @@ mod tests {
                 role: "assistant".to_string(),
                 text: "I'll update the auth code.".to_string(),
                 tool_names: vec!["Edit".to_string()],
+                source: "claude".to_string(),
             },
         ];
         let input = SummaryInput {
@@ -225,6 +267,14 @@ mod tests {
     #[tokio::test]
     async fn run_claude_errors_cleanly_when_binary_missing() {
         let err = run_claude_with_bin("definitely-not-a-real-binary-zyxw", "prompt", "system")
+            .await
+            .expect_err("should error");
+        assert!(matches!(err, SummaryError::Spawn(_)));
+    }
+
+    #[tokio::test]
+    async fn run_codex_errors_cleanly_when_binary_missing() {
+        let err = run_codex_with_bin("definitely-not-a-real-binary-zyxw", "prompt", "system")
             .await
             .expect_err("should error");
         assert!(matches!(err, SummaryError::Spawn(_)));
