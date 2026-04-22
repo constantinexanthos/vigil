@@ -1,19 +1,53 @@
-#!/bin/bash
-# Start Vigil daemon and app together
-# Usage: ./dev.sh [watch_dir]
+#!/usr/bin/env bash
+# One command to run Vigil in dev mode.
+#
+# Starts the Rust daemon (watching ~/conductor by default) and the Tauri app
+# with hot reload, both labeled so interleaved logs are readable.
+#
+# Usage:  ./dev.sh [watch_dir]
+# Stop:   Ctrl+C (takes down both processes cleanly)
 
-WATCH_DIR="${1:-$HOME/vigil}"
+set -eo pipefail
+set -m  # job control — each background subshell gets its own process group
 
-echo "Starting Vigil daemon (watching $WATCH_DIR)..."
-cd "$(dirname "$0")/daemon" && cargo run -- watch "$WATCH_DIR" &
-DAEMON_PID=$!
+WATCH_DIR="${1:-$HOME/conductor}"
+REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 
-echo "Starting Vigil app..."
-cd "$(dirname "$0")/app" && npm run tauri:dev &
-APP_PID=$!
+if [[ ! -d "$WATCH_DIR" ]]; then
+  echo "✘ watch dir not found: $WATCH_DIR" >&2
+  echo "  Pass a directory as the first argument, or create $WATCH_DIR." >&2
+  exit 1
+fi
 
-trap "kill $DAEMON_PID $APP_PID 2>/dev/null; exit" INT TERM
-
+echo "▸ Vigil dev"
+echo "  daemon → watching $WATCH_DIR"
+echo "  app    → Tauri window will open; Vite on http://localhost:1420"
 echo ""
-echo "Vigil running. Press Ctrl+C to stop both."
+
+# Each half runs in its own subshell so it gets its own process group,
+# which lets us kill the whole tree (cargo + awk, npm + vite + cargo + awk)
+# in one shot on Ctrl+C.
+(
+  cd "$REPO_ROOT/daemon"
+  cargo run --quiet -- watch "$WATCH_DIR" 2>&1 \
+    | awk '{ printf "[daemon] %s\n", $0; fflush() }'
+) &
+DAEMON_PGID=$!
+
+(
+  cd "$REPO_ROOT/app"
+  npm run --silent tauri:dev 2>&1 \
+    | awk '{ printf "[app   ] %s\n", $0; fflush() }'
+) &
+APP_PGID=$!
+
+cleanup() {
+  echo ""
+  echo "▸ stopping..."
+  kill -TERM -"$DAEMON_PGID" -"$APP_PGID" 2>/dev/null || true
+  wait 2>/dev/null || true
+  echo "✓ stopped"
+}
+trap cleanup INT TERM
+
 wait
