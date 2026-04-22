@@ -184,16 +184,19 @@ pub async fn generate_and_cache(
     let system = system_prompt();
     let text = match detect_backend() {
         SummaryBackend::Claude => run_claude(&prompt, system).await?,
-        SummaryBackend::Codex => {
-            return Err(SummaryError::NonZeroExit("codex backend not yet wired".to_string()));
-        }
+        SummaryBackend::Codex => run_codex(&prompt, system).await?,
         SummaryBackend::None => {
             return Err(SummaryError::NonZeroExit("no CLI available".to_string()));
         }
     };
+    let backend_str = match detect_backend() {
+        SummaryBackend::Claude => "claude",
+        SummaryBackend::Codex => "codex",
+        SummaryBackend::None => "none",
+    };
     {
         let s = store.lock().unwrap();
-        s.upsert_summary(session_id, &text, "claude")
+        s.upsert_summary(session_id, &text, backend_str)
             .map_err(|e| SummaryError::Wait(e.to_string()))?;
     }
     Ok(text)
