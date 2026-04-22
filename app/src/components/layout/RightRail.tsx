@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useSelection, type RightTab } from "../../store/selection";
 import { FilesPanel } from "../FilesPanel";
 import type { SessionGroup } from "../../types";
 
-type Tab = "all" | "changes" | "checks" | "review";
+type Tab = RightTab;
 
 interface Props {
   session: SessionGroup | null;
@@ -16,7 +16,8 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 export function RightRail({ session }: Props) {
-  const [tab, setTab] = useState<Tab>("changes");
+  const tab = useSelection((s) => s.rightTab);
+  const setTab = useSelection((s) => s.setRightTab);
   const changeCount = session ? session.files.length : 0;
 
   return (
