@@ -73,6 +73,79 @@ pub fn parse_line(line: &str) -> Option<SessionTurn> {
     })
 }
 
+use notify::{RecommendedWatcher, RecursiveMode, Watcher};
+use std::collections::HashMap;
+use std::fs::File;
+use std::io::{BufRead, BufReader, Seek, SeekFrom};
+use std::sync::{Arc, Mutex};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+
+pub struct TailerEvent {
+    pub path: PathBuf,
+    pub turn: SessionTurn,
+}
+
+/// Derive a stable session id from a Codex transcript path. The file stem IS
+/// the session id (matches Claude's convention), prefixed with `codex:`.
+pub fn session_id_from_path(path: &Path) -> Option<String> {
+    let stem = path.file_stem()?.to_str()?;
+    Some(format!("codex:{stem}"))
+}
+
+pub fn start_tailer(root: &Path) -> std::io::Result<(RecommendedWatcher, UnboundedReceiver<TailerEvent>)> {
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<TailerEvent>();
+    let offsets: Arc<Mutex<HashMap<PathBuf, u64>>> = Arc::new(Mutex::new(HashMap::new()));
+    let tx2 = tx.clone();
+    let offsets2 = offsets.clone();
+
+    let mut watcher = notify::recommended_watcher(move |res: Result<notify::Event, notify::Error>| {
+        let Ok(event) = res else { return };
+        for path in event.paths {
+            if path.extension().and_then(|e| e.to_str()) != Some("jsonl") {
+                continue;
+            }
+            if let Err(e) = emit_new_lines(&path, &offsets2, &tx2) {
+                eprintln!("vigil: codexlog read error for {}: {}", path.display(), e);
+            }
+        }
+    }).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+
+    watcher.watch(root, RecursiveMode::Recursive)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+
+    Ok((watcher, rx))
+}
+
+fn emit_new_lines(
+    path: &Path,
+    offsets: &Arc<Mutex<HashMap<PathBuf, u64>>>,
+    tx: &UnboundedSender<TailerEvent>,
+) -> std::io::Result<()> {
+    let mut file = File::open(path)?;
+    let prev_offset: u64 = offsets.lock().unwrap().get(path).copied().unwrap_or(0);
+    let file_len = file.metadata()?.len();
+    if file_len < prev_offset {
+        offsets.lock().unwrap().insert(path.to_path_buf(), 0);
+        return Ok(());
+    }
+    file.seek(SeekFrom::Start(prev_offset))?;
+    let mut reader = BufReader::new(file);
+    let mut read_offset = prev_offset;
+    let mut line = String::new();
+    loop {
+        line.clear();
+        let bytes = reader.read_line(&mut line)?;
+        if bytes == 0 { break; }
+        read_offset += bytes as u64;
+        let trimmed = line.trim_end();
+        if trimmed.is_empty() { continue; }
+        let Some(turn) = parse_line(trimmed) else { continue };
+        let _ = tx.send(TailerEvent { path: path.to_path_buf(), turn });
+    }
+    offsets.lock().unwrap().insert(path.to_path_buf(), read_offset);
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -133,5 +206,36 @@ mod tests {
         for line in raw.lines() {
             let _ = parse_line(line);
         }
+    }
+
+    use std::io::Write;
+
+    #[tokio::test]
+    async fn tailer_emits_appended_jsonl_lines() {
+        let dir = TempDir::new().unwrap();
+        let (_watcher, mut rx) = start_tailer(dir.path()).expect("tailer starts");
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+
+        let path = dir.path().join("abc123.jsonl");
+        let mut f = std::fs::OpenOptions::new()
+            .create(true).append(true).open(&path).unwrap();
+        writeln!(f, r#"{{"role":"user","content":"hi","timestamp":"2026-04-22T11:00:00Z"}}"#).unwrap();
+        writeln!(f, r#"{{"role":"assistant","content":"yes","timestamp":"2026-04-22T11:00:01Z"}}"#).unwrap();
+        drop(f);
+
+        let mut seen = Vec::new();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while seen.len() < 2 && std::time::Instant::now() < deadline {
+            if let Ok(Some(ev)) = tokio::time::timeout(std::time::Duration::from_millis(250), rx.recv()).await {
+                seen.push(ev.turn.role);
+            }
+        }
+        assert_eq!(seen, vec!["user".to_string(), "assistant".to_string()]);
+    }
+
+    #[test]
+    fn session_id_from_path_uses_file_stem() {
+        let p = PathBuf::from("/root/.codex/sessions/abc-123.jsonl");
+        assert_eq!(session_id_from_path(&p).as_deref(), Some("codex:abc-123"));
     }
 }
