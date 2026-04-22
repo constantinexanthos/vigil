@@ -107,6 +107,38 @@ async fn run_claude_with_bin(bin: &str, prompt: &str, system: &str) -> Result<St
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
+pub async fn run_codex(prompt: &str, system: &str) -> Result<String, SummaryError> {
+    run_codex_with_bin("codex", prompt, system).await
+}
+
+async fn run_codex_with_bin(bin: &str, prompt: &str, system: &str) -> Result<String, SummaryError> {
+    // Compose the system prompt + user prompt into a single exec input. Codex
+    // CLI's `exec -p` treats the argument as the user prompt; system prompts
+    // are not first-class, so we prepend as a directive block.
+    let composed = format!("System:\n{system}\n\nUser:\n{prompt}");
+    let child = TokioCommand::new(bin)
+        .arg("exec")
+        .arg("-p")
+        .arg(&composed)
+        .arg("--output-format").arg("text")
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .map_err(|e| SummaryError::Spawn(e.to_string()))?;
+
+    let output = timeout(Duration::from_secs(20), child.wait_with_output())
+        .await
+        .map_err(|_| SummaryError::Timeout)?
+        .map_err(|e| SummaryError::Wait(e.to_string()))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(SummaryError::NonZeroExit(stderr));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
 #[derive(Debug)]
 pub enum SummaryError {
     Spawn(String),
@@ -227,6 +259,14 @@ mod tests {
     #[tokio::test]
     async fn run_claude_errors_cleanly_when_binary_missing() {
         let err = run_claude_with_bin("definitely-not-a-real-binary-zyxw", "prompt", "system")
+            .await
+            .expect_err("should error");
+        assert!(matches!(err, SummaryError::Spawn(_)));
+    }
+
+    #[tokio::test]
+    async fn run_codex_errors_cleanly_when_binary_missing() {
+        let err = run_codex_with_bin("definitely-not-a-real-binary-zyxw", "prompt", "system")
             .await
             .expect_err("should error");
         assert!(matches!(err, SummaryError::Spawn(_)));
