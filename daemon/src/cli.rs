@@ -396,83 +396,56 @@ pub async fn run_watch(dirs: Vec<PathBuf>) {
         }
     });
 
-    // JSONL session tailer -- watches ~/.claude/projects for new turns, persists
-    // them to session_turns, and debounces a per-session summary regeneration
-    // (30s interval) via the summarizer.
+    // Claude JSONL session tailer.
     let claude_projects_root: PathBuf = home::home_dir()
         .map(|h| h.join(".claude").join("projects"))
         .expect("home dir");
     std::fs::create_dir_all(&claude_projects_root).ok();
-
     match start_tailer(&claude_projects_root) {
-        Ok((sess_watcher, mut sess_rx)) => {
-            // Keep the watcher alive for the life of the daemon.
-            // Leaking is acceptable here -- the daemon runs until killed.
-            Box::leak(Box::new(sess_watcher));
-
-            let tailer_db = Arc::clone(&db);
-            let summary_db = Arc::clone(&db);
-            tokio::spawn(async move {
-                let mut last_summary: HashMap<String, Instant> = HashMap::new();
-                let debounce = std::time::Duration::from_secs(30);
-
-                while let Some(ev) = sess_rx.recv().await {
-                    let Some(session_id) = extract_session_id_from_path(&ev.path) else {
-                        continue;
-                    };
-                    let record = SessionTurnRecord {
-                        session_id: session_id.clone(),
-                        timestamp: Utc::now(),
-                        role: ev.turn.role,
-                        text: ev.turn.text,
-                        tool_names: ev.turn.tool_names,
-                        source: "claude".to_string(),
-                    };
-                    {
-                        let store = tailer_db.lock().unwrap();
-                        if let Err(e) = store.insert_session_turn(&record) {
-                            eprintln!("vigil: insert turn failed: {}", e);
-                            continue;
-                        }
-                    }
-
-                    // Per-session debounce -- skip if we regenerated within the window.
-                    let due = match last_summary.get(&session_id).copied() {
-                        Some(t) => t.elapsed() >= debounce,
-                        None => true,
-                    };
-                    if !due {
-                        continue;
-                    }
-                    last_summary.insert(session_id.clone(), Instant::now());
-
-                    let summary_db_inner = Arc::clone(&summary_db);
-                    let session_id_inner = session_id.clone();
-                    tokio::spawn(async move {
-                        if let Err(e) = summarizer::generate_and_cache(
-                            &summary_db_inner,
-                            &session_id_inner,
-                            Vec::new(),
-                            None,
-                        )
-                        .await
-                        {
-                            eprintln!(
-                                "vigil: summary failed for {}: {}",
-                                session_id_inner, e
-                            );
-                        }
-                    });
-                }
-            });
+        Ok((watcher, rx)) => {
+            Box::leak(Box::new(watcher));
+            spawn_turn_consumer(
+                Arc::clone(&db),
+                rx,
+                "claude",
+                |ev: crate::sessionlog::TailerEvent| (ev.path, ev.turn),
+                |p| extract_session_id_from_path(p),
+            );
             eprintln!(
-                "vigil: session tailer watching {}",
+                "vigil: Claude tailer watching {}",
                 claude_projects_root.display()
             );
         }
-        Err(e) => {
-            eprintln!("vigil: failed to start session tailer: {}", e);
+        Err(e) => eprintln!("vigil: failed to start Claude tailer: {}", e),
+    }
+
+    // Cursor agent-log tailer.
+    let cursor_logs_root: PathBuf = home::home_dir()
+        .map(|h| h.join("Library/Application Support/Cursor/logs"))
+        .expect("home dir");
+    if cursor_logs_root.exists() {
+        match crate::cursorlog::start_tailer(&cursor_logs_root) {
+            Ok((watcher, rx)) => {
+                Box::leak(Box::new(watcher));
+                spawn_turn_consumer(
+                    Arc::clone(&db),
+                    rx,
+                    "cursor",
+                    |ev: crate::cursorlog::TailerEvent| (ev.path, ev.turn),
+                    |p| crate::cursorlog::session_id_from_path(p),
+                );
+                eprintln!(
+                    "vigil: Cursor tailer watching {}",
+                    cursor_logs_root.display()
+                );
+            }
+            Err(e) => eprintln!("vigil: failed to start Cursor tailer: {}", e),
         }
+    } else {
+        eprintln!(
+            "vigil: Cursor logs dir not found ({}); cursor sessions will not be captured",
+            cursor_logs_root.display()
+        );
     }
 
     // Main file event loop.
@@ -1097,4 +1070,69 @@ pub fn run_dashboard(once: bool) {
         if once { break; }
         std::thread::sleep(std::time::Duration::from_secs(2));
     }
+}
+
+/// Spawn an async task that drains `rx`, persists each turn to the store
+/// tagged with `source`, and kicks off a debounced per-session summary
+/// regeneration. Generic over the event type so it works with both
+/// `sessionlog::TailerEvent` and the per-source tailer events.
+fn spawn_turn_consumer<E, F>(
+    db: std::sync::Arc<std::sync::Mutex<Store>>,
+    mut rx: tokio::sync::mpsc::UnboundedReceiver<E>,
+    source: &'static str,
+    into_pair: impl Fn(E) -> (std::path::PathBuf, crate::sessionlog::SessionTurn) + Send + 'static,
+    session_id_fn: F,
+) where
+    E: Send + 'static,
+    F: Fn(&std::path::Path) -> Option<String> + Send + 'static,
+{
+    let summary_db = std::sync::Arc::clone(&db);
+    tokio::spawn(async move {
+        let mut last_summary: HashMap<String, Instant> = HashMap::new();
+        let debounce = std::time::Duration::from_secs(30);
+
+        while let Some(ev) = rx.recv().await {
+            let (path, turn) = into_pair(ev);
+            let Some(session_id) = session_id_fn(&path) else { continue };
+            let record = SessionTurnRecord {
+                session_id: session_id.clone(),
+                timestamp: Utc::now(),
+                role: turn.role,
+                text: turn.text,
+                tool_names: turn.tool_names,
+                source: source.to_string(),
+            };
+            {
+                let store = db.lock().unwrap();
+                if let Err(e) = store.insert_session_turn(&record) {
+                    eprintln!("vigil: insert turn failed ({source}): {e}");
+                    continue;
+                }
+            }
+
+            let due = match last_summary.get(&session_id).copied() {
+                Some(t) => t.elapsed() >= debounce,
+                None => true,
+            };
+            if !due {
+                continue;
+            }
+            last_summary.insert(session_id.clone(), Instant::now());
+
+            let summary_db_inner = std::sync::Arc::clone(&summary_db);
+            let sid = session_id.clone();
+            tokio::spawn(async move {
+                if let Err(e) = summarizer::generate_and_cache(
+                    &summary_db_inner,
+                    &sid,
+                    Vec::new(),
+                    None,
+                )
+                .await
+                {
+                    eprintln!("vigil: summary failed for {sid} ({source}): {e}");
+                }
+            });
+        }
+    });
 }
