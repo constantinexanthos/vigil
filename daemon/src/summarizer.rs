@@ -193,6 +193,7 @@ mod tests {
                 role: "user".to_string(),
                 text: "fix the login page".to_string(),
                 tool_names: vec![],
+                source: "claude".to_string(),
             },
             SessionTurnRecord {
                 session_id: "s1".to_string(),
@@ -200,6 +201,7 @@ mod tests {
                 role: "assistant".to_string(),
                 text: "I'll update the auth code.".to_string(),
                 tool_names: vec!["Edit".to_string()],
+                source: "claude".to_string(),
             },
         ];
         let input = SummaryInput {

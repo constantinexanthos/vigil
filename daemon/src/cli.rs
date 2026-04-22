@@ -426,6 +426,7 @@ pub async fn run_watch(dirs: Vec<PathBuf>) {
                         role: ev.turn.role,
                         text: ev.turn.text,
                         tool_names: ev.turn.tool_names,
+                        source: "claude".to_string(),
                     };
                     {
                         let store = tailer_db.lock().unwrap();

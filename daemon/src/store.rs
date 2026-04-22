@@ -56,7 +56,8 @@ pub struct AgentEvent {
     pub is_live: bool,
 }
 
-/// A single conversational turn captured from a session's JSONL transcript.
+/// A single conversational turn captured from a session's log, normalized
+/// across agent sources (Claude JSONL, Cursor log, Codex transcript).
 #[derive(Debug, Clone)]
 pub struct SessionTurnRecord {
     pub session_id: String,
@@ -64,6 +65,8 @@ pub struct SessionTurnRecord {
     pub role: String,
     pub text: String,
     pub tool_names: Vec<String>,
+    /// Origin of the turn — one of `"claude"`, `"cursor"`, `"codex"`.
+    pub source: String,
 }
 
 /// Query filters for retrieving events.
@@ -128,7 +131,8 @@ impl Store {
                 timestamp   TEXT NOT NULL,
                 role        TEXT NOT NULL,
                 text        TEXT NOT NULL,
-                tool_names  TEXT NOT NULL DEFAULT '[]'
+                tool_names  TEXT NOT NULL DEFAULT '[]',
+                source      TEXT NOT NULL DEFAULT 'claude'
             );
 
             CREATE INDEX IF NOT EXISTS idx_session_turns_session_id ON session_turns(session_id);
@@ -141,6 +145,10 @@ impl Store {
         let _ = self
             .conn
             .execute("ALTER TABLE events ADD COLUMN is_live INTEGER NOT NULL DEFAULT 0", []);
+        // Defensive migration for DBs created before the source column existed.
+        let _ = self
+            .conn
+            .execute("ALTER TABLE session_turns ADD COLUMN source TEXT NOT NULL DEFAULT 'claude'", []);
         self.conn.execute(
             "CREATE TABLE IF NOT EXISTS session_summaries (\
                 session_id TEXT PRIMARY KEY, \
@@ -372,13 +380,14 @@ impl Store {
     pub fn insert_session_turn(&self, turn: &SessionTurnRecord) -> Result<i64> {
         let tool_names = serde_json::to_string(&turn.tool_names).unwrap_or_else(|_| "[]".to_string());
         self.conn.execute(
-            "INSERT INTO session_turns (session_id, timestamp, role, text, tool_names) VALUES (?1, ?2, ?3, ?4, ?5)",
+            "INSERT INTO session_turns (session_id, timestamp, role, text, tool_names, source) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![
                 turn.session_id,
                 turn.timestamp.to_rfc3339(),
                 turn.role,
                 turn.text,
                 tool_names,
+                turn.source,
             ],
         )?;
         Ok(self.conn.last_insert_rowid())
@@ -410,7 +419,7 @@ impl Store {
     /// Retrieve the most recent `limit` turns for a session, ordered ascending by insertion.
     pub fn recent_turns(&self, session_id: &str, limit: i64) -> Result<Vec<SessionTurnRecord>> {
         let mut stmt = self.conn.prepare(
-            "SELECT session_id, timestamp, role, text, tool_names \
+            "SELECT session_id, timestamp, role, text, tool_names, source \
              FROM session_turns WHERE session_id = ?1 \
              ORDER BY id DESC LIMIT ?2",
         )?;
@@ -426,6 +435,7 @@ impl Store {
                 role: row.get(2)?,
                 text: row.get(3)?,
                 tool_names,
+                source: row.get(5)?,
             })
         })?;
         let mut out: Vec<SessionTurnRecord> = rows.filter_map(Result::ok).collect();
@@ -641,6 +651,7 @@ mod tests {
             role: "assistant".to_string(),
             text: "I'm editing foo.rs".to_string(),
             tool_names: vec!["Edit".to_string()],
+            source: "claude".to_string(),
         }).unwrap();
         store.insert_session_turn(&SessionTurnRecord {
             session_id: "sess-1".to_string(),
@@ -648,6 +659,7 @@ mod tests {
             role: "user".to_string(),
             text: "Continue".to_string(),
             tool_names: vec![],
+            source: "claude".to_string(),
         }).unwrap();
 
         let turns = store.recent_turns("sess-1", 10).unwrap();
@@ -680,5 +692,46 @@ mod tests {
         assert!(cols.contains(&"host_kind".to_string()), "missing host_kind column");
         assert!(cols.contains(&"model".to_string()), "missing model column");
         assert!(cols.contains(&"is_live".to_string()), "missing is_live column");
+    }
+
+    #[test]
+    fn session_turn_source_round_trip() {
+        let store = Store::open_in_memory().unwrap();
+        store.insert_session_turn(&SessionTurnRecord {
+            session_id: "s-1".to_string(),
+            timestamp: Utc::now(),
+            role: "user".to_string(),
+            text: "hi".to_string(),
+            tool_names: vec![],
+            source: "cursor".to_string(),
+        }).unwrap();
+        store.insert_session_turn(&SessionTurnRecord {
+            session_id: "s-2".to_string(),
+            timestamp: Utc::now(),
+            role: "assistant".to_string(),
+            text: "ok".to_string(),
+            tool_names: vec!["Edit".to_string()],
+            source: "codex".to_string(),
+        }).unwrap();
+
+        let cursor_turns = store.recent_turns("s-1", 10).unwrap();
+        assert_eq!(cursor_turns.len(), 1);
+        assert_eq!(cursor_turns[0].source, "cursor");
+
+        let codex_turns = store.recent_turns("s-2", 10).unwrap();
+        assert_eq!(codex_turns.len(), 1);
+        assert_eq!(codex_turns[0].source, "codex");
+    }
+
+    #[test]
+    fn session_turns_source_column_exists() {
+        let store = Store::open_in_memory().unwrap();
+        let cols: Vec<String> = store
+            .conn()
+            .prepare("PRAGMA table_info(session_turns)").unwrap()
+            .query_map([], |row| row.get::<_, String>(1)).unwrap()
+            .filter_map(Result::ok)
+            .collect();
+        assert!(cols.contains(&"source".to_string()), "missing source column");
     }
 }
