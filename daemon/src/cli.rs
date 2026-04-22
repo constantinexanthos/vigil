@@ -448,6 +448,26 @@ pub async fn run_watch(dirs: Vec<PathBuf>) {
         );
     }
 
+    // Codex transcript tailer.
+    if let Some(codex_root) = home::home_dir().and_then(|h| crate::codexlog::discover_root(&h)) {
+        match crate::codexlog::start_tailer(&codex_root) {
+            Ok((watcher, rx)) => {
+                Box::leak(Box::new(watcher));
+                spawn_turn_consumer(
+                    Arc::clone(&db),
+                    rx,
+                    "codex",
+                    |ev: crate::codexlog::TailerEvent| (ev.path, ev.turn),
+                    |p| crate::codexlog::session_id_from_path(p),
+                );
+                eprintln!("vigil: Codex tailer watching {}", codex_root.display());
+            }
+            Err(e) => eprintln!("vigil: failed to start Codex tailer: {}", e),
+        }
+    } else {
+        eprintln!("vigil: Codex log directory not found; codex sessions will not be captured");
+    }
+
     // Main file event loop.
     while let Some(fs_event) = fs_rx.recv().await {
         let agent = {
