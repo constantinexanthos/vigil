@@ -112,6 +112,10 @@ pub async fn run_codex(prompt: &str, system: &str) -> Result<String, SummaryErro
 }
 
 async fn run_codex_with_bin(bin: &str, prompt: &str, system: &str) -> Result<String, SummaryError> {
+    // TODO(v1.5.1): flags are a best guess — `codex exec --help` was not available
+    // on the dev machine during implementation. Verify against a real Codex CLI
+    // before shipping to users whose only backend is Codex.
+    //
     // Compose the system prompt + user prompt into a single exec input. Codex
     // CLI's `exec -p` treats the argument as the user prompt; system prompts
     // are not first-class, so we prepend as a directive block.
@@ -182,14 +186,15 @@ pub async fn generate_and_cache(
     };
     let prompt = build_prompt(&input);
     let system = system_prompt();
-    let text = match detect_backend() {
+    let backend = detect_backend();
+    let text = match backend {
         SummaryBackend::Claude => run_claude(&prompt, system).await?,
         SummaryBackend::Codex => run_codex(&prompt, system).await?,
         SummaryBackend::None => {
             return Err(SummaryError::NonZeroExit("no CLI available".to_string()));
         }
     };
-    let backend_str = match detect_backend() {
+    let backend_str = match backend {
         SummaryBackend::Claude => "claude",
         SummaryBackend::Codex => "codex",
         SummaryBackend::None => "none",
