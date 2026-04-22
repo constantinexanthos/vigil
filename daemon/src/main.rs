@@ -1,4 +1,5 @@
 mod cli;
+mod cursorlog;
 mod digest;
 mod cost;
 mod git;
