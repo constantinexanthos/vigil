@@ -5,6 +5,7 @@ interface Props {
 }
 
 export function ModelPill({ model }: Props) {
+  if (!model) return null;
   const name = modelLongName(model);
   const color = modelFamilyColor(model);
   return (

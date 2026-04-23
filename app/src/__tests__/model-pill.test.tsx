@@ -8,9 +8,9 @@ describe("ModelPill", () => {
     render(<ModelPill model="claude-opus-4-7-20260501" />);
     expect(screen.getByText("Claude Opus 4.7")).toBeInTheDocument();
   });
-  it("renders 'Unknown' when model is null", () => {
-    render(<ModelPill model={null} />);
-    expect(screen.getByText("Unknown")).toBeInTheDocument();
+  it("renders nothing when model is null", () => {
+    const { container } = render(<ModelPill model={null} />);
+    expect(container.firstChild).toBeNull();
   });
   it("paints background with family color at low opacity", () => {
     const { container } = render(<ModelPill model="gpt-5" />);

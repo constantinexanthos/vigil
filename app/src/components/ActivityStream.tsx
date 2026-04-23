@@ -58,19 +58,39 @@ export function ActivityStream({ session }: Props) {
 }
 
 function fileRows(files: SessionFile[]): Row[] {
-  return files.map((f, i) => {
-    const glyph = f.kind === "file_create" ? "+" : f.kind === "file_delete" ? "×" : "~";
-    const color = f.kind === "file_create" ? "#4ade80" : f.kind === "file_delete" ? "#f87171" : "#60a5fa";
-    return {
-      id: `${i}-${f.path}`,
-      timestamp: new Date().toISOString(),
-      glyph,
-      glyphColor: color,
-      text: <span className="text-white/85">{f.path}</span>,
-      added: f.added,
-      removed: f.removed,
-    };
-  });
+  return files
+    .filter((f) => !isNoise(f.path))
+    .map((f, i) => {
+      const glyph = f.kind === "file_create" ? "+" : f.kind === "file_delete" ? "×" : "~";
+      const color = f.kind === "file_create" ? "#4ade80" : f.kind === "file_delete" ? "#f87171" : "#60a5fa";
+      return {
+        id: `${i}-${f.path}`,
+        timestamp: new Date().toISOString(),
+        glyph,
+        glyphColor: color,
+        text: <span className="text-white/85">{shortPath(f.path)}</span>,
+        added: f.added,
+        removed: f.removed,
+      };
+    });
+}
+
+/** Trim absolute paths to the last two directory segments + filename. */
+function shortPath(path: string): string {
+  if (!path) return path;
+  const parts = path.split("/").filter(Boolean);
+  if (parts.length <= 3) return path.startsWith("/") ? path : path;
+  return parts.slice(-3).join("/");
+}
+
+/** Vite HMR / atomic-writer temp files. Pure noise in the activity feed. */
+function isNoise(path: string): boolean {
+  if (!path) return false;
+  const name = path.split("/").pop() ?? "";
+  if (name.includes(".tmp.")) return true;
+  if (name.endsWith("~")) return true;
+  if (name.startsWith(".#")) return true;
+  return false;
 }
 
 function shortTime(iso: string): string {
