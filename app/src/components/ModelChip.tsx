@@ -5,6 +5,7 @@ interface Props {
 }
 
 export function ModelChip({ model }: Props) {
+  if (!model) return null;
   const name = modelShortName(model);
   const color = modelFamilyColor(model);
   return (

@@ -8,9 +8,9 @@ describe("ModelChip", () => {
     render(<ModelChip model="claude-opus-4-7-20260501" />);
     expect(screen.getByText("OPUS")).toBeInTheDocument();
   });
-  it("renders an em dash for null model", () => {
-    render(<ModelChip model={null} />);
-    expect(screen.getByText("—")).toBeInTheDocument();
+  it("renders nothing when model is null", () => {
+    const { container } = render(<ModelChip model={null} />);
+    expect(container.firstChild).toBeNull();
   });
   it("paints with the Claude family color when model is claude-family", () => {
     const { container } = render(<ModelChip model="claude-sonnet-4-6" />);
