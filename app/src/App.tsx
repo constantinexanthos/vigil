@@ -40,8 +40,15 @@ export default function App() {
     <div className="h-screen w-screen flex flex-col text-white">
       {!data.connected && (
         <div className="bg-rose-500/10 border-b border-rose-400/20 px-3.5 py-1 text-[11px] text-rose-200 flex items-center gap-2">
-          <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+          <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse-alive" />
           <span>Daemon not reachable · last seen {data.error ?? "never"}</span>
+          <button
+            type="button"
+            className="ml-auto underline decoration-rose-200/40 underline-offset-2 hover:decoration-rose-200 transition-colors duration-fast"
+            onClick={() => window.location.reload()}
+          >
+            Retry now
+          </button>
         </div>
       )}
       <TopBar
