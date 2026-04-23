@@ -11,6 +11,7 @@ import type {
   LiveSessionRow,
   CliStatus,
   SessionTurn,
+  ReviewSignals,
 } from "./types";
 import { DEMO_EVENTS, DEMO_COMMIT_GROUPS, DEMO_COST_SUMMARY, DEMO_COLLISIONS } from "./demo-data";
 import { useSelection } from "./store/selection";
@@ -52,6 +53,8 @@ interface DaemonState {
   currentSummary: ServerSummary | null;
   /** Recent session turns for the currently-selected session (16 newest, ascending by insertion). */
   recentTurns: SessionTurn[];
+  /** Review signals for the currently-selected session. Null when no session or fetch failed. */
+  reviewSignals: ReviewSignals | null;
 }
 
 const DEFAULT_CLI: CliStatus = { claude: false, codex: false };
@@ -80,6 +83,7 @@ export function useDaemonData(): DaemonState {
   const [cli, setCli] = useState<CliStatus>(DEFAULT_CLI);
   const [currentSummary, setCurrentSummary] = useState<ServerSummary | null>(null);
   const [recentTurns, setRecentTurns] = useState<SessionTurn[]>([]);
+  const [reviewSignals, setReviewSignals] = useState<ReviewSignals | null>(null);
   // Read selection from the store without subscribing to re-renders on every change —
   // fetchAll re-reads via getState on each tick.
   const selectedSessionIdRef = useRef<string | null>(useSelection.getState().selectedSessionId);
@@ -97,7 +101,7 @@ export function useDaemonData(): DaemonState {
   const fetchAll = useCallback(async () => {
     try {
       const activeSessionId = selectedSessionIdRef.current;
-      const [evts, agents, cols, stats, count, cost, commits, summary, hostRows, liveRows, cliStatus, sessionSummary, turnsResult] = await Promise.all([
+      const [evts, agents, cols, stats, count, cost, commits, summary, hostRows, liveRows, cliStatus, sessionSummary, turnsResult, reviewResult] = await Promise.all([
         invoke<AgentEvent[]>("get_recent_events", { limit: 50 }),
         invoke<string[]>("get_active_agents"),
         invoke<Collision[]>("get_collisions"),
@@ -115,6 +119,9 @@ export function useDaemonData(): DaemonState {
         activeSessionId
           ? invoke<SessionTurn[]>("get_recent_turns", { sessionId: activeSessionId, limit: 16 }).catch(() => [] as SessionTurn[])
           : Promise.resolve([] as SessionTurn[]),
+        activeSessionId
+          ? invoke<ReviewSignals | null>("get_review_signals", { sessionId: activeSessionId }).catch(() => null)
+          : Promise.resolve(null),
       ]);
 
       // Compute new event IDs for entrance animations
@@ -184,6 +191,7 @@ export function useDaemonData(): DaemonState {
       setCli(cliStatus);
       setCurrentSummary(sessionSummary);
       setRecentTurns(turnsResult);
+      setReviewSignals(reviewResult);
       setLastUpdated(Date.now());
       setConnected(true);
       setError(null);
@@ -210,6 +218,7 @@ export function useDaemonData(): DaemonState {
           setCli({ ...DEFAULT_CLI });
           setCurrentSummary(null);
           setRecentTurns([]);
+          setReviewSignals(null);
           setLastUpdated(Date.now());
         }
       }
@@ -243,5 +252,6 @@ export function useDaemonData(): DaemonState {
     cli,
     currentSummary,
     recentTurns,
+    reviewSignals,
   };
 }

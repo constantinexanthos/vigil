@@ -648,6 +648,15 @@ pub struct HotspotRow {
     pub agents: Vec<String>,
 }
 
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ReviewSignalsRow {
+    pub confidence: u32,
+    pub confidence_reason: String,
+    pub file_count: u32,
+    pub has_tests: bool,
+    pub collisions: Vec<CollisionRow>,
+}
+
 impl Store {
     pub fn query_live_summary(&self) -> Result<LiveSummaryRow> {
         let total_events_1h: u64 = self.conn.query_row(
@@ -760,6 +769,57 @@ impl Store {
             active_session_count, total_events_1h, total_cost_1h, burn_rate_per_min,
             burn_rate_partial: partial, cost_tracked_agents: cost_tracked,
             agents, alerts, hotspots,
+        })
+    }
+
+    /// Session-scoped review signals: simple-heuristic confidence + reason +
+    /// file_count + has_tests + per-session collisions. Shaped for the
+    /// right-rail Review tab.
+    pub fn query_session_review(&self, session_id: &str) -> Result<ReviewSignalsRow> {
+        let mut file_stmt = self.conn.prepare(
+            "SELECT DISTINCT file_path FROM events \
+             WHERE session_id = ?1 AND file_path IS NOT NULL \
+               AND kind IN ('file_create', 'file_modify')",
+        )?;
+        let files: Vec<String> = file_stmt
+            .query_map(params![session_id], |row| row.get::<_, String>(0))?
+            .filter_map(Result::ok)
+            .collect();
+        let file_count = files.len() as u32;
+
+        let has_tests = files.iter().any(|f| {
+            let lower = f.to_lowercase();
+            lower.contains("test") || lower.contains("spec")
+                || lower.ends_with(".test.ts") || lower.ends_with(".test.tsx")
+                || lower.ends_with("_test.rs") || lower.ends_with("_test.go")
+                || lower.ends_with("_test.py")
+        });
+
+        let (confidence, confidence_reason) = if file_count == 0 {
+            (50, "No files changed yet.".to_string())
+        } else if file_count <= 5 {
+            (85, format!("Small focused change — {file_count} file(s) touched."))
+        } else if file_count <= 15 {
+            (70, format!("Medium scope — {file_count} files touched."))
+        } else {
+            (50, format!("Large change — {file_count} files touched. Harder to review."))
+        };
+
+        // Per-session collisions: files from this session that appear in the
+        // global 5-minute collision window.
+        let collisions_all = self.query_collisions()?;
+        let this_files: std::collections::HashSet<&str> = files.iter().map(String::as_str).collect();
+        let collisions: Vec<CollisionRow> = collisions_all
+            .into_iter()
+            .filter(|c| this_files.contains(c.file_path.as_str()))
+            .collect();
+
+        Ok(ReviewSignalsRow {
+            confidence,
+            confidence_reason,
+            file_count,
+            has_tests,
+            collisions,
         })
     }
 }
