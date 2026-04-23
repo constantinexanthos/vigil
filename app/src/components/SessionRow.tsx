@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { hostToken } from "../lib/host-tokens";
-import { repoName, shortModel } from "../lib/formatters";
+import { repoName } from "../lib/formatters";
+import { ModelChip } from "./ModelChip";
 import type { SessionGroup } from "../types";
 
 interface Props {
@@ -32,9 +33,7 @@ export function SessionRow({ session, selected, onSelect }: Props) {
         <span className={`text-[12px] truncate ${selected ? "text-white font-semibold" : "text-white/80"}`}>
           {session.description || "(no description)"}
         </span>
-        <span className="text-[10px] font-mono text-white/40 shrink-0">
-          {shortModel(session.model)}
-        </span>
+        <ModelChip model={session.model} />
       </div>
       <div className="text-[11px] text-white/50 flex justify-between gap-2 mt-0.5">
         <span className="truncate">{session.agent} · {repoName(session.repoPath)}</span>
