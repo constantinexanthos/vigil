@@ -24,7 +24,7 @@ export function TopBar({ connected, hasNewEvents, onOpenCmd }: Props) {
         onClick={onOpenCmd}
         aria-label="Open command palette"
         title="Open command palette (⌘K)"
-        className="text-[11px] text-white/50 hover:text-white/80 border border-white/10 px-2 py-0.5 rounded font-mono"
+        className="text-[11px] text-white/50 hover:text-white/80 border border-white/10 px-2 py-0.5 rounded font-mono transition-colors duration-fast focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1 focus-visible:outline-white/40"
       >
         ⌘K
       </button>
