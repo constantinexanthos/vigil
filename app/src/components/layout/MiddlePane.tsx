@@ -4,7 +4,7 @@ import { ActivityStream } from "../ActivityStream";
 import { SessionFooter } from "../SessionFooter";
 import { SessionHeader } from "../SessionHeader";
 import { SummaryBlock } from "../SummaryBlock";
-import type { SessionGroup } from "../../types";
+import type { SessionGroup, SessionTurn } from "../../types";
 import type { ServerSummary } from "../../hooks";
 
 interface Props {
@@ -12,19 +12,23 @@ interface Props {
   hasCli: boolean;
   /** Latest cached summary for `session`, supplied by useDaemonData's unified polling. */
   summary: ServerSummary | null;
+  /** Recent turns for the selected session — drives PulseLine + MilestoneFeed in SummaryBlock. */
+  turns: SessionTurn[];
 }
 
-export function MiddlePane({ session, hasCli, summary }: Props) {
+export function MiddlePane({ session, hasCli, summary, turns }: Props) {
   const [refreshing, setRefreshing] = useState(false);
 
   if (!session) {
     return (
-      <div className="h-full flex items-center justify-center bg-[#121214]">
-        <div className="text-center max-w-sm px-6">
-          <div className="text-[14px] text-white/75 mb-1.5">No session selected</div>
-          <div className="text-[12px] text-white/45">
-            Pick a session from the left, or start one in Claude Code / Conductor / Cursor.
-          </div>
+      <div className="h-full flex flex-col items-center justify-center text-center px-6">
+        <span
+          aria-hidden
+          className="w-3 h-3 rounded-full bg-white/25 mb-4 animate-pulse-alive"
+        />
+        <div className="text-title text-white/75 mb-1">No agents active</div>
+        <div className="text-[12px] text-white/45 leading-relaxed max-w-[280px]">
+          Vigil will light up when you start Claude Code, Cursor, or Codex in a terminal.
         </div>
       </div>
     );
@@ -55,6 +59,8 @@ export function MiddlePane({ session, hasCli, summary }: Props) {
         isRefreshing={refreshing}
         fallbackDescription={session.description}
         hasCli={hasCli}
+        turns={turns}
+        isLive={session.isLive}
       />
       <ActivityStream session={session} />
       <SessionFooter session={session} />

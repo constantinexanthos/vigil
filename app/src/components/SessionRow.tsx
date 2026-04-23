@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { hostToken } from "../lib/host-tokens";
-import { repoName, shortModel } from "../lib/formatters";
+import { repoName } from "../lib/formatters";
+import { ModelChip } from "./ModelChip";
 import type { SessionGroup } from "../types";
 
 interface Props {
@@ -21,7 +22,7 @@ export function SessionRow({ session, selected, onSelect }: Props) {
       initial={{ opacity: 0, x: -6 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ type: "spring", stiffness: 400, damping: 30 }}
-      className="w-full text-left px-2.5 py-2 rounded-md transition-colors"
+      className="w-full text-left px-2.5 py-2 rounded-md transition-colors duration-fast hover:bg-white/5 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1 focus-visible:outline-white/40"
       style={{
         background: selected ? `${token.color}1A` : "transparent",
         borderLeft: `2px solid ${selected ? token.color : "transparent"}`,
@@ -32,9 +33,7 @@ export function SessionRow({ session, selected, onSelect }: Props) {
         <span className={`text-[12px] truncate ${selected ? "text-white font-semibold" : "text-white/80"}`}>
           {session.description || "(no description)"}
         </span>
-        <span className="text-[10px] font-mono text-white/40 shrink-0">
-          {shortModel(session.model)}
-        </span>
+        <ModelChip model={session.model} />
       </div>
       <div className="text-[11px] text-white/50 flex justify-between gap-2 mt-0.5">
         <span className="truncate">{session.agent} · {repoName(session.repoPath)}</span>

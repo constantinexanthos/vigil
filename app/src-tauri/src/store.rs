@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection, Result};
 use std::path::{Path, PathBuf};
 
@@ -393,6 +394,34 @@ impl Store {
         }
     }
 
+    /// Retrieve the most recent `limit` turns for a session, ordered ascending by insertion.
+    /// Mirrors the daemon's `store::recent_turns`.
+    pub fn recent_turns(&self, session_id: &str, limit: i64) -> Result<Vec<SessionTurnRecord>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT session_id, timestamp, role, text, tool_names, source \
+             FROM session_turns WHERE session_id = ?1 \
+             ORDER BY id DESC LIMIT ?2",
+        )?;
+        let rows = stmt.query_map(params![session_id, limit], |row| {
+            let ts_str: String = row.get(1)?;
+            let tn_str: String = row.get(4)?;
+            let tool_names: Vec<String> = serde_json::from_str(&tn_str).unwrap_or_default();
+            Ok(SessionTurnRecord {
+                session_id: row.get(0)?,
+                timestamp: DateTime::parse_from_rfc3339(&ts_str)
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .unwrap_or_else(|_| Utc::now()),
+                role: row.get(2)?,
+                text: row.get(3)?,
+                tool_names,
+                source: row.get(5)?,
+            })
+        })?;
+        let mut out: Vec<SessionTurnRecord> = rows.filter_map(Result::ok).collect();
+        out.reverse(); // ascending by insertion
+        Ok(out)
+    }
+
     /// Query pull requests from the pull_requests table.
     pub fn query_pull_requests(&self, repo_path: Option<&str>) -> Result<Vec<PrRow>> {
         let table_exists: bool = self.conn.query_row(
@@ -543,6 +572,16 @@ pub struct LiveSessionRow {
     pub files_removed: u32,
     pub cost_usd: f64,
     pub confidence: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct SessionTurnRecord {
+    pub session_id: String,
+    pub timestamp: DateTime<Utc>,
+    pub role: String,
+    pub text: String,
+    pub tool_names: Vec<String>,
+    pub source: String,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]

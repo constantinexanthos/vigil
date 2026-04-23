@@ -56,6 +56,7 @@ fn main() {
             commands::detect_cli,
             commands::save_api_key,
             commands::has_api_key,
+            commands::get_recent_turns,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -190,3 +190,32 @@ pub fn has_api_key(provider: String) -> bool {
         .and_then(|e| e.get_password())
         .is_ok()
 }
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct SessionTurnRow {
+    pub session_id: String,
+    pub timestamp: String,
+    pub role: String,
+    pub text: String,
+    pub tool_names: Vec<String>,
+    pub source: String,
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn get_recent_turns(session_id: String, limit: Option<i64>) -> Result<Vec<SessionTurnRow>, String> {
+    let store = open_store()?;
+    let turns = store
+        .recent_turns(&session_id, limit.unwrap_or(16))
+        .map_err(|e| format!("Query failed: {e}"))?;
+    Ok(turns
+        .into_iter()
+        .map(|t| SessionTurnRow {
+            session_id: t.session_id,
+            timestamp: t.timestamp.to_rfc3339(),
+            role: t.role,
+            text: t.text,
+            tool_names: t.tool_names,
+            source: t.source,
+        })
+        .collect())
+}

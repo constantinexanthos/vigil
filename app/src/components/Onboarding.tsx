@@ -61,7 +61,7 @@ export function Onboarding({ cli }: Props) {
               type="button"
               onClick={onSave}
               disabled={saving || !key.trim()}
-              className="w-full bg-white/10 hover:bg-white/15 disabled:opacity-40 text-[12px] text-white py-1.5 rounded transition-colors"
+              className="w-full bg-white/10 hover:bg-white/15 disabled:opacity-40 text-[12px] text-white py-1.5 rounded transition-colors duration-fast"
             >
               {saving ? "saving…" : saved ? "saved — relaunch Vigil" : "save key in Keychain"}
             </button>

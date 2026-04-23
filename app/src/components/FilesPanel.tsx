@@ -23,7 +23,7 @@ export function FilesPanel({ files }: Props) {
               key={f.path}
               type="button"
               onClick={() => setOpen(isOpen ? null : f.path)}
-              className={`w-full flex items-center justify-between px-4 py-1.5 text-left hover:bg-white/4 transition-colors ${isOpen ? "bg-white/5 text-white" : "text-white/75"}`}
+              className={`w-full flex items-center justify-between px-4 py-1.5 text-left hover:bg-white/4 transition-colors duration-fast ${isOpen ? "bg-white/5 text-white" : "text-white/75"}`}
             >
               <span className="truncate">{f.path}</span>
               <span className="text-white/35 shrink-0 ml-2">

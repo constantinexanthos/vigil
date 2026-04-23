@@ -37,7 +37,7 @@ function Divider({ onDrag }: { onDrag: (e: React.PointerEvent) => void }) {
   return (
     <div
       onPointerDown={onDrag}
-      className="cursor-col-resize hover:bg-white/10 transition-colors"
+      className="cursor-col-resize hover:bg-white/10 transition-colors duration-fast"
       style={{ touchAction: "none" }}
     />
   );
