@@ -1,6 +1,6 @@
 use crate::store::{
     default_db_path, AgentStatRow, CollisionRow, CommitGroup, CostTotalRow, EventRow, HostRow,
-    LiveSessionRow, LiveSummaryRow, PrRow, Store, WorkspaceSummaryRow,
+    LiveSessionRow, LiveSummaryRow, PrRow, ReviewSignalsRow, Store, WorkspaceSummaryRow,
 };
 use serde::{Deserialize, Serialize};
 
@@ -218,4 +218,12 @@ pub fn get_recent_turns(session_id: String, limit: Option<i64>) -> Result<Vec<Se
             source: t.source,
         })
         .collect())
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn get_review_signals(session_id: String) -> Result<ReviewSignalsRow, String> {
+    let store = open_store()?;
+    store
+        .query_session_review(&session_id)
+        .map_err(|e| format!("Query failed: {e}"))
 }

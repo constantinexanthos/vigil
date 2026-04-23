@@ -70,6 +70,17 @@ export interface SessionTurn {
   source: string;
 }
 
+export interface ReviewSignals {
+  confidence: number;
+  confidence_reason: string;
+  file_count: number;
+  has_tests: boolean;
+  collisions: Array<{
+    file_path: string;
+    agents: string[];
+  }>;
+}
+
 export interface CliStatus {
   claude: boolean;
   codex: boolean;
