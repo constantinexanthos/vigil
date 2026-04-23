@@ -55,7 +55,7 @@ export default function App() {
         ) : (
           <ThreePaneGrid
             left={<LeftRail sessions={sessions} />}
-            middle={<MiddlePane session={selected} hasCli={hasCli} summary={data.currentSummary} />}
+            middle={<MiddlePane session={selected} hasCli={hasCli} summary={data.currentSummary} turns={data.recentTurns} />}
             right={<RightRail session={selected} />}
           />
         )}

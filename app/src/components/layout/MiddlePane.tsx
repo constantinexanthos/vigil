@@ -4,7 +4,7 @@ import { ActivityStream } from "../ActivityStream";
 import { SessionFooter } from "../SessionFooter";
 import { SessionHeader } from "../SessionHeader";
 import { SummaryBlock } from "../SummaryBlock";
-import type { SessionGroup } from "../../types";
+import type { SessionGroup, SessionTurn } from "../../types";
 import type { ServerSummary } from "../../hooks";
 
 interface Props {
@@ -12,9 +12,11 @@ interface Props {
   hasCli: boolean;
   /** Latest cached summary for `session`, supplied by useDaemonData's unified polling. */
   summary: ServerSummary | null;
+  /** Recent turns for the selected session — drives PulseLine + MilestoneFeed in SummaryBlock. */
+  turns: SessionTurn[];
 }
 
-export function MiddlePane({ session, hasCli, summary }: Props) {
+export function MiddlePane({ session, hasCli, summary, turns }: Props) {
   const [refreshing, setRefreshing] = useState(false);
 
   if (!session) {
@@ -55,6 +57,8 @@ export function MiddlePane({ session, hasCli, summary }: Props) {
         isRefreshing={refreshing}
         fallbackDescription={session.description}
         hasCli={hasCli}
+        turns={turns}
+        isLive={session.isLive}
       />
       <ActivityStream session={session} />
       <SessionFooter session={session} />
