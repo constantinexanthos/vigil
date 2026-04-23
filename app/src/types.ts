@@ -61,6 +61,15 @@ export interface LiveSessionRow {
   confidence?: number;
 }
 
+export interface SessionTurn {
+  session_id: string;
+  timestamp: string;
+  role: string;
+  text: string;
+  tool_names: string[];
+  source: string;
+}
+
 export interface CliStatus {
   claude: boolean;
   codex: boolean;
