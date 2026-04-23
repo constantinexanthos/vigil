@@ -1,11 +1,15 @@
 import { useSelection, type RightTab } from "../../store/selection";
 import { FilesPanel } from "../FilesPanel";
-import type { SessionGroup } from "../../types";
+import { AllFilesPanel } from "../AllFilesPanel";
+import { ReviewPanel } from "../ReviewPanel";
+import { ChecksPlaceholder } from "../ChecksPlaceholder";
+import type { SessionGroup, ReviewSignals } from "../../types";
 
 type Tab = RightTab;
 
 interface Props {
   session: SessionGroup | null;
+  reviewSignals: ReviewSignals | null;
 }
 
 const TABS: { id: Tab; label: string }[] = [
@@ -15,10 +19,13 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "review", label: "Review" },
 ];
 
-export function RightRail({ session }: Props) {
+export function RightRail({ session, reviewSignals }: Props) {
   const tab = useSelection((s) => s.rightTab);
   const setTab = useSelection((s) => s.setRightTab);
-  const changeCount = session ? session.files.length : 0;
+
+  const allFilesCount = session ? session.files.length : 0;
+  const changesCount = allFilesCount; // same underlying source in V2b
+  const reviewSignalCount = reviewSignals?.collisions.length ?? 0;
 
   return (
     <aside
@@ -40,20 +47,27 @@ export function RightRail({ session }: Props) {
             controls={`right-rail-panel-${t.id}`}
             onClick={() => setTab(t.id)}
           >
-            {t.id === "changes" ? (
-              <>
-                {t.label}
-                {changeCount > 0 ? ` ${changeCount}` : null}
-              </>
-            ) : (
-              t.label
-            )}
+            {t.label}
+            {t.id === "all" && allFilesCount > 0 ? <span className="ml-1 text-white/35">{allFilesCount}</span> : null}
+            {t.id === "changes" && changesCount > 0 ? <span className="ml-1 text-white/35">{changesCount}</span> : null}
+            {t.id === "review" && reviewSignalCount > 0 ? (
+              <span className="ml-1 inline-flex items-center justify-center bg-bad text-white text-[9px] rounded-full min-w-[14px] h-[14px] px-1">
+                {reviewSignalCount}
+              </span>
+            ) : null}
           </TabButton>
         ))}
       </nav>
+
       {!session && (
         <div className="px-4 py-5 text-[12px] text-white/45">
           Select a session to see its changes.
+        </div>
+      )}
+
+      {session && tab === "all" && (
+        <div role="tabpanel" id="right-rail-panel-all" className="flex-1 flex flex-col overflow-hidden">
+          <AllFilesPanel files={session.files} />
         </div>
       )}
       {session && tab === "changes" && (
@@ -61,15 +75,17 @@ export function RightRail({ session }: Props) {
           <FilesPanel files={session.files} />
         </div>
       )}
-      {session && tab !== "changes" && (
-        <div
-          role="tabpanel"
-          id={`right-rail-panel-${tab}`}
-          className="px-4 py-5 text-[12px] text-white/45"
-        >
-          This tab is not wired yet. For V1 the changes tab is the canonical view.
+      {session && tab === "checks" && (
+        <div role="tabpanel" id="right-rail-panel-checks" className="flex-1 overflow-y-auto">
+          <ChecksPlaceholder />
         </div>
       )}
+      {session && tab === "review" && (
+        <div role="tabpanel" id="right-rail-panel-review" className="flex-1 flex flex-col overflow-hidden">
+          <ReviewPanel signals={reviewSignals} />
+        </div>
+      )}
+
       <div className="border-t border-white/5 px-4 py-2.5 text-[11px] text-white/55 flex gap-3.5">
         <span>Setup</span>
         <span>Run</span>
