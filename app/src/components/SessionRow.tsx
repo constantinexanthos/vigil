@@ -22,7 +22,7 @@ export function SessionRow({ session, selected, onSelect }: Props) {
       initial={{ opacity: 0, x: -6 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ type: "spring", stiffness: 400, damping: 30 }}
-      className="w-full text-left px-2.5 py-2 rounded-md transition-colors"
+      className="w-full text-left px-2.5 py-2 rounded-md transition-colors duration-fast"
       style={{
         background: selected ? `${token.color}1A` : "transparent",
         borderLeft: `2px solid ${selected ? token.color : "transparent"}`,

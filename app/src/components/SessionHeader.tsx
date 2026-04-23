@@ -32,12 +32,10 @@ export function SessionHeader({ session }: Props) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
           >
-            <motion.span
+            <span
               aria-hidden
-              className="w-1.5 h-1.5 rounded-full"
+              className="w-1.5 h-1.5 rounded-full animate-pulse-alive"
               style={{ background: token.color }}
-              animate={{ opacity: [0.6, 1, 0.6] }}
-              transition={{ duration: 2, repeat: Infinity }}
             />
             <span className="text-[11px] text-white/75">Running</span>
           </motion.div>

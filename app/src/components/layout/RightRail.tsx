@@ -100,7 +100,7 @@ function TabButton({
       aria-selected={active}
       aria-controls={controls}
       onClick={onClick}
-      className={`pb-0.5 transition-colors ${active ? "text-white border-b border-white" : "text-white/45 hover:text-white/75"}`}
+      className={`pb-0.5 transition-colors duration-fast ${active ? "text-white border-b border-white" : "text-white/45 hover:text-white/75"}`}
     >
       {children}
     </button>
