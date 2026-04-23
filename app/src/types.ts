@@ -368,13 +368,19 @@ const FILE_DESCRIPTIONS: Record<string, string> = {
 };
 
 function describeFileChanges(files: SessionFile[]): string {
-  if (files.length === 0) return "Working session with no file changes";
+  if (files.length === 0) return "No files changed";
 
-  // Group files by their type description
+  // Pick the dominant action — the one that matches the most files — instead
+  // of concatenating "added and updated and removed" which reads like a robot.
+  let created = 0, modified = 0, deleted = 0;
   const groups = new Map<string, { created: number; modified: number; deleted: number }>();
   const dirs = new Set<string>();
 
   for (const f of files) {
+    if (f.kind === "file_create") created++;
+    else if (f.kind === "file_delete") deleted++;
+    else modified++;
+
     const name = f.path.split("/").pop() ?? "";
     const ext = name.includes(".") ? name.split(".").pop()!.toLowerCase() : "";
     const typeDesc = FILE_DESCRIPTIONS[ext] ?? "files";
@@ -385,13 +391,16 @@ function describeFileChanges(files: SessionFile[]): string {
     else g.modified++;
     groups.set(typeDesc, g);
 
-    // Track project areas
     const parts = f.path.split("/");
     if (parts.length >= 2) {
       const dir = parts.slice(-2, -1)[0];
       if (dir && !["src", "app", "lib", "public"].includes(dir)) dirs.add(dir);
     }
   }
+
+  const dominantVerb =
+    modified >= created && modified >= deleted ? "Updated" :
+    created >= deleted ? "Added" : "Removed";
 
   // Build natural description
   const parts: string[] = [];
@@ -402,6 +411,15 @@ function describeFileChanges(files: SessionFile[]): string {
     if (counts.deleted > 0) actions.push("removed");
     parts.push(`${actions.join(" and ")} ${type}`);
   }
+
+  // Short-circuit: if there's one dominant type + one dominant action, return
+  // a tight "Updated 3 React components" instead of building the long sentence.
+  if (groups.size === 1 && [created, modified, deleted].filter((n) => n > 0).length === 1) {
+    const [type] = [...groups.keys()];
+    const count = files.length;
+    return `${dominantVerb} ${count} ${type}`;
+  }
+  void dominantVerb;
 
   let desc = parts.length > 0
     ? parts[0].charAt(0).toUpperCase() + parts[0].slice(1) + (parts.length > 1 ? ", " + parts.slice(1).join(", ") : "")

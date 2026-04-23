@@ -67,7 +67,7 @@ export function RightRail({ session, reviewSignals }: Props) {
 
       {session && tab === "all" && (
         <div role="tabpanel" id="right-rail-panel-all" className="flex-1 flex flex-col overflow-hidden">
-          <AllFilesPanel files={session.files} />
+          <AllFilesPanel files={session.files} repoPath={session.repoPath} />
         </div>
       )}
       {session && tab === "changes" && (

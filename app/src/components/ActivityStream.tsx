@@ -17,7 +17,7 @@ interface Row {
 }
 
 export function ActivityStream({ session }: Props) {
-  const rows: Row[] = fileRows(session.files);
+  const rows: Row[] = fileRows(session.files, session.repoPath);
   const ref = useRef<HTMLDivElement>(null);
   const lockedToBottom = useRef(true);
 
@@ -57,7 +57,7 @@ export function ActivityStream({ session }: Props) {
   );
 }
 
-function fileRows(files: SessionFile[]): Row[] {
+function fileRows(files: SessionFile[], repoPath: string | null | undefined): Row[] {
   return files
     .filter((f) => !isNoise(f.path))
     .map((f, i) => {
@@ -68,18 +68,21 @@ function fileRows(files: SessionFile[]): Row[] {
         timestamp: new Date().toISOString(),
         glyph,
         glyphColor: color,
-        text: <span className="text-white/85">{shortPath(f.path)}</span>,
+        text: <span className="text-white/85">{displayPath(f.path, repoPath)}</span>,
         added: f.added,
         removed: f.removed,
       };
     });
 }
 
-/** Trim absolute paths to the last two directory segments + filename. */
-function shortPath(path: string): string {
+/** Strip repoPath prefix → repo-relative path; fallback to last 3 segments. */
+function displayPath(path: string, repoPath: string | null | undefined): string {
   if (!path) return path;
+  if (repoPath && path.startsWith(repoPath)) {
+    return path.slice(repoPath.length).replace(/^\//, "");
+  }
   const parts = path.split("/").filter(Boolean);
-  if (parts.length <= 3) return path.startsWith("/") ? path : path;
+  if (parts.length <= 3) return path;
   return parts.slice(-3).join("/");
 }
 
