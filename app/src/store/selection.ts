@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-export type RightTab = "all" | "changes" | "checks" | "review";
+export type RightTab = "changes" | "review";
 
 export interface SelectionState {
   selectedSessionId: string | null;
@@ -26,7 +26,20 @@ export const useSelection = create<SelectionState>()(
       setRightWidth: (px) => set({ rightWidth: clamp(px, 240, 520) }),
       setRightTab: (t) => set({ rightTab: t }),
     }),
-    { name: "vigil-selection" },
+    {
+      name: "vigil-selection",
+      version: 1,
+      // Migration: V2c trims tabs to changes + review. Coerce stale persisted
+      // values ("all" / "checks") back to "changes" so the UI doesn't render
+      // an empty tab panel on first load after upgrade.
+      migrate: (persisted: unknown, _version) => {
+        const state = persisted as Partial<SelectionState> | null;
+        if (state && state.rightTab !== "changes" && state.rightTab !== "review") {
+          return { ...state, rightTab: "changes" as RightTab };
+        }
+        return state;
+      },
+    },
   ),
 );
 

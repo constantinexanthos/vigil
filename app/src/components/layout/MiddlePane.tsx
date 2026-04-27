@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { ActivityStream } from "../ActivityStream";
 import { SessionFooter } from "../SessionFooter";
 import { SessionHeader } from "../SessionHeader";
 import { SummaryBlock } from "../SummaryBlock";
@@ -50,20 +49,38 @@ export function MiddlePane({ session, hasCli, summary, turns }: Props) {
   return (
     <section className="h-full flex flex-col bg-[#121214]">
       <SessionHeader session={session} />
-      <SummaryBlock
-        summary={summary?.text ?? session.summaryPlainEnglish ?? null}
-        generatedAt={summary?.generated_at ?? session.summaryGeneratedAt ?? null}
-        hostKind={session.hostKind}
-        model={session.model}
-        onRefresh={onRefresh}
-        isRefreshing={refreshing}
-        fallbackDescription={session.description}
-        hasCli={hasCli}
-        turns={turns}
-        isLive={session.isLive}
-      />
-      <ActivityStream session={session} />
+      <div className="flex-1 overflow-y-auto">
+        <SummaryBlock
+          summary={summary?.text ?? session.summaryPlainEnglish ?? null}
+          generatedAt={summary?.generated_at ?? session.summaryGeneratedAt ?? null}
+          hostKind={session.hostKind}
+          model={session.model}
+          onRefresh={onRefresh}
+          isRefreshing={refreshing}
+          fallbackDescription={session.description}
+          hasCli={hasCli}
+          turns={turns}
+          isLive={session.isLive}
+        />
+        {!summary?.text && !session.summaryPlainEnglish && !session.isLive && (
+          <ClosedSessionEmpty fileCount={session.files.length} />
+        )}
+      </div>
       <SessionFooter session={session} />
     </section>
+  );
+}
+
+function ClosedSessionEmpty({ fileCount }: { fileCount: number }) {
+  return (
+    <div className="px-5 py-12 text-center">
+      <div className="text-[12.5px] text-white/55 leading-relaxed max-w-[360px] mx-auto">
+        No live summary was captured for this session.
+        <br />
+        {fileCount > 0
+          ? <>Open the <span className="text-white/80 font-medium">Files</span> tab to see what changed.</>
+          : <>Nothing was changed.</>}
+      </div>
+    </div>
   );
 }

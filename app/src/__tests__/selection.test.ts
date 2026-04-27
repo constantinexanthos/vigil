@@ -45,14 +45,14 @@ describe("useSelection", () => {
   });
 
   it("persists rightTab through the persist middleware", () => {
-    useSelection.getState().setRightTab("checks");
+    useSelection.getState().setRightTab("review");
     const raw = localStorage.getItem("vigil-selection");
     expect(raw).toBeTruthy();
-    expect(raw).toContain("checks");
+    expect(raw).toContain("review");
   });
 
-  it("accepts all four tab values", () => {
-    for (const t of ["all", "changes", "checks", "review"] as const) {
+  it("accepts both tab values", () => {
+    for (const t of ["changes", "review"] as const) {
       useSelection.getState().setRightTab(t);
       expect(useSelection.getState().rightTab).toBe(t);
     }
