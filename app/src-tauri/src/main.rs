@@ -8,6 +8,9 @@ use tauri::{
     Manager,
 };
 
+#[cfg(target_os = "macos")]
+use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial, NSVisualEffectState};
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -35,6 +38,20 @@ fn main() {
                     }
                 })
                 .build(app)?;
+
+            // Apply NSVisualEffectView vibrancy ("liquid glass") so the window
+            // background blurs the desktop instead of showing as a flat slab.
+            // The titlebar is already overlay-transparent in tauri.conf.json,
+            // so the effect extends edge-to-edge under the traffic lights.
+            #[cfg(target_os = "macos")]
+            if let Some(main_window) = app.get_webview_window("main") {
+                let _ = apply_vibrancy(
+                    &main_window,
+                    NSVisualEffectMaterial::HudWindow,
+                    Some(NSVisualEffectState::Active),
+                    Some(0.0),
+                );
+            }
 
             Ok(())
         })

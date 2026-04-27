@@ -21,13 +21,7 @@ export function RightRail({ session, reviewSignals }: Props) {
   const reviewSignalCount = reviewSignals?.collisions.length ?? 0;
 
   return (
-    <aside
-      className="h-full flex flex-col"
-      style={{
-        background: "rgba(18,18,20,0.75)",
-        borderLeft: "1px solid rgba(255,255,255,0.05)",
-      }}
-    >
+    <aside className="h-full flex flex-col">
       <nav
         role="tablist"
         aria-label="Session details"

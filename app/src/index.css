@@ -11,10 +11,20 @@
 body {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, system-ui, sans-serif;
   font-size: 13px;
-  background: #1C1C1E;
+  /* Transparent so NSVisualEffectView vibrancy shows through. A slight rgba
+     tint goes on the app root to keep contrast for text. */
+  background: transparent;
   color: #F9FAFB;
   -webkit-font-smoothing: antialiased;
   user-select: none;
+}
+
+/* App root sits on top of the vibrancy material with a subtle dark tint so
+   text stays readable across light desktops. Single uniform layer for all
+   three panes — pane components no longer set their own backgrounds. */
+#root {
+  background: rgba(8, 8, 10, 0.55);
+  height: 100vh;
 }
 
 code, pre, .selectable { user-select: text; }

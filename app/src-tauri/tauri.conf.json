@@ -25,7 +25,7 @@
         "resizable": true,
         "decorations": true,
         "visible": true,
-        "transparent": false,
+        "transparent": true,
         "titleBarStyle": "Transparent",
         "hiddenTitle": true
       }

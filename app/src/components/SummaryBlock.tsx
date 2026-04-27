@@ -1,5 +1,4 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { hostToken } from "../lib/host-tokens";
 import { relativeTimeFromIso } from "../lib/formatters";
 import { modelLongName } from "../lib/model-tokens";
 import { PulseLine } from "./PulseLine";
@@ -21,9 +20,8 @@ interface Props {
 }
 
 export function SummaryBlock({
-  summary, generatedAt, hostKind, model, onRefresh, isRefreshing, fallbackDescription, hasCli, turns, isLive,
-}: Props) {
-  const token = hostToken(hostKind);
+  summary, generatedAt, model, onRefresh, isRefreshing, fallbackDescription, hasCli, turns, isLive,
+}: Omit<Props, "hostKind"> & { hostKind?: Props["hostKind"] }) {
   const latest = turns.length > 0 ? turns[turns.length - 1] : null;
   const hasLivePulse = isLive && (latest?.tool_names?.length ?? 0) > 0;
   const hasMilestones = turns.some((t) => t.role === "assistant" && t.text.trim().length > 0 && t.tool_names.length === 0);
@@ -43,10 +41,7 @@ export function SummaryBlock({
   }
 
   return (
-    <div
-      className="px-5 py-4 border-b border-white/5"
-      style={{ background: `linear-gradient(180deg, ${token.color}0F, transparent)` }}
-    >
+    <div className="px-5 py-4">
       {showParagraph && (
         <>
           <div className="flex items-center justify-between mb-1.5">

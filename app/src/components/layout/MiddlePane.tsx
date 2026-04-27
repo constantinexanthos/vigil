@@ -47,7 +47,7 @@ export function MiddlePane({ session, hasCli, summary, turns }: Props) {
   }
 
   return (
-    <section className="h-full flex flex-col bg-[#121214]">
+    <section className="h-full flex flex-col">
       <SessionHeader session={session} />
       <div className="flex-1 overflow-y-auto">
         <SummaryBlock

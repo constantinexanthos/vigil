@@ -8,7 +8,11 @@ interface Props {
 
 export function TopBar({ connected, hasNewEvents, onOpenCmd }: Props) {
   return (
-    <header className="h-11 flex items-center justify-between px-3.5 border-b border-white/5 bg-[#121214]">
+    <header
+      className="h-11 flex items-center justify-between px-3.5"
+      style={{ paddingLeft: "82px" }}
+      data-tauri-drag-region
+    >
       <div className="flex items-center gap-2">
         <img src={logo} alt="Vigil" className="w-5 h-5" />
         <span className="text-[13px] text-white font-semibold">Vigil</span>
