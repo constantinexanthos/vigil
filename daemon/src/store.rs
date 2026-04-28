@@ -51,6 +51,22 @@ pub struct AgentEvent {
     pub branch: Option<String>,
     pub diff: Option<String>,
     pub metadata: Option<String>,
+    pub host_kind: Option<String>,
+    pub model: Option<String>,
+    pub is_live: bool,
+}
+
+/// A single conversational turn captured from a session's log, normalized
+/// across agent sources (Claude JSONL, Cursor log, Codex transcript).
+#[derive(Debug, Clone)]
+pub struct SessionTurnRecord {
+    pub session_id: String,
+    pub timestamp: DateTime<Utc>,
+    pub role: String,
+    pub text: String,
+    pub tool_names: Vec<String>,
+    /// Origin of the turn — one of `"claude"`, `"cursor"`, `"codex"`.
+    pub source: String,
 }
 
 /// Query filters for retrieving events.
@@ -98,14 +114,49 @@ impl Store {
                 repo_path   TEXT,
                 branch      TEXT,
                 diff        TEXT,
-                metadata    TEXT
+                metadata    TEXT,
+                host_kind   TEXT,
+                model       TEXT,
+                is_live     INTEGER NOT NULL DEFAULT 0
             );
 
             CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp);
             CREATE INDEX IF NOT EXISTS idx_events_agent ON events(agent);
             CREATE INDEX IF NOT EXISTS idx_events_file_path ON events(file_path);
             CREATE INDEX IF NOT EXISTS idx_events_session_id ON events(session_id);
+
+            CREATE TABLE IF NOT EXISTS session_turns (
+                id          INTEGER PRIMARY KEY,
+                session_id  TEXT NOT NULL,
+                timestamp   TEXT NOT NULL,
+                role        TEXT NOT NULL,
+                text        TEXT NOT NULL,
+                tool_names  TEXT NOT NULL DEFAULT '[]',
+                source      TEXT NOT NULL DEFAULT 'claude'
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_session_turns_session_id ON session_turns(session_id);
             ",
+        )?;
+        // Defensive migrations for existing databases that predate these columns.
+        // ALTER will fail harmlessly if the columns already exist (fresh DBs).
+        let _ = self.conn.execute("ALTER TABLE events ADD COLUMN host_kind TEXT", []);
+        let _ = self.conn.execute("ALTER TABLE events ADD COLUMN model TEXT", []);
+        let _ = self
+            .conn
+            .execute("ALTER TABLE events ADD COLUMN is_live INTEGER NOT NULL DEFAULT 0", []);
+        // Defensive migration for DBs created before the source column existed.
+        let _ = self
+            .conn
+            .execute("ALTER TABLE session_turns ADD COLUMN source TEXT NOT NULL DEFAULT 'claude'", []);
+        self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS session_summaries (\
+                session_id TEXT PRIMARY KEY, \
+                text TEXT NOT NULL, \
+                generated_at TEXT NOT NULL, \
+                backend TEXT NOT NULL\
+            )",
+            [],
         )?;
         crate::cost::init_cost_schema(&self.conn)?;
         crate::hallucination::init_hallucination_schema(&self.conn)?;
@@ -116,8 +167,8 @@ impl Store {
     /// If the event has metadata with cost info, also inserts into cost_events.
     pub fn insert(&self, event: &AgentEvent) -> Result<i64> {
         self.conn.execute(
-            "INSERT INTO events (timestamp, kind, file_path, agent, session_id, repo_path, branch, diff, metadata)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            "INSERT INTO events (timestamp, kind, file_path, agent, session_id, repo_path, branch, diff, metadata, host_kind, model, is_live)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
             params![
                 event.timestamp.to_rfc3339(),
                 event.kind.as_str(),
@@ -128,6 +179,9 @@ impl Store {
                 event.branch,
                 event.diff,
                 event.metadata,
+                event.host_kind,
+                event.model,
+                event.is_live as i32,
             ],
         )?;
         let event_id = self.conn.last_insert_rowid();
@@ -154,7 +208,7 @@ impl Store {
 
     /// Query events with optional filters, ordered by timestamp descending.
     pub fn query(&self, q: &EventQuery) -> Result<Vec<AgentEvent>> {
-        let mut sql = String::from("SELECT id, timestamp, kind, file_path, agent, session_id, repo_path, branch, diff, metadata FROM events WHERE 1=1");
+        let mut sql = String::from("SELECT id, timestamp, kind, file_path, agent, session_id, repo_path, branch, diff, metadata, host_kind, model, is_live FROM events WHERE 1=1");
         let mut param_values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
 
         if let Some(ref agent) = q.agent {
@@ -192,6 +246,7 @@ impl Store {
         let rows = stmt.query_map(params_ref.as_slice(), |row| {
             let kind_str: String = row.get(2)?;
             let ts_str: String = row.get(1)?;
+            let is_live_int: i64 = row.get(12)?;
             Ok(AgentEvent {
                 id: Some(row.get(0)?),
                 timestamp: DateTime::parse_from_rfc3339(&ts_str)
@@ -205,6 +260,9 @@ impl Store {
                 branch: row.get(7)?,
                 diff: row.get(8)?,
                 metadata: row.get(9)?,
+                host_kind: row.get(10)?,
+                model: row.get(11)?,
+                is_live: is_live_int != 0,
             })
         })?;
 
@@ -317,6 +375,73 @@ impl Store {
             .path()
             .map(|p| PathBuf::from(p))
     }
+
+    /// Insert a single session turn. Returns the row id.
+    pub fn insert_session_turn(&self, turn: &SessionTurnRecord) -> Result<i64> {
+        let tool_names = serde_json::to_string(&turn.tool_names).unwrap_or_else(|_| "[]".to_string());
+        self.conn.execute(
+            "INSERT INTO session_turns (session_id, timestamp, role, text, tool_names, source) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                turn.session_id,
+                turn.timestamp.to_rfc3339(),
+                turn.role,
+                turn.text,
+                tool_names,
+                turn.source,
+            ],
+        )?;
+        Ok(self.conn.last_insert_rowid())
+    }
+
+    pub fn upsert_summary(&self, session_id: &str, text: &str, backend: &str) -> rusqlite::Result<()> {
+        let now = Utc::now().to_rfc3339();
+        self.conn.execute(
+            "INSERT INTO session_summaries (session_id, text, generated_at, backend) VALUES (?1, ?2, ?3, ?4) \
+             ON CONFLICT(session_id) DO UPDATE SET text = excluded.text, generated_at = excluded.generated_at, backend = excluded.backend",
+            rusqlite::params![session_id, text, now, backend],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_summary(&self, session_id: &str) -> rusqlite::Result<Option<(String, String, String)>> {
+        let row: Result<(String, String, String), _> = self.conn.query_row(
+            "SELECT text, generated_at, backend FROM session_summaries WHERE session_id = ?1",
+            rusqlite::params![session_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        );
+        match row {
+            Ok(tup) => Ok(Some(tup)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Retrieve the most recent `limit` turns for a session, ordered ascending by insertion.
+    pub fn recent_turns(&self, session_id: &str, limit: i64) -> Result<Vec<SessionTurnRecord>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT session_id, timestamp, role, text, tool_names, source \
+             FROM session_turns WHERE session_id = ?1 \
+             ORDER BY id DESC LIMIT ?2",
+        )?;
+        let rows = stmt.query_map(params![session_id, limit], |row| {
+            let ts_str: String = row.get(1)?;
+            let tn_str: String = row.get(4)?;
+            let tool_names: Vec<String> = serde_json::from_str(&tn_str).unwrap_or_default();
+            Ok(SessionTurnRecord {
+                session_id: row.get(0)?,
+                timestamp: DateTime::parse_from_rfc3339(&ts_str)
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .unwrap_or_else(|_| Utc::now()),
+                role: row.get(2)?,
+                text: row.get(3)?,
+                tool_names,
+                source: row.get(5)?,
+            })
+        })?;
+        let mut out: Vec<SessionTurnRecord> = rows.filter_map(Result::ok).collect();
+        out.reverse(); // ascending by insertion
+        Ok(out)
+    }
 }
 
 #[cfg(test)]
@@ -336,6 +461,9 @@ mod tests {
             branch: Some("main".to_string()),
             diff: None,
             metadata: None,
+            host_kind: None,
+            model: None,
+            is_live: false,
         }
     }
 
@@ -438,6 +566,9 @@ mod tests {
             branch: None,
             diff: None,
             metadata: None,
+            host_kind: None,
+            model: None,
+            is_live: false,
         }
     }
 
@@ -509,5 +640,98 @@ mod tests {
 
         let results = store.reattribute_unknown(false).unwrap();
         assert_eq!(results.len(), 0);
+    }
+
+    #[test]
+    fn session_turns_round_trip() {
+        let store = Store::open_in_memory().unwrap();
+        store.insert_session_turn(&SessionTurnRecord {
+            session_id: "sess-1".to_string(),
+            timestamp: chrono::Utc::now(),
+            role: "assistant".to_string(),
+            text: "I'm editing foo.rs".to_string(),
+            tool_names: vec!["Edit".to_string()],
+            source: "claude".to_string(),
+        }).unwrap();
+        store.insert_session_turn(&SessionTurnRecord {
+            session_id: "sess-1".to_string(),
+            timestamp: chrono::Utc::now(),
+            role: "user".to_string(),
+            text: "Continue".to_string(),
+            tool_names: vec![],
+            source: "claude".to_string(),
+        }).unwrap();
+
+        let turns = store.recent_turns("sess-1", 10).unwrap();
+        assert_eq!(turns.len(), 2);
+        assert_eq!(turns[0].text, "I'm editing foo.rs");
+    }
+
+    #[test]
+    fn summary_upsert_and_get() {
+        let store = Store::open_in_memory().unwrap();
+        assert!(store.get_summary("s1").unwrap().is_none());
+        store.upsert_summary("s1", "first draft", "claude").unwrap();
+        let got = store.get_summary("s1").unwrap().unwrap();
+        assert_eq!(got.0, "first draft");
+        store.upsert_summary("s1", "revised", "claude").unwrap();
+        let got = store.get_summary("s1").unwrap().unwrap();
+        assert_eq!(got.0, "revised");
+    }
+
+    #[test]
+    fn schema_has_host_kind_and_model_columns() {
+        let store = Store::open_in_memory().unwrap();
+        let conn = store.conn();
+        let mut stmt = conn.prepare("PRAGMA table_info(events)").unwrap();
+        let cols: Vec<String> = stmt
+            .query_map([], |row| row.get::<_, String>(1))
+            .unwrap()
+            .filter_map(Result::ok)
+            .collect();
+        assert!(cols.contains(&"host_kind".to_string()), "missing host_kind column");
+        assert!(cols.contains(&"model".to_string()), "missing model column");
+        assert!(cols.contains(&"is_live".to_string()), "missing is_live column");
+    }
+
+    #[test]
+    fn session_turn_source_round_trip() {
+        let store = Store::open_in_memory().unwrap();
+        store.insert_session_turn(&SessionTurnRecord {
+            session_id: "s-1".to_string(),
+            timestamp: Utc::now(),
+            role: "user".to_string(),
+            text: "hi".to_string(),
+            tool_names: vec![],
+            source: "cursor".to_string(),
+        }).unwrap();
+        store.insert_session_turn(&SessionTurnRecord {
+            session_id: "s-2".to_string(),
+            timestamp: Utc::now(),
+            role: "assistant".to_string(),
+            text: "ok".to_string(),
+            tool_names: vec!["Edit".to_string()],
+            source: "codex".to_string(),
+        }).unwrap();
+
+        let cursor_turns = store.recent_turns("s-1", 10).unwrap();
+        assert_eq!(cursor_turns.len(), 1);
+        assert_eq!(cursor_turns[0].source, "cursor");
+
+        let codex_turns = store.recent_turns("s-2", 10).unwrap();
+        assert_eq!(codex_turns.len(), 1);
+        assert_eq!(codex_turns[0].source, "codex");
+    }
+
+    #[test]
+    fn session_turns_source_column_exists() {
+        let store = Store::open_in_memory().unwrap();
+        let cols: Vec<String> = store
+            .conn()
+            .prepare("PRAGMA table_info(session_turns)").unwrap()
+            .query_map([], |row| row.get::<_, String>(1)).unwrap()
+            .filter_map(Result::ok)
+            .collect();
+        assert!(cols.contains(&"source".to_string()), "missing source column");
     }
 }

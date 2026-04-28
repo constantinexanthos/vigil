@@ -36,6 +36,11 @@ fn main() {
                 })
                 .build(app)?;
 
+            // NSVisualEffectView vibrancy was tried (`HudWindow`) but rendered
+            // ghostly — text legibility tanked when the window lost focus.
+            // Falling back to a solid opaque dark background; the
+            // unified-panes look is achieved purely in CSS.
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -49,6 +54,15 @@ fn main() {
             commands::get_workspace_summary,
             commands::get_pull_requests,
             commands::get_live_summary,
+            commands::get_hosts,
+            commands::get_live_sessions,
+            commands::get_summary,
+            commands::refresh_summary,
+            commands::detect_cli,
+            commands::save_api_key,
+            commands::has_api_key,
+            commands::get_recent_turns,
+            commands::get_review_signals,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

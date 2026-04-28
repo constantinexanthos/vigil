@@ -1,5 +1,7 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 use chrono::{DateTime, Duration, Utc};
 use clap::{Parser, Subcommand};
@@ -7,7 +9,9 @@ use clap::{Parser, Subcommand};
 use crate::git::GitEventKind;
 use crate::hooks::claude;
 use crate::process::{Agent, ProcessScanner};
-use crate::store::{AgentEvent, EventKind, EventQuery, Store};
+use crate::sessionlog::start_tailer;
+use crate::store::{AgentEvent, EventKind, EventQuery, SessionTurnRecord, Store};
+use crate::summarizer;
 use crate::watcher::FsEventKind;
 
 #[derive(Parser)]
@@ -155,6 +159,12 @@ fn fs_event_kind_to_store(kind: &FsEventKind) -> EventKind {
         FsEventKind::Delete => EventKind::FileDelete,
         FsEventKind::Rename | FsEventKind::Other => EventKind::FileModify,
     }
+}
+
+/// Extract the session id from a JSONL file path. Claude Code writes session
+/// transcripts as `<session-id>.jsonl`, so the file stem IS the session id.
+fn extract_session_id_from_path(path: &std::path::Path) -> Option<String> {
+    path.file_stem()?.to_str().map(|s| s.to_string())
 }
 
 pub async fn run_watch(dirs: Vec<PathBuf>) {
@@ -315,6 +325,9 @@ pub async fn run_watch(dirs: Vec<PathBuf>) {
                 branch,
                 diff,
                 metadata: None,
+                host_kind: None,
+                model: None,
+                is_live: false,
             };
 
             let store = git_db.lock().unwrap();
@@ -324,8 +337,146 @@ pub async fn run_watch(dirs: Vec<PathBuf>) {
         }
     });
 
+    // Refresh-trigger poll loop. The Tauri app writes flag files into
+    // ~/.vigil/refresh-triggers/<session_id>.flag to ask for immediate
+    // re-summarization. We scan the directory every 5 seconds, remove each flag,
+    // and regenerate the summary using the same pipeline as the JSONL tailer.
+    let trigger_db = Arc::clone(&db);
+    tokio::spawn(async move {
+        let trigger_dir = home::home_dir()
+            .expect("home dir")
+            .join(".vigil")
+            .join("refresh-triggers");
+        // Create the directory up front so later reads don't fail.
+        let _ = std::fs::create_dir_all(&trigger_dir);
+
+        let mut last_summary: HashMap<String, Instant> = HashMap::new();
+        let debounce = std::time::Duration::from_secs(30);
+
+        loop {
+            if let Ok(entries) = std::fs::read_dir(&trigger_dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.extension().and_then(|e| e.to_str()) != Some("flag") {
+                        continue;
+                    }
+                    let Some(session_id_raw) = path.file_stem().and_then(|s| s.to_str()) else {
+                        continue;
+                    };
+                    let session_id = session_id_raw.replace('_', "/");
+                    let _ = std::fs::remove_file(&path);
+
+                    // Per-session debounce -- skip if we regenerated within the window.
+                    let due = match last_summary.get(&session_id).copied() {
+                        Some(t) => t.elapsed() >= debounce,
+                        None => true,
+                    };
+                    if !due {
+                        continue;
+                    }
+                    last_summary.insert(session_id.clone(), Instant::now());
+
+                    let trigger_db_inner = Arc::clone(&trigger_db);
+                    let sid = session_id.clone();
+                    tokio::spawn(async move {
+                        if let Err(e) = summarizer::generate_and_cache(
+                            &trigger_db_inner,
+                            &sid,
+                            Vec::new(),
+                            None,
+                        )
+                        .await
+                        {
+                            eprintln!("vigil: refresh summary failed for {}: {}", sid, e);
+                        }
+                    });
+                }
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        }
+    });
+
+    // Claude JSONL session tailer.
+    let claude_projects_root: PathBuf = home::home_dir()
+        .map(|h| h.join(".claude").join("projects"))
+        .expect("home dir");
+    std::fs::create_dir_all(&claude_projects_root).ok();
+    match start_tailer(&claude_projects_root) {
+        Ok((watcher, rx)) => {
+            Box::leak(Box::new(watcher));
+            spawn_turn_consumer(
+                Arc::clone(&db),
+                rx,
+                "claude",
+                |ev: crate::sessionlog::TailerEvent| (ev.path, ev.turn),
+                |p| extract_session_id_from_path(p),
+            );
+            eprintln!(
+                "vigil: Claude tailer watching {}",
+                claude_projects_root.display()
+            );
+        }
+        Err(e) => eprintln!("vigil: failed to start Claude tailer: {}", e),
+    }
+
+    // Cursor agent-log tailer.
+    let cursor_logs_root: PathBuf = home::home_dir()
+        .map(|h| h.join("Library/Application Support/Cursor/logs"))
+        .expect("home dir");
+    if cursor_logs_root.exists() {
+        match crate::cursorlog::start_tailer(&cursor_logs_root) {
+            Ok((watcher, rx)) => {
+                Box::leak(Box::new(watcher));
+                spawn_turn_consumer(
+                    Arc::clone(&db),
+                    rx,
+                    "cursor",
+                    |ev: crate::cursorlog::TailerEvent| (ev.path, ev.turn),
+                    |p| crate::cursorlog::session_id_from_path(p),
+                );
+                eprintln!(
+                    "vigil: Cursor tailer watching {}",
+                    cursor_logs_root.display()
+                );
+            }
+            Err(e) => eprintln!("vigil: failed to start Cursor tailer: {}", e),
+        }
+    } else {
+        eprintln!(
+            "vigil: Cursor logs dir not found ({}); cursor sessions will not be captured",
+            cursor_logs_root.display()
+        );
+    }
+
+    // Codex transcript tailer.
+    if let Some(codex_root) = home::home_dir().and_then(|h| crate::codexlog::discover_root(&h)) {
+        match crate::codexlog::start_tailer(&codex_root) {
+            Ok((watcher, rx)) => {
+                Box::leak(Box::new(watcher));
+                spawn_turn_consumer(
+                    Arc::clone(&db),
+                    rx,
+                    "codex",
+                    |ev: crate::codexlog::TailerEvent| (ev.path, ev.turn),
+                    |p| crate::codexlog::session_id_from_path(p),
+                );
+                eprintln!("vigil: Codex tailer watching {}", codex_root.display());
+            }
+            Err(e) => eprintln!("vigil: failed to start Codex tailer: {}", e),
+        }
+    } else {
+        eprintln!("vigil: Codex log directory not found; codex sessions will not be captured");
+    }
+
     // Main file event loop.
     while let Some(fs_event) = fs_rx.recv().await {
+        // Skip noise paths so a broad watch dir (e.g. $HOME) doesn't pollute
+        // the session list with macOS Library churn, package-manager caches,
+        // build artifacts, etc.
+        if is_noise_path(&fs_event.path) {
+            continue;
+        }
+
         let agent = {
             let s = scanner.lock().unwrap();
             let active = s.active_agents();
@@ -351,6 +502,9 @@ pub async fn run_watch(dirs: Vec<PathBuf>) {
             branch: None,
             diff: fs_event.diff,
             metadata: None,
+            host_kind: None,
+            model: None,
+            is_live: false,
         };
 
         {
@@ -360,6 +514,56 @@ pub async fn run_watch(dirs: Vec<PathBuf>) {
             }
         }
     }
+}
+
+/// Filter out file events that are pure noise — macOS internals, package
+/// manager caches, build artifacts, hidden-config writes — so accidentally
+/// pointing the daemon at a broad watch dir (`~`) doesn't fill the rail with
+/// junk like `com.apple.spotlight` or `node_modules` churn.
+fn is_noise_path(path: &std::path::Path) -> bool {
+    let s = path.to_string_lossy();
+    const NOISE_SEGMENTS: &[&str] = &[
+        "/Library/",
+        "/Caches/",
+        "/.cache/",
+        "/.Trash/",
+        "/.DS_Store",
+        "/.git/",
+        "/.vigil/",
+        "/.claude/",
+        "/.cursor/",
+        "/.codex/",
+        "/.npm/",
+        "/.pnpm/",
+        "/.cargo/",
+        "/.rustup/",
+        "/.docker/",
+        "/node_modules/",
+        "/target/",
+        "/dist/",
+        "/build/",
+        "/.next/",
+        "/.nuxt/",
+        "/.svelte-kit/",
+        "/.parcel-cache/",
+        "/.turbo/",
+        "/__pycache__/",
+        "/.venv/",
+        "/venv/",
+    ];
+    if NOISE_SEGMENTS.iter().any(|seg| s.contains(seg)) {
+        return true;
+    }
+    // Hidden files at any level (filenames starting with a dot, after the
+    // last slash). Lets e.g. `~/projects/foo/.eslintrc` still pass — many
+    // dot-files are real config users care about — but blocks things like
+    // editor swap files (`.foo.swp`) caught by the file watcher.
+    if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+        if name.ends_with(".swp") || name.ends_with(".swo") || name.ends_with("~") {
+            return true;
+        }
+    }
+    false
 }
 
 /// Handle a hook event from a coding agent.
@@ -943,4 +1147,69 @@ pub fn run_dashboard(once: bool) {
         if once { break; }
         std::thread::sleep(std::time::Duration::from_secs(2));
     }
+}
+
+/// Spawn an async task that drains `rx`, persists each turn to the store
+/// tagged with `source`, and kicks off a debounced per-session summary
+/// regeneration. Generic over the event type so it works with both
+/// `sessionlog::TailerEvent` and the per-source tailer events.
+fn spawn_turn_consumer<E, F>(
+    db: std::sync::Arc<std::sync::Mutex<Store>>,
+    mut rx: tokio::sync::mpsc::UnboundedReceiver<E>,
+    source: &'static str,
+    into_pair: impl Fn(E) -> (std::path::PathBuf, crate::sessionlog::SessionTurn) + Send + 'static,
+    session_id_fn: F,
+) where
+    E: Send + 'static,
+    F: Fn(&std::path::Path) -> Option<String> + Send + 'static,
+{
+    let summary_db = std::sync::Arc::clone(&db);
+    tokio::spawn(async move {
+        let mut last_summary: HashMap<String, Instant> = HashMap::new();
+        let debounce = std::time::Duration::from_secs(30);
+
+        while let Some(ev) = rx.recv().await {
+            let (path, turn) = into_pair(ev);
+            let Some(session_id) = session_id_fn(&path) else { continue };
+            let record = SessionTurnRecord {
+                session_id: session_id.clone(),
+                timestamp: Utc::now(),
+                role: turn.role,
+                text: turn.text,
+                tool_names: turn.tool_names,
+                source: source.to_string(),
+            };
+            {
+                let store = db.lock().unwrap();
+                if let Err(e) = store.insert_session_turn(&record) {
+                    eprintln!("vigil: insert turn failed ({source}): {e}");
+                    continue;
+                }
+            }
+
+            let due = match last_summary.get(&session_id).copied() {
+                Some(t) => t.elapsed() >= debounce,
+                None => true,
+            };
+            if !due {
+                continue;
+            }
+            last_summary.insert(session_id.clone(), Instant::now());
+
+            let summary_db_inner = std::sync::Arc::clone(&summary_db);
+            let sid = session_id.clone();
+            tokio::spawn(async move {
+                if let Err(e) = summarizer::generate_and_cache(
+                    &summary_db_inner,
+                    &sid,
+                    Vec::new(),
+                    None,
+                )
+                .await
+                {
+                    eprintln!("vigil: summary failed for {sid} ({source}): {e}");
+                }
+            });
+        }
+    });
 }

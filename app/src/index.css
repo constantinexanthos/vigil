@@ -11,11 +11,15 @@
 body {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, system-ui, sans-serif;
   font-size: 13px;
-  background: #1C1C1E;
+  /* Solid opaque dark background — single uniform layer for all three
+     panes. Pane components don't set their own backgrounds anymore. */
+  background: #0d0d0f;
   color: #F9FAFB;
   -webkit-font-smoothing: antialiased;
   user-select: none;
 }
+
+#root { height: 100vh; }
 
 code, pre, .selectable { user-select: text; }
 img { -webkit-user-drag: none; user-drag: none; }

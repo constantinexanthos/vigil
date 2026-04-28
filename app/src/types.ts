@@ -1,3 +1,36 @@
+export type HostKind =
+  | "ghostty"
+  | "iterm2"
+  | "terminal"
+  | "warp"
+  | "kitty"
+  | "alacritty"
+  | "conductor"
+  | "cursor"
+  | "vscode"
+  | "zed"
+  | "windsurf"
+  | "unknown";
+
+export const HOST_KINDS: HostKind[] = [
+  "ghostty",
+  "iterm2",
+  "terminal",
+  "warp",
+  "kitty",
+  "alacritty",
+  "conductor",
+  "cursor",
+  "vscode",
+  "zed",
+  "windsurf",
+  "unknown",
+];
+
+export function isHostKind(v: string): v is HostKind {
+  return (HOST_KINDS as string[]).includes(v);
+}
+
 export interface AgentEvent {
   id: number;
   timestamp: string;
@@ -5,6 +38,52 @@ export interface AgentEvent {
   file_path: string | null;
   agent: string;
   diff: string | null;
+}
+
+export interface HostInfo {
+  kind: HostKind;
+  active_sessions: number;
+}
+
+export interface LiveSessionRow {
+  session_id: string;
+  host_kind: HostKind;
+  agent: string;
+  repo_path: string | null;
+  started_at: string;
+  ended_at: string;
+  model: string | null;
+  is_live: boolean;
+  description: string;
+  files_added?: number;
+  files_removed?: number;
+  cost_usd?: number;
+  confidence?: number;
+}
+
+export interface SessionTurn {
+  session_id: string;
+  timestamp: string;
+  role: string;
+  text: string;
+  tool_names: string[];
+  source: string;
+}
+
+export interface ReviewSignals {
+  confidence: number;
+  confidence_reason: string;
+  file_count: number;
+  has_tests: boolean;
+  collisions: Array<{
+    file_path: string;
+    agents: string[];
+  }>;
+}
+
+export interface CliStatus {
+  claude: boolean;
+  codex: boolean;
 }
 
 export interface Collision {
@@ -167,6 +246,13 @@ export interface SessionGroup {
   confidence: number;
   costUsd: number;
   hasWarning: boolean;
+  // NEW below:
+  hostKind: HostKind;
+  hostPid: number | null;
+  model: string | null;
+  isLive: boolean;
+  summaryPlainEnglish: string | null;
+  summaryGeneratedAt: string | null;
 }
 
 export interface ProjectGroup {
@@ -282,13 +368,19 @@ const FILE_DESCRIPTIONS: Record<string, string> = {
 };
 
 function describeFileChanges(files: SessionFile[]): string {
-  if (files.length === 0) return "Working session with no file changes";
+  if (files.length === 0) return "No files changed";
 
-  // Group files by their type description
+  // Pick the dominant action — the one that matches the most files — instead
+  // of concatenating "added and updated and removed" which reads like a robot.
+  let created = 0, modified = 0, deleted = 0;
   const groups = new Map<string, { created: number; modified: number; deleted: number }>();
   const dirs = new Set<string>();
 
   for (const f of files) {
+    if (f.kind === "file_create") created++;
+    else if (f.kind === "file_delete") deleted++;
+    else modified++;
+
     const name = f.path.split("/").pop() ?? "";
     const ext = name.includes(".") ? name.split(".").pop()!.toLowerCase() : "";
     const typeDesc = FILE_DESCRIPTIONS[ext] ?? "files";
@@ -299,13 +391,16 @@ function describeFileChanges(files: SessionFile[]): string {
     else g.modified++;
     groups.set(typeDesc, g);
 
-    // Track project areas
     const parts = f.path.split("/");
     if (parts.length >= 2) {
       const dir = parts.slice(-2, -1)[0];
       if (dir && !["src", "app", "lib", "public"].includes(dir)) dirs.add(dir);
     }
   }
+
+  const dominantVerb =
+    modified >= created && modified >= deleted ? "Updated" :
+    created >= deleted ? "Added" : "Removed";
 
   // Build natural description
   const parts: string[] = [];
@@ -316,6 +411,15 @@ function describeFileChanges(files: SessionFile[]): string {
     if (counts.deleted > 0) actions.push("removed");
     parts.push(`${actions.join(" and ")} ${type}`);
   }
+
+  // Short-circuit: if there's one dominant type + one dominant action, return
+  // a tight "Updated 3 React components" instead of building the long sentence.
+  if (groups.size === 1 && [created, modified, deleted].filter((n) => n > 0).length === 1) {
+    const [type] = [...groups.keys()];
+    const count = files.length;
+    return `${dominantVerb} ${count} ${type}`;
+  }
+  void dominantVerb;
 
   let desc = parts.length > 0
     ? parts[0].charAt(0).toUpperCase() + parts[0].slice(1) + (parts.length > 1 ? ", " + parts.slice(1).join(", ") : "")
@@ -467,6 +571,12 @@ export function groupEventsIntoSessions(
       confidence,
       costUsd,
       hasWarning,
+      hostKind: "unknown",
+      hostPid: null,
+      model: null,
+      isLive: false,
+      summaryPlainEnglish: null,
+      summaryGeneratedAt: null,
     };
   });
 
@@ -558,4 +668,69 @@ export function groupSessionsByAgent(
   });
 
   return groups;
+}
+
+/**
+ * Overlay live-session metadata (host_kind, model, is_live, plain-English
+ * description) from the daemon onto the grouped SessionGroups.
+ *
+ * Session IDs from the daemon are raw CLI session UUIDs, while SessionGroup.id
+ * is a synthetic `${agent}-${idx}-${startTime}` key, so direct id matching
+ * rarely works. Instead we correlate by (agent, repoPath, overlapping time
+ * range). The best-overlap match wins; unmatched rows and sessions are left
+ * untouched.
+ */
+export function enrichSessionsWithLiveData(
+  projects: ProjectGroup[],
+  liveSessions: LiveSessionRow[],
+): ProjectGroup[] {
+  if (liveSessions.length === 0) return projects;
+
+  const overlapMs = (aStart: number, aEnd: number, bStart: number, bEnd: number): number => {
+    return Math.max(0, Math.min(aEnd, bEnd) - Math.max(aStart, bStart));
+  };
+
+  return projects.map((project) => ({
+    ...project,
+    sessions: project.sessions.map((session) => {
+      // Fast path: direct id match (works if event session_ids get into g.id later)
+      const direct = liveSessions.find((r) => r.session_id === session.id);
+      if (direct) {
+        return {
+          ...session,
+          hostKind: direct.host_kind,
+          hostPid: null,
+          model: direct.model,
+          isLive: direct.is_live,
+          summaryPlainEnglish: direct.description || null,
+          summaryGeneratedAt: null,
+        };
+      }
+
+      // Fallback: correlate by agent + repoPath + time-range overlap
+      const sStart = new Date(session.startTime).getTime();
+      const sEnd = new Date(session.endTime).getTime();
+      let best: { row: LiveSessionRow; overlap: number } | null = null;
+      for (const row of liveSessions) {
+        if (row.agent !== session.agent) continue;
+        if (row.repo_path && session.repoPath && row.repo_path !== session.repoPath) continue;
+        const rStart = new Date(row.started_at).getTime();
+        const rEnd = new Date(row.ended_at).getTime();
+        const ov = overlapMs(sStart, sEnd, rStart, rEnd);
+        if (ov > 0 && (!best || ov > best.overlap)) {
+          best = { row, overlap: ov };
+        }
+      }
+      if (!best) return session;
+      return {
+        ...session,
+        hostKind: best.row.host_kind,
+        hostPid: null,
+        model: best.row.model,
+        isLive: best.row.is_live,
+        summaryPlainEnglish: best.row.description || null,
+        summaryGeneratedAt: null,
+      };
+    }),
+  }));
 }

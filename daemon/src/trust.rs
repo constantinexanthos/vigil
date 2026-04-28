@@ -235,6 +235,9 @@ mod tests {
             branch: None,
             diff: diff.map(|s| s.to_string()),
             metadata: None,
+            host_kind: None,
+            model: None,
+            is_live: false,
         }
     }
 

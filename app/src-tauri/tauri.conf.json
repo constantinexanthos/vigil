@@ -17,14 +17,18 @@
     },
     "windows": [
       {
-        "title": "Vigil",
-        "width": 900,
-        "height": 700,
-        "minWidth": 500,
-        "minHeight": 400,
+        "title": "",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 1024,
+        "minHeight": 640,
         "resizable": true,
         "decorations": true,
-        "visible": true
+        "visible": true,
+        "transparent": false,
+        "titleBarStyle": "Transparent",
+        "hiddenTitle": true,
+        "backgroundColor": "#0d0d0f"
       }
     ],
     "security": {
