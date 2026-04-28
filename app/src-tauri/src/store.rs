@@ -23,6 +23,13 @@ impl Store {
         Ok(Self { conn })
     }
 
+    /// Construct a Store wrapping an existing connection. Used by tests so
+    /// they can populate an in-memory DB and exercise the query layer.
+    #[cfg(test)]
+    pub fn from_conn(conn: Connection) -> Self {
+        Self { conn }
+    }
+
     /// Agents with events in the last 10 minutes.
     pub fn query_active_agents(&self) -> Result<Vec<String>> {
         let mut stmt = self.conn.prepare(
@@ -333,26 +340,47 @@ impl Store {
         rows.collect()
     }
 
-    /// Live sessions with events in the last N minutes. Joins session_summaries for the
-    /// description text. Returns one row per session_id.
+    /// Live sessions with activity in the last N minutes. UNIONs the events
+    /// table (file watcher + JSONL synthetic session_seen rows) with the
+    /// session_turns table (raw JSONL turn captures) so a session shows up if
+    /// either source has it within the window. When both exist, fields from
+    /// the events row win — it carries the richer host/agent/repo/model
+    /// metadata; session_turns rows contribute NULL placeholders.
     pub fn query_live_sessions(&self, since_minutes: i64) -> Result<Vec<LiveSessionRow>> {
         let since = format!("-{since_minutes} minutes");
         let mut stmt = self.conn.prepare(
-            "SELECT \
-                e.session_id, \
-                COALESCE(MAX(e.host_kind), 'unknown') AS host_kind, \
-                MAX(e.agent) AS agent, \
-                MAX(e.repo_path) AS repo_path, \
-                MIN(e.timestamp) AS started_at, \
-                MAX(e.timestamp) AS ended_at, \
-                MAX(e.model) AS model, \
-                MAX(e.is_live) AS is_live, \
+            "WITH s AS ( \
+                SELECT session_id, host_kind, agent, repo_path, timestamp, model, is_live \
+                FROM events \
+                WHERE timestamp >= datetime('now', ?1) AND session_id IS NOT NULL \
+                UNION ALL \
+                SELECT session_id, \
+                       NULL AS host_kind, \
+                       CASE source \
+                            WHEN 'cursor' THEN 'cursor' \
+                            WHEN 'codex'  THEN 'codex' \
+                            ELSE 'claude-code' \
+                       END AS agent, \
+                       NULL AS repo_path, \
+                       timestamp, \
+                       NULL AS model, \
+                       0 AS is_live \
+                FROM session_turns \
+                WHERE timestamp >= datetime('now', ?1) AND session_id IS NOT NULL \
+            ) \
+            SELECT \
+                s.session_id, \
+                COALESCE(MAX(s.host_kind), 'unknown') AS host_kind, \
+                MAX(s.agent) AS agent, \
+                MAX(s.repo_path) AS repo_path, \
+                MIN(s.timestamp) AS started_at, \
+                MAX(s.timestamp) AS ended_at, \
+                MAX(s.model) AS model, \
+                MAX(s.is_live) AS is_live, \
                 COALESCE(MAX(ss.text), '') AS description \
-             FROM events e \
-             LEFT JOIN session_summaries ss ON ss.session_id = e.session_id \
-             WHERE e.timestamp >= datetime('now', ?1) \
-               AND e.session_id IS NOT NULL \
-             GROUP BY e.session_id \
+             FROM s \
+             LEFT JOIN session_summaries ss ON ss.session_id = s.session_id \
+             GROUP BY s.session_id \
              ORDER BY ended_at DESC",
         )?;
         let rows = stmt.query_map(params![since], |row| {
@@ -821,5 +849,131 @@ impl Store {
             has_tests,
             collisions,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusqlite::Connection;
+
+    /// Build an in-memory database with the minimum schema the store reads.
+    /// Mirrors the daemon's CREATE TABLE statements but only for the columns
+    /// these tests exercise.
+    fn test_db() -> Store {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "
+            CREATE TABLE events (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp   TEXT NOT NULL,
+                kind        TEXT NOT NULL,
+                file_path   TEXT,
+                agent       TEXT NOT NULL,
+                session_id  TEXT,
+                repo_path   TEXT,
+                branch      TEXT,
+                diff        TEXT,
+                metadata    TEXT,
+                host_kind   TEXT,
+                model       TEXT,
+                is_live     INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE TABLE session_turns (
+                id          INTEGER PRIMARY KEY,
+                session_id  TEXT NOT NULL,
+                timestamp   TEXT NOT NULL,
+                role        TEXT NOT NULL,
+                text        TEXT NOT NULL,
+                tool_names  TEXT NOT NULL DEFAULT '[]',
+                source      TEXT NOT NULL DEFAULT 'claude'
+            );
+            CREATE TABLE session_summaries (
+                session_id   TEXT PRIMARY KEY,
+                text         TEXT NOT NULL,
+                generated_at TEXT NOT NULL,
+                backend      TEXT NOT NULL
+            );
+            ",
+        )
+        .unwrap();
+        Store::from_conn(conn)
+    }
+
+    fn now_iso() -> String {
+        chrono::Utc::now().to_rfc3339()
+    }
+
+    #[test]
+    fn live_sessions_surfaces_session_only_in_session_turns() {
+        let store = test_db();
+        let now = now_iso();
+        // Session present ONLY in session_turns — never written into events.
+        // Pre-fix this would never appear in the rail.
+        store
+            .conn
+            .execute(
+                "INSERT INTO session_turns (session_id, timestamp, role, text, source) \
+                 VALUES (?1, ?2, 'user', 'hello', 'claude')",
+                params!["session-only-in-turns", now],
+            )
+            .unwrap();
+
+        let rows = store.query_live_sessions(60).unwrap();
+        assert!(
+            rows.iter().any(|r| r.session_id == "session-only-in-turns"),
+            "session present only in session_turns must surface; got {:?}",
+            rows.iter().map(|r| &r.session_id).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn live_sessions_prefers_events_when_both_exist() {
+        let store = test_db();
+        let now = now_iso();
+        let sid = "shared-session";
+        // events row carries the rich metadata.
+        store
+            .conn
+            .execute(
+                "INSERT INTO events (timestamp, kind, agent, session_id, repo_path, host_kind, model, is_live) \
+                 VALUES (?1, 'session_seen', 'claude-code', ?2, '/Users/me/repos/widget', 'iterm2', 'claude-opus-4-7', 1)",
+                params![now, sid],
+            )
+            .unwrap();
+        // session_turns row exists too — should NOT override events fields.
+        store
+            .conn
+            .execute(
+                "INSERT INTO session_turns (session_id, timestamp, role, text, source) \
+                 VALUES (?1, ?2, 'user', 'first prompt', 'claude')",
+                params![sid, now],
+            )
+            .unwrap();
+
+        let rows = store.query_live_sessions(60).unwrap();
+        let row = rows.iter().find(|r| r.session_id == sid).expect("must surface");
+        assert_eq!(row.host_kind, "iterm2", "events host_kind must win");
+        assert_eq!(row.repo_path.as_deref(), Some("/Users/me/repos/widget"));
+        assert_eq!(row.model.as_deref(), Some("claude-opus-4-7"));
+        assert!(row.is_live);
+    }
+
+    #[test]
+    fn live_sessions_excludes_old_session_turns() {
+        let store = test_db();
+        // 2 hours old — outside the 60 minute window.
+        let old = (chrono::Utc::now() - chrono::Duration::hours(2)).to_rfc3339();
+        store
+            .conn
+            .execute(
+                "INSERT INTO session_turns (session_id, timestamp, role, text, source) \
+                 VALUES ('stale', ?1, 'user', 'old', 'claude')",
+                params![old],
+            )
+            .unwrap();
+
+        let rows = store.query_live_sessions(60).unwrap();
+        assert!(rows.iter().all(|r| r.session_id != "stale"));
     }
 }

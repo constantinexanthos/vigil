@@ -44,6 +44,21 @@ pub fn parse_line(line: &str) -> Option<JsonlLine> {
     serde_json::from_str::<JsonlLine>(line).ok()
 }
 
+/// Decode a Claude project folder name back to the absolute cwd it was launched
+/// from. Claude Code stores transcripts at
+/// `~/.claude/projects/<encoded-cwd>/<session-id>.jsonl`, where `<encoded-cwd>`
+/// replaces every `/` with `-`. So `-Users-costa-repos-vigil` → `/Users/costa/repos/vigil`.
+///
+/// Returns `None` if the parent folder doesn't exist or doesn't start with `-`
+/// (i.e. isn't a Claude-encoded project directory).
+pub fn decode_cwd_from_jsonl_path(jsonl_path: &Path) -> Option<PathBuf> {
+    let folder = jsonl_path.parent()?.file_name()?.to_str()?;
+    if !folder.starts_with('-') {
+        return None;
+    }
+    Some(PathBuf::from(folder.replace('-', "/")))
+}
+
 pub fn condense(line: &JsonlLine) -> Option<SessionTurn> {
     let msg = line.message.as_ref()?;
     let role = msg.role.clone().unwrap_or_else(|| "unknown".to_string());
@@ -183,6 +198,35 @@ mod tests {
     fn parse_line_rejects_invalid_json() {
         assert!(parse_line("not json").is_none());
         assert!(parse_line("").is_none());
+    }
+
+    #[test]
+    fn decode_cwd_from_typical_jsonl_path() {
+        let p = Path::new("/Users/costa/.claude/projects/-Users-costa-repos-vigil/abc-123.jsonl");
+        let cwd = decode_cwd_from_jsonl_path(p).expect("should decode");
+        assert_eq!(cwd, PathBuf::from("/Users/costa/repos/vigil"));
+    }
+
+    #[test]
+    fn decode_cwd_handles_deep_paths() {
+        let p = Path::new("/Users/me/.claude/projects/-Users-me-work-acme-api/xyz.jsonl");
+        let cwd = decode_cwd_from_jsonl_path(p).expect("should decode");
+        assert_eq!(cwd, PathBuf::from("/Users/me/work/acme/api"));
+    }
+
+    #[test]
+    fn decode_cwd_returns_none_when_no_parent_folder() {
+        // No parent folder (just the projects root with a stray jsonl).
+        let p = Path::new("/Users/me/.claude/projects/abc.jsonl");
+        // The parent is "projects" — does not start with '-', so not a Claude project encoding.
+        assert!(decode_cwd_from_jsonl_path(p).is_none());
+    }
+
+    #[test]
+    fn decode_cwd_returns_none_for_root_only_path() {
+        // Edge: path with no folder component.
+        let p = Path::new("/abc.jsonl");
+        assert!(decode_cwd_from_jsonl_path(p).is_none());
     }
 
     use std::io::Write;
