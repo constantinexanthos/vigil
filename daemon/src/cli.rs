@@ -470,6 +470,13 @@ pub async fn run_watch(dirs: Vec<PathBuf>) {
 
     // Main file event loop.
     while let Some(fs_event) = fs_rx.recv().await {
+        // Skip noise paths so a broad watch dir (e.g. $HOME) doesn't pollute
+        // the session list with macOS Library churn, package-manager caches,
+        // build artifacts, etc.
+        if is_noise_path(&fs_event.path) {
+            continue;
+        }
+
         let agent = {
             let s = scanner.lock().unwrap();
             let active = s.active_agents();
@@ -507,6 +514,56 @@ pub async fn run_watch(dirs: Vec<PathBuf>) {
             }
         }
     }
+}
+
+/// Filter out file events that are pure noise — macOS internals, package
+/// manager caches, build artifacts, hidden-config writes — so accidentally
+/// pointing the daemon at a broad watch dir (`~`) doesn't fill the rail with
+/// junk like `com.apple.spotlight` or `node_modules` churn.
+fn is_noise_path(path: &std::path::Path) -> bool {
+    let s = path.to_string_lossy();
+    const NOISE_SEGMENTS: &[&str] = &[
+        "/Library/",
+        "/Caches/",
+        "/.cache/",
+        "/.Trash/",
+        "/.DS_Store",
+        "/.git/",
+        "/.vigil/",
+        "/.claude/",
+        "/.cursor/",
+        "/.codex/",
+        "/.npm/",
+        "/.pnpm/",
+        "/.cargo/",
+        "/.rustup/",
+        "/.docker/",
+        "/node_modules/",
+        "/target/",
+        "/dist/",
+        "/build/",
+        "/.next/",
+        "/.nuxt/",
+        "/.svelte-kit/",
+        "/.parcel-cache/",
+        "/.turbo/",
+        "/__pycache__/",
+        "/.venv/",
+        "/venv/",
+    ];
+    if NOISE_SEGMENTS.iter().any(|seg| s.contains(seg)) {
+        return true;
+    }
+    // Hidden files at any level (filenames starting with a dot, after the
+    // last slash). Lets e.g. `~/projects/foo/.eslintrc` still pass — many
+    // dot-files are real config users care about — but blocks things like
+    // editor swap files (`.foo.swp`) caught by the file watcher.
+    if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+        if name.ends_with(".swp") || name.ends_with(".swo") || name.ends_with("~") {
+            return true;
+        }
+    }
+    false
 }
 
 /// Handle a hook event from a coding agent.
