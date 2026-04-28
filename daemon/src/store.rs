@@ -11,6 +11,10 @@ pub enum EventKind {
     GitCommit,
     GitBranchCreate,
     GitWorktreeCreate,
+    /// Synthetic event emitted by the JSONL tailer when a session is first
+    /// seen, regardless of whether the file watcher is watching that project.
+    /// Lets `query_live_sessions` surface sessions in unwatched directories.
+    SessionSeen,
 }
 
 impl EventKind {
@@ -22,6 +26,7 @@ impl EventKind {
             Self::GitCommit => "git_commit",
             Self::GitBranchCreate => "git_branch_create",
             Self::GitWorktreeCreate => "git_worktree_create",
+            Self::SessionSeen => "session_seen",
         }
     }
 
@@ -33,6 +38,7 @@ impl EventKind {
             "git_commit" => Some(Self::GitCommit),
             "git_branch_create" => Some(Self::GitBranchCreate),
             "git_worktree_create" => Some(Self::GitWorktreeCreate),
+            "session_seen" => Some(Self::SessionSeen),
             _ => None,
         }
     }
