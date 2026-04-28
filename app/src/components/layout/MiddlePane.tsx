@@ -26,7 +26,7 @@ export function MiddlePane({ session, hasCli, summary, turns }: Props) {
           className="w-3 h-3 rounded-full bg-white/25 mb-4 animate-pulse-alive"
         />
         <div className="text-title text-white/75 mb-1">No agents active</div>
-        <div className="text-[12px] text-white/45 leading-relaxed max-w-[280px]">
+        <div className="text-sm text-white/45 leading-relaxed max-w-[280px]">
           Vigil will light up when you start Claude Code, Cursor, or Codex in a terminal.
         </div>
       </div>

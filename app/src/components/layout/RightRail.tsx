@@ -25,7 +25,7 @@ export function RightRail({ session, reviewSignals }: Props) {
       <nav
         role="tablist"
         aria-label="Session details"
-        className="px-5 py-3.5 flex gap-5 text-[12px]"
+        className="px-5 py-3.5 flex gap-5 text-sm"
       >
         {TABS.map((t) => (
           <TabButton
@@ -39,7 +39,7 @@ export function RightRail({ session, reviewSignals }: Props) {
               <span className="ml-1.5 text-white/35 tabular-nums">{fileCount}</span>
             ) : null}
             {t.id === "review" && reviewSignalCount > 0 ? (
-              <span className="ml-1.5 inline-flex items-center justify-center bg-bad text-white text-[9px] rounded-full min-w-[14px] h-[14px] px-1 tabular-nums">
+              <span className="ml-1.5 inline-flex items-center justify-center bg-bad text-white text-label rounded-full min-w-[14px] h-[14px] px-1 tabular-nums">
                 {reviewSignalCount}
               </span>
             ) : null}
@@ -48,7 +48,7 @@ export function RightRail({ session, reviewSignals }: Props) {
       </nav>
 
       {!session && (
-        <div className="px-5 py-4 text-[12px] text-white/45">
+        <div className="px-5 py-4 text-sm text-white/45">
           Pick a session to see its files and review signals.
         </div>
       )}

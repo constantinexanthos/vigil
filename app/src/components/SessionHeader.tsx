@@ -17,8 +17,8 @@ export function SessionHeader({ session }: Props) {
   return (
     <div className="px-5 py-3.5 border-b border-white/5 flex items-center justify-between gap-3">
       <div className="min-w-0">
-        <div className="text-[14px] text-white font-semibold truncate">{session.description || "Session"}</div>
-        <div className="text-[11px] text-white/50 font-mono mt-0.5 truncate">
+        <div className="text-title text-white truncate">{session.description || "Session"}</div>
+        <div className="text-xs text-white/50 font-mono mt-0.5 truncate">
           {session.repoPath ? `${repoName(session.repoPath)} · ` : ""}
           {token.label} · {elapsed}
         </div>
@@ -37,11 +37,11 @@ export function SessionHeader({ session }: Props) {
               className="w-1.5 h-1.5 rounded-full animate-pulse-alive"
               style={{ background: token.color }}
             />
-            <span className="text-[11px] text-white/75">Running</span>
+            <span className="text-xs text-white/75">Running</span>
           </motion.div>
         ) : (
           <div className="rounded-full px-2.5 py-1 bg-white/5">
-            <span className="text-[11px] text-white/55">Closed · {relativeTime(session.endTime)}</span>
+            <span className="text-xs text-white/55">Closed · {relativeTime(session.endTime)}</span>
           </div>
         )}
       </div>
