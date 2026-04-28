@@ -25,9 +25,10 @@
         "resizable": true,
         "decorations": true,
         "visible": true,
-        "transparent": true,
+        "transparent": false,
         "titleBarStyle": "Transparent",
-        "hiddenTitle": true
+        "hiddenTitle": true,
+        "backgroundColor": "#0d0d0f"
       }
     ],
     "security": {
