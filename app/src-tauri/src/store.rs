@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection, Result};
 use std::path::{Path, PathBuf};
 
@@ -310,6 +311,117 @@ impl Store {
         })
     }
 
+    /// Distinct host_kind values with active session counts over the last N minutes.
+    /// Rows with NULL host_kind are reported as "unknown".
+    pub fn query_hosts(&self, since_minutes: i64) -> Result<Vec<HostRow>> {
+        let since = format!("-{since_minutes} minutes");
+        let mut stmt = self.conn.prepare(
+            "SELECT COALESCE(host_kind, 'unknown') AS hk, \
+                    COUNT(DISTINCT COALESCE(session_id, '')) AS n \
+             FROM events \
+             WHERE timestamp >= datetime('now', ?1) \
+               AND COALESCE(session_id, '') != '' \
+             GROUP BY hk \
+             ORDER BY n DESC",
+        )?;
+        let rows = stmt.query_map(params![since], |row| {
+            Ok(HostRow {
+                kind: row.get::<_, String>(0)?,
+                active_sessions: row.get::<_, i64>(1)? as u32,
+            })
+        })?;
+        rows.collect()
+    }
+
+    /// Live sessions with events in the last N minutes. Joins session_summaries for the
+    /// description text. Returns one row per session_id.
+    pub fn query_live_sessions(&self, since_minutes: i64) -> Result<Vec<LiveSessionRow>> {
+        let since = format!("-{since_minutes} minutes");
+        let mut stmt = self.conn.prepare(
+            "SELECT \
+                e.session_id, \
+                COALESCE(MAX(e.host_kind), 'unknown') AS host_kind, \
+                MAX(e.agent) AS agent, \
+                MAX(e.repo_path) AS repo_path, \
+                MIN(e.timestamp) AS started_at, \
+                MAX(e.timestamp) AS ended_at, \
+                MAX(e.model) AS model, \
+                MAX(e.is_live) AS is_live, \
+                COALESCE(MAX(ss.text), '') AS description \
+             FROM events e \
+             LEFT JOIN session_summaries ss ON ss.session_id = e.session_id \
+             WHERE e.timestamp >= datetime('now', ?1) \
+               AND e.session_id IS NOT NULL \
+             GROUP BY e.session_id \
+             ORDER BY ended_at DESC",
+        )?;
+        let rows = stmt.query_map(params![since], |row| {
+            let is_live: i64 = row.get::<_, Option<i64>>(7)?.unwrap_or(0);
+            Ok(LiveSessionRow {
+                session_id: row.get::<_, String>(0)?,
+                host_kind: row.get::<_, String>(1)?,
+                agent: row.get::<_, String>(2)?,
+                repo_path: row.get::<_, Option<String>>(3)?,
+                started_at: row.get::<_, String>(4)?,
+                ended_at: row.get::<_, String>(5)?,
+                model: row.get::<_, Option<String>>(6)?,
+                is_live: is_live != 0,
+                description: row.get::<_, String>(8)?,
+                files_added: 0,
+                files_removed: 0,
+                cost_usd: 0.0,
+                confidence: 0,
+            })
+        })?;
+        rows.collect()
+    }
+
+    /// Fetch the cached summary row for a session, if present.
+    /// Returns (text, generated_at, backend).
+    pub fn query_summary(
+        &self,
+        session_id: &str,
+    ) -> Result<Option<(String, String, String)>> {
+        let row: Result<(String, String, String)> = self.conn.query_row(
+            "SELECT text, generated_at, backend FROM session_summaries WHERE session_id = ?1",
+            params![session_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        );
+        match row {
+            Ok(tup) => Ok(Some(tup)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Retrieve the most recent `limit` turns for a session, ordered ascending by insertion.
+    /// Mirrors the daemon's `store::recent_turns`.
+    pub fn recent_turns(&self, session_id: &str, limit: i64) -> Result<Vec<SessionTurnRecord>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT session_id, timestamp, role, text, tool_names, source \
+             FROM session_turns WHERE session_id = ?1 \
+             ORDER BY id DESC LIMIT ?2",
+        )?;
+        let rows = stmt.query_map(params![session_id, limit], |row| {
+            let ts_str: String = row.get(1)?;
+            let tn_str: String = row.get(4)?;
+            let tool_names: Vec<String> = serde_json::from_str(&tn_str).unwrap_or_default();
+            Ok(SessionTurnRecord {
+                session_id: row.get(0)?,
+                timestamp: DateTime::parse_from_rfc3339(&ts_str)
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .unwrap_or_else(|_| Utc::now()),
+                role: row.get(2)?,
+                text: row.get(3)?,
+                tool_names,
+                source: row.get(5)?,
+            })
+        })?;
+        let mut out: Vec<SessionTurnRecord> = rows.filter_map(Result::ok).collect();
+        out.reverse(); // ascending by insertion
+        Ok(out)
+    }
+
     /// Query pull requests from the pull_requests table.
     pub fn query_pull_requests(&self, repo_path: Option<&str>) -> Result<Vec<PrRow>> {
         let table_exists: bool = self.conn.query_row(
@@ -440,6 +552,39 @@ pub struct AgentCommitCount {
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
+pub struct HostRow {
+    pub kind: String,
+    pub active_sessions: u32,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct LiveSessionRow {
+    pub session_id: String,
+    pub host_kind: String,
+    pub agent: String,
+    pub repo_path: Option<String>,
+    pub started_at: String,
+    pub ended_at: String,
+    pub model: Option<String>,
+    pub is_live: bool,
+    pub description: String,
+    pub files_added: u32,
+    pub files_removed: u32,
+    pub cost_usd: f64,
+    pub confidence: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct SessionTurnRecord {
+    pub session_id: String,
+    pub timestamp: DateTime<Utc>,
+    pub role: String,
+    pub text: String,
+    pub tool_names: Vec<String>,
+    pub source: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct PrRow {
     pub pr_number: u32,
     pub branch: Option<String>,
@@ -501,6 +646,15 @@ pub struct AlertRow {
 pub struct HotspotRow {
     pub file_path: String,
     pub agents: Vec<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ReviewSignalsRow {
+    pub confidence: u32,
+    pub confidence_reason: String,
+    pub file_count: u32,
+    pub has_tests: bool,
+    pub collisions: Vec<CollisionRow>,
 }
 
 impl Store {
@@ -615,6 +769,57 @@ impl Store {
             active_session_count, total_events_1h, total_cost_1h, burn_rate_per_min,
             burn_rate_partial: partial, cost_tracked_agents: cost_tracked,
             agents, alerts, hotspots,
+        })
+    }
+
+    /// Session-scoped review signals: simple-heuristic confidence + reason +
+    /// file_count + has_tests + per-session collisions. Shaped for the
+    /// right-rail Review tab.
+    pub fn query_session_review(&self, session_id: &str) -> Result<ReviewSignalsRow> {
+        let mut file_stmt = self.conn.prepare(
+            "SELECT DISTINCT file_path FROM events \
+             WHERE session_id = ?1 AND file_path IS NOT NULL \
+               AND kind IN ('file_create', 'file_modify')",
+        )?;
+        let files: Vec<String> = file_stmt
+            .query_map(params![session_id], |row| row.get::<_, String>(0))?
+            .filter_map(Result::ok)
+            .collect();
+        let file_count = files.len() as u32;
+
+        let has_tests = files.iter().any(|f| {
+            let lower = f.to_lowercase();
+            lower.contains("test") || lower.contains("spec")
+                || lower.ends_with(".test.ts") || lower.ends_with(".test.tsx")
+                || lower.ends_with("_test.rs") || lower.ends_with("_test.go")
+                || lower.ends_with("_test.py")
+        });
+
+        let (confidence, confidence_reason) = if file_count == 0 {
+            (50, "No files changed yet.".to_string())
+        } else if file_count <= 5 {
+            (85, format!("Small focused change — {file_count} file(s) touched."))
+        } else if file_count <= 15 {
+            (70, format!("Medium scope — {file_count} files touched."))
+        } else {
+            (50, format!("Large change — {file_count} files touched. Harder to review."))
+        };
+
+        // Per-session collisions: files from this session that appear in the
+        // global 5-minute collision window.
+        let collisions_all = self.query_collisions()?;
+        let this_files: std::collections::HashSet<&str> = files.iter().map(String::as_str).collect();
+        let collisions: Vec<CollisionRow> = collisions_all
+            .into_iter()
+            .filter(|c| this_files.contains(c.file_path.as_str()))
+            .collect();
+
+        Ok(ReviewSignalsRow {
+            confidence,
+            confidence_reason,
+            file_count,
+            has_tests,
+            collisions,
         })
     }
 }

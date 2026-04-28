@@ -251,6 +251,9 @@ mod tests {
             branch: None,
             diff: None,
             metadata: None,
+            host_kind: None,
+            model: None,
+            is_live: false,
         }
     }
 
