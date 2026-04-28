@@ -8,7 +8,7 @@ interface Props {
 export function ReviewPanel({ signals }: Props) {
   if (!signals) {
     return (
-      <div className="px-4 py-5 text-[12px] text-white/45">
+      <div className="px-4 py-5 text-sm text-white/45">
         Analyzing…
       </div>
     );
@@ -19,8 +19,8 @@ export function ReviewPanel({ signals }: Props) {
       <div className="flex items-center gap-3 pb-3 border-b border-white/5 mb-3">
         <ConfidenceDonut score={signals.confidence} />
         <div className="min-w-0">
-          <div className="text-[12px] text-white/85 font-semibold">Confidence</div>
-          <div className="text-[11px] text-white/55 mt-0.5 leading-snug">
+          <div className="text-sm text-white/85 font-semibold">Confidence</div>
+          <div className="text-xs text-white/55 mt-0.5 leading-snug">
             {signals.confidence_reason}
           </div>
         </div>
@@ -33,7 +33,7 @@ export function ReviewPanel({ signals }: Props) {
               key={c.file_path}
               className="bg-bad/8 border-l-2 border-bad rounded-sm px-3 py-2"
             >
-              <div className="text-[11px] font-semibold text-red-200 flex items-center gap-1.5">
+              <div className="text-xs font-semibold text-red-200 flex items-center gap-1.5">
                 <span aria-hidden>▲</span>
                 <span>Collision · {c.agents.length} agents on <span className="font-mono">{c.file_path}</span></span>
               </div>
@@ -45,7 +45,7 @@ export function ReviewPanel({ signals }: Props) {
         </div>
       )}
 
-      <div className="text-[11px] text-white/45 pt-2 border-t border-white/5 flex flex-wrap gap-x-3 gap-y-1">
+      <div className="text-xs text-white/45 pt-2 border-t border-white/5 flex flex-wrap gap-x-3 gap-y-1">
         <span>{signals.file_count} files</span>
         {signals.has_tests && <span>✓ tests added</span>}
         {signals.collisions.length === 0 && <span>✓ no collisions</span>}

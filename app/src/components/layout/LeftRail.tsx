@@ -18,7 +18,7 @@ export function LeftRail({ sessions }: Props) {
   return (
     <aside className="h-full flex flex-col overflow-y-auto pt-3.5 pb-3">
       {groups.length === 0 && (
-        <div className="px-4 py-6 text-[12px] text-white/45">
+        <div className="px-4 py-6 text-sm text-white/45">
           No agent activity yet. Start a session in a supported host to see it appear here.
         </div>
       )}
@@ -35,7 +35,7 @@ export function LeftRail({ sessions }: Props) {
 
       {idleHosts.length > 0 && (
         <div className="mt-auto px-4 pt-4 pb-1">
-          <div className="text-[10px] text-white/30 leading-relaxed">
+          <div className="text-stat text-white/30 leading-relaxed">
             Watching {idleHosts.map((k) => hostToken(k).label).join(" · ")}
           </div>
         </div>

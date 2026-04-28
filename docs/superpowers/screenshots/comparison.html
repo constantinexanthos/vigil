@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Vigil glyphs — before / after</title>
+  <style>
+    body {
+      font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+      background: #0d0d0f;
+      color: #f9fafb;
+      margin: 0;
+      padding: 32px;
+    }
+    h1 { font-size: 14px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.55; margin: 0 0 24px 0; }
+    h2 { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.4; margin: 24px 0 8px 0; }
+    .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+    .panel { background: rgba(255,255,255,0.025); border-radius: 8px; padding: 18px 14px; }
+    .header { display: flex; align-items: center; gap: 8px; padding: 4px 6px; opacity: 0.85; }
+    .header .label { font-size: 12px; font-weight: 600; }
+    .header .count { font-size: 10px; opacity: 0.4; margin-left: auto; }
+    .row { display: flex; flex-direction: column; gap: 0; padding: 4px 0 4px 14px; }
+    .session { padding: 8px 10px; border-radius: 6px; }
+    .session:hover { background: rgba(255,255,255,0.03); }
+    .session.selected { background: rgba(0,217,255,0.10); border-left: 2px solid #00d9ff; padding-left: 8px; }
+    .session-title { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+    .session-meta { font-size: 11px; opacity: 0.5; padding-left: 18px; margin-top: 2px; font-family: "SF Mono", monospace; }
+    .dot { width: 6px; height: 6px; border-radius: 999px; }
+    .glyph { width: 14px; height: 14px; }
+  </style>
+</head>
+<body>
+  <h1>Left rail — before · after</h1>
+
+  <div class="pair">
+
+    <div>
+      <h2>Before — colored dots</h2>
+      <div class="panel">
+        <div class="header">
+          <span class="dot" style="background: #d97757; box-shadow: 0 0 8px #d97757;"></span>
+          <span class="label">Claude Code</span>
+          <span class="count">3</span>
+        </div>
+        <div class="row">
+          <div class="session selected">
+            <div class="session-title"><span style="opacity:0.5">·</span><span>Refactoring app/src/components/HostGroup.tsx</span></div>
+            <div class="session-meta">claude-code · vigil/app</div>
+          </div>
+          <div class="session">
+            <div class="session-title"><span style="opacity:0.5">·</span><span>Reading docs/superpowers/specs</span></div>
+            <div class="session-meta">claude-code · vigil/docs</div>
+          </div>
+          <div class="session">
+            <div class="session-title"><span style="opacity:0.5">·</span><span>Updating Cargo.toml</span></div>
+            <div class="session-meta">claude-code · vigil/daemon</div>
+          </div>
+        </div>
+
+        <div class="header" style="margin-top: 12px;">
+          <span class="dot" style="background: #a78bfa; box-shadow: 0 0 8px #a78bfa;"></span>
+          <span class="label">Conductor</span>
+          <span class="count">2</span>
+        </div>
+        <div class="row">
+          <div class="session">
+            <div class="session-title"><span style="opacity:0.5">·</span><span>Spinning up worktrees</span></div>
+            <div class="session-meta">conductor · vigil</div>
+          </div>
+          <div class="session">
+            <div class="session-title"><span style="opacity:0.5">·</span><span>Promoting branch</span></div>
+            <div class="session-meta">conductor · vigil</div>
+          </div>
+        </div>
+
+        <div class="header" style="margin-top: 12px;">
+          <span class="dot" style="background: #00d9ff; box-shadow: 0 0 8px #00d9ff;"></span>
+          <span class="label">Cursor</span>
+          <span class="count">1</span>
+        </div>
+        <div class="row">
+          <div class="session">
+            <div class="session-title"><span style="opacity:0.5">·</span><span>Editing daemon/src/digest.rs</span></div>
+            <div class="session-meta">cursor · vigil/daemon</div>
+          </div>
+        </div>
+
+        <div class="header" style="margin-top: 12px;">
+          <span class="dot" style="background: #f472b6; box-shadow: 0 0 8px #f472b6;"></span>
+          <span class="label">Codex</span>
+          <span class="count">1</span>
+        </div>
+        <div class="row">
+          <div class="session">
+            <div class="session-title"><span style="opacity:0.5">·</span><span>Sketching review-panel API</span></div>
+            <div class="session-meta">codex · vigil/app</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <h2>After — branded glyphs</h2>
+      <div class="panel">
+        <div class="header">
+          <svg class="glyph" viewBox="0 0 24 24" fill="none" aria-label="Claude Code">
+            <g stroke="#d97757" stroke-width="2.4" stroke-linecap="round">
+              <line x1="12" y1="3"  x2="12" y2="21"/>
+              <line x1="4.2" y1="7.5"  x2="19.8" y2="16.5"/>
+              <line x1="4.2" y1="16.5" x2="19.8" y2="7.5"/>
+            </g>
+            <circle cx="12" cy="12" r="2.2" fill="#d97757"/>
+          </svg>
+          <span class="label">Claude Code</span>
+          <span class="count">3</span>
+        </div>
+        <div class="row">
+          <div class="session selected">
+            <div class="session-title">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                <g stroke="#d97757" stroke-width="2.6" stroke-linecap="round">
+                  <line x1="12" y1="3"  x2="12" y2="21"/>
+                  <line x1="4.2" y1="7.5"  x2="19.8" y2="16.5"/>
+                  <line x1="4.2" y1="16.5" x2="19.8" y2="7.5"/>
+                </g>
+              </svg>
+              <span>Refactoring app/src/components/HostGroup.tsx</span>
+            </div>
+            <div class="session-meta">claude-code · vigil/app</div>
+          </div>
+          <div class="session">
+            <div class="session-title">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                <g stroke="#d97757" stroke-width="2.6" stroke-linecap="round">
+                  <line x1="12" y1="3"  x2="12" y2="21"/>
+                  <line x1="4.2" y1="7.5"  x2="19.8" y2="16.5"/>
+                  <line x1="4.2" y1="16.5" x2="19.8" y2="7.5"/>
+                </g>
+              </svg>
+              <span>Reading docs/superpowers/specs</span>
+            </div>
+            <div class="session-meta">claude-code · vigil/docs</div>
+          </div>
+          <div class="session">
+            <div class="session-title">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                <g stroke="#d97757" stroke-width="2.6" stroke-linecap="round">
+                  <line x1="12" y1="3"  x2="12" y2="21"/>
+                  <line x1="4.2" y1="7.5"  x2="19.8" y2="16.5"/>
+                  <line x1="4.2" y1="16.5" x2="19.8" y2="7.5"/>
+                </g>
+              </svg>
+              <span>Updating Cargo.toml</span>
+            </div>
+            <div class="session-meta">claude-code · vigil/daemon</div>
+          </div>
+        </div>
+
+        <div class="header" style="margin-top: 12px;">
+          <svg class="glyph" viewBox="0 0 24 24" fill="none" aria-label="Conductor">
+            <path d="M19.5 7.5 A8 8 0 1 0 19.5 16.5" stroke="#a78bfa" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+            <circle cx="19.5" cy="7.5" r="1.4" fill="#a78bfa"/>
+            <circle cx="19.5" cy="16.5" r="1.4" fill="#a78bfa"/>
+          </svg>
+          <span class="label">Conductor</span>
+          <span class="count">2</span>
+        </div>
+        <div class="row">
+          <div class="session">
+            <div class="session-title">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                <path d="M19.5 7.5 A8 8 0 1 0 19.5 16.5" stroke="#a78bfa" stroke-width="3" stroke-linecap="round" fill="none"/>
+              </svg>
+              <span>Spinning up worktrees</span>
+            </div>
+            <div class="session-meta">conductor · vigil</div>
+          </div>
+          <div class="session">
+            <div class="session-title">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                <path d="M19.5 7.5 A8 8 0 1 0 19.5 16.5" stroke="#a78bfa" stroke-width="3" stroke-linecap="round" fill="none"/>
+              </svg>
+              <span>Promoting branch</span>
+            </div>
+            <div class="session-meta">conductor · vigil</div>
+          </div>
+        </div>
+
+        <div class="header" style="margin-top: 12px;">
+          <svg class="glyph" viewBox="0 0 24 24" fill="none" aria-label="Cursor">
+            <rect x="6.5" y="6.5" width="11" height="11" rx="1.6" transform="rotate(45 12 12)" stroke="#00d9ff" stroke-width="2.2"/>
+            <rect x="9.8" y="9.8" width="4.4" height="4.4" rx="0.8" transform="rotate(45 12 12)" fill="#00d9ff"/>
+          </svg>
+          <span class="label">Cursor</span>
+          <span class="count">1</span>
+        </div>
+        <div class="row">
+          <div class="session">
+            <div class="session-title">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                <rect x="5.5" y="5.5" width="13" height="13" rx="1.6" transform="rotate(45 12 12)" stroke="#00d9ff" stroke-width="2.6"/>
+              </svg>
+              <span>Editing daemon/src/digest.rs</span>
+            </div>
+            <div class="session-meta">cursor · vigil/daemon</div>
+          </div>
+        </div>
+
+        <div class="header" style="margin-top: 12px;">
+          <svg class="glyph" viewBox="0 0 24 24" fill="none" aria-label="Codex">
+            <circle cx="12" cy="12" r="8" stroke="#f472b6" stroke-width="2.2" fill="none"/>
+            <line x1="6.5" y1="17.5" x2="17.5" y2="6.5" stroke="#f472b6" stroke-width="2.6" stroke-linecap="round"/>
+          </svg>
+          <span class="label">Codex</span>
+          <span class="count">1</span>
+        </div>
+        <div class="row">
+          <div class="session">
+            <div class="session-title">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="8" stroke="#f472b6" stroke-width="2.6" fill="none"/>
+                <line x1="6.5" y1="17.5" x2="17.5" y2="6.5" stroke="#f472b6" stroke-width="3" stroke-linecap="round"/>
+              </svg>
+              <span>Sketching review-panel API</span>
+            </div>
+            <div class="session-meta">codex · vigil/app</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>

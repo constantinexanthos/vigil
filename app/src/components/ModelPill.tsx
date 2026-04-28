@@ -10,7 +10,7 @@ export function ModelPill({ model }: Props) {
   const color = modelFamilyColor(model);
   return (
     <span
-      className="rounded-full px-2 py-[3px] text-[10px] font-medium tracking-wide"
+      className="rounded-full px-2 py-[3px] text-stat font-medium tracking-wide"
       style={{
         background: `${color}26`,
         color: color,

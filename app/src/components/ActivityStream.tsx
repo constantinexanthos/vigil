@@ -33,9 +33,9 @@ export function ActivityStream({ session }: Props) {
   }
 
   return (
-    <div ref={ref} onScroll={onScroll} className="flex-1 overflow-y-auto px-5 py-3 font-mono text-[12px]">
+    <div ref={ref} onScroll={onScroll} className="flex-1 overflow-y-auto px-5 py-3 font-mono text-sm">
       {rows.length === 0 && (
-        <div className="text-white/45 text-[12px]">No activity yet.</div>
+        <div className="text-white/45 text-sm">No activity yet.</div>
       )}
       {rows.map((r) => (
         <motion.div

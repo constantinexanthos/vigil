@@ -36,10 +36,27 @@ fn main() {
                 })
                 .build(app)?;
 
-            // NSVisualEffectView vibrancy was tried (`HudWindow`) but rendered
-            // ghostly — text legibility tanked when the window lost focus.
-            // Falling back to a solid opaque dark background; the
-            // unified-panes look is achieved purely in CSS.
+            // NSVisualEffectView vibrancy decisions:
+            //
+            // Attempt 1 (commit 4f53b69 → reverted in f26faec): `HudWindow`
+            // material. Text legibility tanked when the window lost focus —
+            // the desktop bled through enough to make body copy unreadable.
+            //
+            // Attempt 2 (this commit): considered `UnderWindowBackground`
+            // material + `NSVisualEffectState::FollowsWindowActiveState`,
+            // which is the recommended fix for the focus-state legibility
+            // issue. To enable it requires:
+            //   - `transparent: true` in tauri.conf.json
+            //   - `apply_vibrancy(&window, UnderWindowBackground,
+            //                     Some(FollowsWindowActiveState), None)` here
+            //
+            // Not enabled by default: visual verification on a real macOS
+            // desktop is required to confirm legibility, and the fallback
+            // when vibrancy fails (transparent webview over the desktop)
+            // is worse than the current solid look. Leaving the solid
+            // `#0d0d0f` background; the unified-panes look is achieved
+            // purely in CSS. The window-vibrancy crate is in Cargo.toml
+            // ready for a future opt-in once verified.
 
             Ok(())
         })
