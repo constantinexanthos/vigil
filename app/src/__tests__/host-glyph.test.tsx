@@ -59,13 +59,17 @@ describe("HostGlyph", () => {
     expect(svg?.getAttribute("aria-label")).toBeTruthy();
   });
 
-  it("Conductor host uses C-ring shape (path element)", () => {
+  it("Conductor host renders an aria-labeled SVG in Conductor purple", () => {
     const { container } = render(<HostGlyph hostKind="conductor" />);
-    expect(container.querySelector("path")).toBeTruthy();
+    const svg = container.querySelector("svg");
+    expect(svg?.getAttribute("aria-label")).toBeTruthy();
+    expect(container.innerHTML.toLowerCase()).toContain("#a78bfa");
   });
 
-  it("Cursor host uses rotated-square shape (rect element)", () => {
+  it("Cursor host renders an aria-labeled SVG in Cursor cyan", () => {
     const { container } = render(<HostGlyph hostKind="cursor" />);
-    expect(container.querySelector("rect")).toBeTruthy();
+    const svg = container.querySelector("svg");
+    expect(svg?.getAttribute("aria-label")).toBeTruthy();
+    expect(container.innerHTML.toLowerCase()).toContain("#00d9ff");
   });
 });
