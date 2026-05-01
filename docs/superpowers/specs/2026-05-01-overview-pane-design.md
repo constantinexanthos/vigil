@@ -307,7 +307,7 @@ Hover: `bg-white/5`. Focus-visible: `outline-1 outline-offset-1 outline-white/40
 
 ### HourlyChart
 
-SVG, full pane width minus 28px padding. Hand-rolled (Recharts not installed; matches existing `Sparkline` / `PulseLine` aesthetic).
+SVG, full pane width minus 28px padding. Hand-rolled (Recharts not installed; matches existing `PulseLine` aesthetic).
 
 - 24 buckets, frontend-densified from API result
 - Each bucket: vertical column of stacked rectangles, one per agent in that bucket, color from `agentColor()` in `types.ts`
@@ -321,7 +321,7 @@ SVG, full pane width minus 28px padding. Hand-rolled (Recharts not installed; ma
 ### HotspotsPanel
 
 `<table>` with `<thead>` and `<tbody>`. Each row:
-- **Path** — `displayPath()` from `app/src/components/AllFilesPanel.tsx` (repo-relative, fall back to last 3 segments). `dir="rtl"` + `<bdi>` for narrow-column truncation
+- **Path** — `displayPath(path, repoPath)` (repo-relative, falls back to last 3 segments). Currently private inside `ActivityStream.tsx:79`. **Step 8a:** extract to `app/src/lib/path.ts` and import from both `ActivityStream` and `HotspotsPanel`. `dir="rtl"` + `<bdi>` for narrow-column truncation
 - **Heat bar** — `<div role="progressbar" aria-valuenow={count} aria-valuemin={0} aria-valuemax={top.count}>` with width normalized to top row (top = 100%). NOT `<progress>` (default browser styling fights with pixel-precise width)
 - **Agent dots** — up to 3 colored dots from `agentColor()`; "+N" affordance beyond
 - **▲ marker** — left of dots when `path` is in the collision Set
@@ -441,6 +441,17 @@ Mirror existing `cost_events` test pattern: `Connection::open_in_memory()` + hel
 
 ## Implementation Order (TDD micro-cycles)
 
+**Step 0 — Prerequisite: branch is current with main.** This spec assumes
+`AgentGlyph` (commit `019fecf`), `HostGlyph`, and the daemon's JSONL session
+detection (commit `6518fde` adding `EventKind::SessionSeen` and the
+`host_kind` / `model` / `is_live` columns on `events`) are already on the
+working branch. If the implementing branch is older than these commits,
+`git fetch origin main && git rebase origin/main` first. The branch
+`claude/v3-real-brand-logos` may also be merged into main before
+implementation begins; the `AgentGlyph` API surface (`{ agent, size,
+ariaLabel }`) is stable across that change, so this code is unaffected
+either way.
+
 1. Rust: `query_hourly_activity` + tests
 2. Rust: `query_top_edited_files` + tests
 3. Tauri command wrappers + main.rs registration (smoke compile)
@@ -449,6 +460,8 @@ Mirror existing `cost_events` test pattern: `Connection::open_in_memory()` + hel
 6. Frontend: `selection.ts` viewMode state + tests
 7. Frontend: `HourlyChart` + tests
 8. Frontend: `HotspotsPanel` + tests
+   - **8a (refactor first):** extract the private `displayPath(path, repoPath)` from `ActivityStream.tsx:79` to a new shared `app/src/lib/path.ts`. Update `ActivityStream` to import it. No behavioral change; landing this as its own commit keeps the diff reviewable
+   - **8b:** build `HotspotsPanel` consuming `displayPath` from the shared util
 9. Frontend: `AgentCard` + tests
 10. Frontend: `StatsRow` + `CollisionBanner` + tests
 11. Frontend: `AgentGrid` composition + tests
