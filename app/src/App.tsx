@@ -14,6 +14,9 @@ export default function App() {
   const data = useDaemonData();
   const [cmdOpen, setCmdOpen] = useState(false);
   const selectedId = useSelection((s) => s.selectedSessionId);
+  const viewMode = useSelection((s) => s.viewMode);
+  const setViewMode = useSelection((s) => s.setViewMode);
+  const setSelected = useSelection((s) => s.setSelected);
 
   const sessions = useMemo(() => {
     const projects = groupEventsIntoSessions(data.events, data.commitGroups, data.costSummary);
@@ -25,16 +28,44 @@ export default function App() {
   const hasCli = data.cli.claude || data.cli.codex;
   const needsOnboarding = !hasCli && !data.demoMode;
 
+  // Mount-only launch resolution: if persisted session is dead, snap to overview.
+  useEffect(() => {
+    if (selectedId) {
+      const s = sessions.find((x) => x.id === selectedId);
+      if (!s || !s.isLive) {
+        setSelected(null);
+        setViewMode("overview");
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- launch-only resolution
+  }, []);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        e.preventDefault();
-        setCmdOpen(true);
-      }
+      if (!(e.metaKey || e.ctrlKey)) return;
+      if (e.key === "k") { e.preventDefault(); setCmdOpen(true); return; }
+      if (e.key === "1") { e.preventDefault(); setViewMode("overview"); return; }
+      if (e.key === "2" && selected) { e.preventDefault(); setViewMode("session"); return; }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, []);
+  }, [selected, setViewMode]);
+
+  const overviewData = {
+    liveSessions: data.liveSessions ?? [],
+    collisions: data.collisions ?? [],
+    topEditedFiles: data.topEditedFiles ?? [],
+    hourlyActivity: data.hourlyActivity ?? [],
+    burnRatePerHour: null,  // V3: not yet sourced from query_live_summary; null = render em-dash
+    activeAgents: 0,
+    totalAgents: data.agentStats?.length ?? 0,
+    filesToday: data.workspaceSummary?.files_changed_today ?? 0,
+  };
+
+  function onAgentSelect(sessionId: string) {
+    setSelected(sessionId);
+    setViewMode("session");
+  }
 
   return (
     <div className="h-screen w-screen flex flex-col text-white">
@@ -55,6 +86,9 @@ export default function App() {
         connected={data.connected}
         hasNewEvents={data.hasNewEvents}
         onOpenCmd={() => setCmdOpen(true)}
+        viewMode={viewMode}
+        setViewMode={setViewMode}
+        hasSelectedSession={selected != null}
       />
       <div className="flex-1 overflow-hidden">
         {needsOnboarding ? (
@@ -62,7 +96,17 @@ export default function App() {
         ) : (
           <ThreePaneGrid
             left={<LeftRail sessions={sessions} />}
-            middle={<MiddlePane session={selected} hasCli={hasCli} summary={data.currentSummary} turns={data.recentTurns} />}
+            middle={
+              <MiddlePane
+                session={selected}
+                hasCli={hasCli}
+                summary={data.currentSummary}
+                turns={data.recentTurns}
+                viewMode={viewMode}
+                overviewData={overviewData}
+                onSelect={onAgentSelect}
+              />
+            }
             right={<RightRail session={selected} reviewSignals={data.reviewSignals} />}
           />
         )}
