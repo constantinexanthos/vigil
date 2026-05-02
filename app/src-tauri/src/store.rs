@@ -90,7 +90,7 @@ impl Store {
         let mut stmt = self.conn.prepare(
             "SELECT agent, COUNT(*) as count
              FROM events
-             WHERE timestamp >= date('now')
+             WHERE date(timestamp) >= date('now')
              GROUP BY agent
              ORDER BY count DESC",
         )?;
@@ -106,7 +106,7 @@ impl Store {
     /// Total event count since midnight UTC today.
     pub fn query_event_count(&self) -> Result<i64> {
         self.conn.query_row(
-            "SELECT COUNT(*) FROM events WHERE timestamp >= date('now')",
+            "SELECT COUNT(*) FROM events WHERE date(timestamp) >= date('now')",
             [],
             |row| row.get(0),
         )
@@ -219,13 +219,13 @@ impl Store {
 
     pub fn query_workspace_summary(&self) -> Result<WorkspaceSummaryRow> {
         let commits_today: i64 = self.conn.query_row(
-            "SELECT COUNT(*) FROM events WHERE kind = 'git_commit' AND timestamp >= date('now')",
+            "SELECT COUNT(*) FROM events WHERE kind = 'git_commit' AND date(timestamp) >= date('now')",
             [],
             |row| row.get(0),
         )?;
 
         let files_changed_today: i64 = self.conn.query_row(
-            "SELECT COUNT(DISTINCT file_path) FROM events WHERE file_path IS NOT NULL AND kind IN ('file_create', 'file_modify', 'file_delete') AND timestamp >= date('now')",
+            "SELECT COUNT(DISTINCT file_path) FROM events WHERE file_path IS NOT NULL AND kind IN ('file_create', 'file_modify', 'file_delete') AND date(timestamp) >= date('now')",
             [],
             |row| row.get(0),
         )?;
@@ -234,7 +234,7 @@ impl Store {
         let total_cost_today: f64 = self
             .conn
             .query_row(
-                "SELECT COALESCE(SUM(cost_usd), 0.0) FROM cost_events WHERE timestamp >= date('now')",
+                "SELECT COALESCE(SUM(cost_usd), 0.0) FROM cost_events WHERE date(timestamp) >= date('now')",
                 [],
                 |row| row.get(0),
             )
@@ -242,7 +242,7 @@ impl Store {
 
         // Agent commit counts
         let mut agent_stmt = self.conn.prepare(
-            "SELECT agent, COUNT(*) FROM events WHERE kind = 'git_commit' AND timestamp >= date('now') GROUP BY agent ORDER BY COUNT(*) DESC",
+            "SELECT agent, COUNT(*) FROM events WHERE kind = 'git_commit' AND date(timestamp) >= date('now') GROUP BY agent ORDER BY COUNT(*) DESC",
         )?;
         let agent_commits: Vec<AgentCommitCount> = agent_stmt
             .query_map([], |row| {
@@ -1339,5 +1339,94 @@ mod tests {
         assert!(paths.contains(&"new.rs"));
         assert!(paths.contains(&"edit.rs"));
         assert!(!paths.contains(&"gone.rs"));
+    }
+
+    /// Yesterday-at-23:00-UTC: 25 hours back guarantees the previous calendar
+    /// date regardless of when this test runs (no edge case at midnight UTC).
+    fn yesterday_iso() -> String {
+        (chrono::Utc::now() - chrono::Duration::hours(25)).to_rfc3339()
+    }
+
+    /// Pins the today-since-midnight filter on `query_agent_stats`. The naked
+    /// `WHERE timestamp >= date('now')` worked by accident of date-prefix
+    /// lex-ordering; `WHERE date(timestamp) >= date('now')` makes both sides
+    /// normalize to YYYY-MM-DD and compare correctly.
+    #[test]
+    fn agent_stats_excludes_yesterday_events() {
+        let store = test_db();
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, agent) VALUES (?1, 'file_modify', 'today-agent')",
+            params![now_iso()],
+        ).unwrap();
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, agent) VALUES (?1, 'file_modify', 'yesterday-agent')",
+            params![yesterday_iso()],
+        ).unwrap();
+
+        let stats = store.query_agent_stats().unwrap();
+        let agents: Vec<&str> = stats.iter().map(|r| r.agent.as_str()).collect();
+        assert!(agents.contains(&"today-agent"));
+        assert!(!agents.contains(&"yesterday-agent"),
+            "yesterday's events must be excluded from today-since-midnight; got {agents:?}");
+    }
+
+    /// Pins the today-since-midnight filter on `query_event_count`.
+    #[test]
+    fn event_count_excludes_yesterday_events() {
+        let store = test_db();
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, agent) VALUES (?1, 'file_modify', 'today')",
+            params![now_iso()],
+        ).unwrap();
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, agent) VALUES (?1, 'file_modify', 'yesterday')",
+            params![yesterday_iso()],
+        ).unwrap();
+
+        let count = store.query_event_count().unwrap();
+        assert_eq!(count, 1, "only today's event should be counted; got {count}");
+    }
+
+    /// Pins the today-since-midnight filters on `query_workspace_summary`
+    /// (commits_today, files_changed_today, agent_commits — three of the four
+    /// fixed sites in one query). The cost_today branch is exercised
+    /// implicitly via .unwrap_or(0.0) when cost_events table is absent.
+    #[test]
+    fn workspace_summary_excludes_yesterday_events() {
+        let store = test_db();
+        let today = now_iso();
+        let yesterday = yesterday_iso();
+
+        // Today: one commit + two file modifies (one path).
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, file_path, agent) VALUES (?1, 'git_commit', NULL, 'today-agent')",
+            params![today.clone()],
+        ).unwrap();
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, file_path, agent) VALUES (?1, 'file_modify', 'today.rs', 'today-agent')",
+            params![today.clone()],
+        ).unwrap();
+
+        // Yesterday: one commit + one file modify with a distinct path.
+        // Without the fix, these would be lex-compared as RFC3339-with-T (LHS)
+        // vs YYYY-MM-DD (RHS). Yesterday's date prefix is lex-less than today's
+        // date prefix so the bug would still exclude these — but the comparison
+        // is doing the right thing by accident of date-prefix ordering, not by
+        // intent. The fix makes intent explicit.
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, file_path, agent) VALUES (?1, 'git_commit', NULL, 'yesterday-agent')",
+            params![yesterday.clone()],
+        ).unwrap();
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, file_path, agent) VALUES (?1, 'file_modify', 'yesterday.rs', 'yesterday-agent')",
+            params![yesterday.clone()],
+        ).unwrap();
+
+        let summary = store.query_workspace_summary().unwrap();
+        assert_eq!(summary.commits_today, 1, "only today's commit should be counted");
+        assert_eq!(summary.files_changed_today, 1, "only today's modified file path");
+        assert_eq!(summary.agent_commits.len(), 1, "only today's agent should appear");
+        assert_eq!(summary.agent_commits[0].agent, "today-agent");
+        assert_eq!(summary.agent_commits[0].commit_count, 1);
     }
 }
