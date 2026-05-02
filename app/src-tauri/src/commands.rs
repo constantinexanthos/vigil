@@ -1,6 +1,7 @@
 use crate::store::{
-    default_db_path, AgentStatRow, CollisionRow, CommitGroup, CostTotalRow, EventRow, HostRow,
-    LiveSessionRow, LiveSummaryRow, PrRow, ReviewSignalsRow, Store, WorkspaceSummaryRow,
+    default_db_path, AgentStatRow, CollisionRow, CommitGroup, CostTotalRow, EventRow,
+    FileHeatRow, HostRow, HourBucketRow, LiveSessionRow, LiveSummaryRow, PrRow,
+    ReviewSignalsRow, Store, WorkspaceSummaryRow,
 };
 use serde::{Deserialize, Serialize};
 
@@ -225,5 +226,24 @@ pub fn get_review_signals(session_id: String) -> Result<ReviewSignalsRow, String
     let store = open_store()?;
     store
         .query_session_review(&session_id)
+        .map_err(|e| format!("Query failed: {e}"))
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn get_hourly_activity(since_hours: Option<i64>) -> Result<Vec<HourBucketRow>, String> {
+    let store = open_store()?;
+    store
+        .query_hourly_activity(since_hours.unwrap_or(24))
+        .map_err(|e| format!("Query failed: {e}"))
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn get_top_edited_files(
+    since_minutes: Option<i64>,
+    limit: Option<u32>,
+) -> Result<Vec<FileHeatRow>, String> {
+    let store = open_store()?;
+    store
+        .query_top_edited_files(since_minutes.unwrap_or(60), limit.unwrap_or(5))
         .map_err(|e| format!("Query failed: {e}"))
 }
