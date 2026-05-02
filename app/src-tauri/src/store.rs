@@ -34,7 +34,7 @@ impl Store {
     pub fn query_active_agents(&self) -> Result<Vec<String>> {
         let mut stmt = self.conn.prepare(
             "SELECT DISTINCT agent FROM events
-             WHERE timestamp >= datetime('now', '-10 minutes')
+             WHERE datetime(timestamp) >= datetime('now', '-10 minutes')
              ORDER BY agent",
         )?;
         let rows = stmt.query_map([], |row| row.get(0))?;
@@ -68,7 +68,7 @@ impl Store {
              FROM events
              WHERE file_path IS NOT NULL
                AND kind IN ('file_create', 'file_modify')
-               AND timestamp >= datetime('now', '-5 minutes')
+               AND datetime(timestamp) >= datetime('now', '-5 minutes')
              GROUP BY file_path
              HAVING COUNT(DISTINCT agent) > 1
              ORDER BY file_path",
@@ -90,7 +90,7 @@ impl Store {
         let mut stmt = self.conn.prepare(
             "SELECT agent, COUNT(*) as count
              FROM events
-             WHERE timestamp >= date('now')
+             WHERE date(timestamp) >= date('now')
              GROUP BY agent
              ORDER BY count DESC",
         )?;
@@ -106,7 +106,7 @@ impl Store {
     /// Total event count since midnight UTC today.
     pub fn query_event_count(&self) -> Result<i64> {
         self.conn.query_row(
-            "SELECT COUNT(*) FROM events WHERE timestamp >= date('now')",
+            "SELECT COUNT(*) FROM events WHERE date(timestamp) >= date('now')",
             [],
             |row| row.get(0),
         )
@@ -118,7 +118,7 @@ impl Store {
         // Get all git_commit events
         let mut commit_stmt = self.conn.prepare(
             "SELECT id, timestamp, agent, diff, session_id FROM events
-             WHERE kind = 'git_commit' AND timestamp >= datetime('now', ?1)
+             WHERE kind = 'git_commit' AND datetime(timestamp) >= datetime('now', ?1)
              ORDER BY timestamp DESC",
         )?;
 
@@ -219,13 +219,13 @@ impl Store {
 
     pub fn query_workspace_summary(&self) -> Result<WorkspaceSummaryRow> {
         let commits_today: i64 = self.conn.query_row(
-            "SELECT COUNT(*) FROM events WHERE kind = 'git_commit' AND timestamp >= date('now')",
+            "SELECT COUNT(*) FROM events WHERE kind = 'git_commit' AND date(timestamp) >= date('now')",
             [],
             |row| row.get(0),
         )?;
 
         let files_changed_today: i64 = self.conn.query_row(
-            "SELECT COUNT(DISTINCT file_path) FROM events WHERE file_path IS NOT NULL AND kind IN ('file_create', 'file_modify', 'file_delete') AND timestamp >= date('now')",
+            "SELECT COUNT(DISTINCT file_path) FROM events WHERE file_path IS NOT NULL AND kind IN ('file_create', 'file_modify', 'file_delete') AND date(timestamp) >= date('now')",
             [],
             |row| row.get(0),
         )?;
@@ -234,7 +234,7 @@ impl Store {
         let total_cost_today: f64 = self
             .conn
             .query_row(
-                "SELECT COALESCE(SUM(cost_usd), 0.0) FROM cost_events WHERE timestamp >= date('now')",
+                "SELECT COALESCE(SUM(cost_usd), 0.0) FROM cost_events WHERE date(timestamp) >= date('now')",
                 [],
                 |row| row.get(0),
             )
@@ -242,7 +242,7 @@ impl Store {
 
         // Agent commit counts
         let mut agent_stmt = self.conn.prepare(
-            "SELECT agent, COUNT(*) FROM events WHERE kind = 'git_commit' AND timestamp >= date('now') GROUP BY agent ORDER BY COUNT(*) DESC",
+            "SELECT agent, COUNT(*) FROM events WHERE kind = 'git_commit' AND date(timestamp) >= date('now') GROUP BY agent ORDER BY COUNT(*) DESC",
         )?;
         let agent_commits: Vec<AgentCommitCount> = agent_stmt
             .query_map([], |row| {
@@ -283,7 +283,7 @@ impl Store {
 
         let since = format!("-{hours} hours");
         let total: f64 = self.conn.query_row(
-            "SELECT COALESCE(SUM(cost_usd), 0.0) FROM cost_events WHERE timestamp >= datetime('now', ?1)",
+            "SELECT COALESCE(SUM(cost_usd), 0.0) FROM cost_events WHERE datetime(timestamp) >= datetime('now', ?1)",
             params![since],
             |row| row.get(0),
         )?;
@@ -293,7 +293,7 @@ impl Store {
                     SUM(cost_usd), SUM(input_tokens), SUM(output_tokens),
                     SUM(cache_read_tokens), SUM(cache_write_tokens), COUNT(*)
              FROM cost_events
-             WHERE timestamp >= datetime('now', ?1)
+             WHERE datetime(timestamp) >= datetime('now', ?1)
              GROUP BY agent
              ORDER BY SUM(cost_usd) DESC",
         )?;
@@ -326,7 +326,7 @@ impl Store {
             "SELECT COALESCE(host_kind, 'unknown') AS hk, \
                     COUNT(DISTINCT COALESCE(session_id, '')) AS n \
              FROM events \
-             WHERE timestamp >= datetime('now', ?1) \
+             WHERE datetime(timestamp) >= datetime('now', ?1) \
                AND COALESCE(session_id, '') != '' \
              GROUP BY hk \
              ORDER BY n DESC",
@@ -352,7 +352,7 @@ impl Store {
             "WITH s AS ( \
                 SELECT session_id, host_kind, agent, repo_path, timestamp, model, is_live \
                 FROM events \
-                WHERE timestamp >= datetime('now', ?1) AND session_id IS NOT NULL \
+                WHERE datetime(timestamp) >= datetime('now', ?1) AND session_id IS NOT NULL \
                 UNION ALL \
                 SELECT session_id, \
                        NULL AS host_kind, \
@@ -366,7 +366,7 @@ impl Store {
                        NULL AS model, \
                        0 AS is_live \
                 FROM session_turns \
-                WHERE timestamp >= datetime('now', ?1) AND session_id IS NOT NULL \
+                WHERE datetime(timestamp) >= datetime('now', ?1) AND session_id IS NOT NULL \
             ) \
             SELECT \
                 s.session_id, \
@@ -654,6 +654,26 @@ pub struct LiveSummaryRow {
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
+pub struct HourBucketRow {
+    pub hour_iso: String,
+    pub by_agent: Vec<AgentCount>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct FileHeatRow {
+    pub path: String,
+    pub edit_count: u32,
+    pub agents: Vec<String>,
+    pub last_event_at: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AgentCount {
+    pub agent: String,
+    pub count: u32,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct AgentSummaryRow {
     pub agent: String,
     pub status: String,
@@ -688,7 +708,7 @@ pub struct ReviewSignalsRow {
 impl Store {
     pub fn query_live_summary(&self) -> Result<LiveSummaryRow> {
         let total_events_1h: u64 = self.conn.query_row(
-            "SELECT COUNT(*) FROM events WHERE timestamp >= datetime('now', '-1 hour')",
+            "SELECT COUNT(*) FROM events WHERE datetime(timestamp) >= datetime('now', '-1 hour')",
             [], |row| row.get::<_, i64>(0),
         ).unwrap_or(0) as u64;
 
@@ -699,13 +719,13 @@ impl Store {
 
         let raw_cost_1h: f64 = if has_cost_table {
             self.conn.query_row(
-                "SELECT COALESCE(SUM(cost_usd), 0.0) FROM cost_events WHERE timestamp >= datetime('now', '-1 hour')",
+                "SELECT COALESCE(SUM(cost_usd), 0.0) FROM cost_events WHERE datetime(timestamp) >= datetime('now', '-1 hour')",
                 [], |row| row.get(0),
             ).unwrap_or(0.0)
         } else { 0.0 };
 
         let mut agents_stmt = self.conn.prepare(
-            "SELECT DISTINCT agent FROM events WHERE timestamp >= datetime('now', '-1 hour') ORDER BY agent"
+            "SELECT DISTINCT agent FROM events WHERE datetime(timestamp) >= datetime('now', '-1 hour') ORDER BY agent"
         )?;
         let agent_names: Vec<String> = agents_stmt.query_map([], |row| row.get(0))?
             .filter_map(|r| r.ok()).collect();
@@ -713,12 +733,12 @@ impl Store {
         let mut agents = Vec::new();
         for agent in &agent_names {
             let events_1h: u64 = self.conn.query_row(
-                "SELECT COUNT(*) FROM events WHERE agent = ?1 AND timestamp >= datetime('now', '-1 hour')",
+                "SELECT COUNT(*) FROM events WHERE agent = ?1 AND datetime(timestamp) >= datetime('now', '-1 hour')",
                 params![agent], |row| row.get::<_, i64>(0),
             ).unwrap_or(0) as u64;
 
             let recent: i64 = self.conn.query_row(
-                "SELECT COUNT(*) FROM events WHERE agent = ?1 AND timestamp >= datetime('now', '-2 minutes')",
+                "SELECT COUNT(*) FROM events WHERE agent = ?1 AND datetime(timestamp) >= datetime('now', '-2 minutes')",
                 params![agent], |row| row.get(0),
             ).unwrap_or(0);
             let status = if recent > 0 { "active" } else { "idle" };
@@ -731,19 +751,19 @@ impl Store {
             // Cost: None if agent has no cost data
             let cost_1h: Option<f64> = if has_cost_table {
                 let count: i64 = self.conn.query_row(
-                    "SELECT COUNT(*) FROM cost_events WHERE agent = ?1 AND timestamp >= datetime('now', '-1 hour')",
+                    "SELECT COUNT(*) FROM cost_events WHERE agent = ?1 AND datetime(timestamp) >= datetime('now', '-1 hour')",
                     params![agent], |row| row.get(0),
                 ).unwrap_or(0);
                 if count > 0 {
                     Some(self.conn.query_row(
-                        "SELECT COALESCE(SUM(cost_usd), 0.0) FROM cost_events WHERE agent = ?1 AND timestamp >= datetime('now', '-1 hour')",
+                        "SELECT COALESCE(SUM(cost_usd), 0.0) FROM cost_events WHERE agent = ?1 AND datetime(timestamp) >= datetime('now', '-1 hour')",
                         params![agent], |row| row.get(0),
                     ).unwrap_or(0.0))
                 } else { None }
             } else { None };
 
             let file_count: i64 = self.conn.query_row(
-                "SELECT COUNT(DISTINCT file_path) FROM events WHERE agent = ?1 AND file_path IS NOT NULL AND timestamp >= datetime('now', '-1 hour')",
+                "SELECT COUNT(DISTINCT file_path) FROM events WHERE agent = ?1 AND file_path IS NOT NULL AND datetime(timestamp) >= datetime('now', '-1 hour')",
                 params![agent], |row| row.get(0),
             ).unwrap_or(0);
             let confidence = if file_count <= 5 { 85.0 } else if file_count <= 15 { 70.0 } else { 50.0 };
@@ -798,6 +818,75 @@ impl Store {
             burn_rate_partial: partial, cost_tracked_agents: cost_tracked,
             agents, alerts, hotspots,
         })
+    }
+
+    /// Count events per (hour, agent) over the last N hours.
+    /// Returns only hours with >=1 event; frontend densifies to 24 contiguous buckets.
+    ///
+    /// Known undercount: filter `datetime(timestamp) >= datetime('now', '-N hours')` is not
+    /// hour-floored. Frontend densification floors `now-Nh` to start-of-hour, so the
+    /// leftmost bucket on screen represents `floor(now-Nh)..floor(now-(N-1)h)` but
+    /// only contains events from `now-Nh..floor(now-(N-1)h)`. Cosmetic at the
+    /// leftmost edge; up to 60 min undercount.
+    pub fn query_hourly_activity(&self, since_hours: i64) -> Result<Vec<HourBucketRow>> {
+        let since = format!("-{since_hours} hours");
+        let mut stmt = self.conn.prepare(
+            "SELECT strftime('%Y-%m-%dT%H:00:00Z', timestamp) AS hour, agent, COUNT(*) AS n
+             FROM events
+             WHERE datetime(timestamp) >= datetime('now', ?1)
+               AND kind IN ('file_create', 'file_modify', 'file_delete', 'git_commit')
+             GROUP BY hour, agent
+             ORDER BY hour ASC, n DESC",
+        )?;
+
+        let rows: Vec<(String, String, u32)> = stmt
+            .query_map(params![since], |r| {
+                Ok((r.get(0)?, r.get(1)?, r.get::<_, i64>(2)? as u32))
+            })?
+            .collect::<Result<_>>()?;
+
+        let mut buckets: Vec<HourBucketRow> = Vec::new();
+        for (hour, agent, count) in rows {
+            if buckets.last().map(|b| b.hour_iso.as_str()) != Some(hour.as_str()) {
+                buckets.push(HourBucketRow { hour_iso: hour.clone(), by_agent: Vec::new() });
+            }
+            buckets.last_mut().unwrap().by_agent.push(AgentCount { agent, count });
+        }
+        Ok(buckets)
+    }
+
+    /// Top N most-edited files in the last `since_minutes` minutes.
+    /// GROUP_CONCAT with default ',' separator — the `no_known_agent_name_contains_comma`
+    /// guard test ensures no agent name contains a comma.
+    pub fn query_top_edited_files(&self, since_minutes: i64, limit: u32) -> Result<Vec<FileHeatRow>> {
+        let since = format!("-{since_minutes} minutes");
+        let mut stmt = self.conn.prepare(
+            "SELECT
+               file_path,
+               COUNT(*)                                    AS edit_count,
+               GROUP_CONCAT(DISTINCT agent)                AS agents_csv,
+               MAX(timestamp)                              AS last_at
+             FROM events
+             WHERE file_path IS NOT NULL
+               AND kind IN ('file_create', 'file_modify')
+               AND datetime(timestamp) >= datetime('now', ?1)
+             GROUP BY file_path
+             ORDER BY edit_count DESC, last_at DESC
+             LIMIT ?2",
+        )?;
+
+        let rows: Vec<FileHeatRow> = stmt
+            .query_map(params![since, limit as i64], |r| {
+                let agents_csv: String = r.get(2)?;
+                Ok(FileHeatRow {
+                    path: r.get(0)?,
+                    edit_count: r.get::<_, i64>(1)? as u32,
+                    agents: agents_csv.split(',').map(|s| s.to_string()).collect(),
+                    last_event_at: r.get(3)?,
+                })
+            })?
+            .collect::<Result<_>>()?;
+        Ok(rows)
     }
 
     /// Session-scoped review signals: simple-heuristic confidence + reason +
@@ -975,5 +1064,369 @@ mod tests {
 
         let rows = store.query_live_sessions(60).unwrap();
         assert!(rows.iter().all(|r| r.session_id != "stale"));
+    }
+
+    fn ago_iso(minutes: i64) -> String {
+        (chrono::Utc::now() - chrono::Duration::minutes(minutes)).to_rfc3339()
+    }
+
+    #[test]
+    fn hourly_activity_buckets_by_hour_and_agent() {
+        let store = test_db();
+        let h1 = ago_iso(30);
+        let h2 = ago_iso(90);
+        for _ in 0..3 {
+            store.conn.execute(
+                "INSERT INTO events (timestamp, kind, agent) VALUES (?1, 'file_modify', 'claude-code')",
+                params![h1.clone()],
+            ).unwrap();
+        }
+        for _ in 0..2 {
+            store.conn.execute(
+                "INSERT INTO events (timestamp, kind, agent) VALUES (?1, 'file_create', 'claude-code')",
+                params![h2.clone()],
+            ).unwrap();
+        }
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, agent) VALUES (?1, 'file_modify', 'cursor')",
+            params![h2.clone()],
+        ).unwrap();
+
+        let buckets = store.query_hourly_activity(24).unwrap();
+        assert_eq!(buckets.len(), 2, "two distinct hours");
+        let total_h1: u32 = buckets.iter()
+            .flat_map(|b| b.by_agent.iter())
+            .filter(|a| a.agent == "claude-code")
+            .map(|a| a.count).sum();
+        assert_eq!(total_h1, 5, "3 + 2 claude-code edits across both hours");
+        assert!(buckets.iter().any(|b| b.by_agent.iter().any(|a| a.agent == "cursor" && a.count == 1)));
+    }
+
+    #[test]
+    fn hourly_activity_window_filter_excludes_old() {
+        let store = test_db();
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, agent) VALUES (?1, 'file_modify', 'claude-code')",
+            params![ago_iso(30)],
+        ).unwrap();
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, agent) VALUES (?1, 'file_modify', 'claude-code')",
+            params![ago_iso(90)],
+        ).unwrap();
+
+        let buckets = store.query_hourly_activity(1).unwrap();
+        let total: u32 = buckets.iter().flat_map(|b| b.by_agent.iter()).map(|a| a.count).sum();
+        assert_eq!(total, 1, "only the -30min event should be in the 1-hour window");
+    }
+
+    #[test]
+    fn hourly_activity_excludes_non_activity_kinds() {
+        let store = test_db();
+        let now = ago_iso(10);
+        for kind in &["file_create", "file_modify", "file_delete", "git_commit", "session_seen"] {
+            store.conn.execute(
+                "INSERT INTO events (timestamp, kind, agent) VALUES (?1, ?2, 'claude-code')",
+                params![now.clone(), *kind],
+            ).unwrap();
+        }
+
+        let buckets = store.query_hourly_activity(1).unwrap();
+        let total: u32 = buckets.iter().flat_map(|b| b.by_agent.iter()).map(|a| a.count).sum();
+        assert_eq!(total, 4, "session_seen excluded; the other 4 included");
+    }
+
+    #[test]
+    fn hourly_activity_returns_empty_for_quiet_window() {
+        let store = test_db();
+        let buckets = store.query_hourly_activity(24).unwrap();
+        assert!(buckets.is_empty());
+    }
+
+    /// Pins the literal-interval form of the time-window filter on `events`:
+    /// `WHERE datetime(timestamp) >= datetime('now', '-10 minutes')`. RFC3339
+    /// timestamps stored with `T` separator + `+00:00` offset must lex-compare
+    /// correctly against SQLite's space-separated `datetime()` output, which
+    /// requires wrapping the column in `datetime()` too.
+    #[test]
+    fn active_agents_excludes_old_events() {
+        let store = test_db();
+        // 5 minutes ago — inside the 10 minute window.
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, agent) VALUES (?1, 'file_modify', 'fresh-agent')",
+            params![ago_iso(5)],
+        ).unwrap();
+        // 30 minutes ago — well outside the 10 minute window.
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, agent) VALUES (?1, 'file_modify', 'stale-agent')",
+            params![ago_iso(30)],
+        ).unwrap();
+
+        let agents = store.query_active_agents().unwrap();
+        assert_eq!(agents, vec!["fresh-agent".to_string()]);
+    }
+
+    /// Pins the events-branch of `query_live_sessions` — the WITH-CTE UNION
+    /// has separate WHERE clauses for the events table and the session_turns
+    /// table. `live_sessions_excludes_old_session_turns` covers the latter;
+    /// this covers the former.
+    #[test]
+    fn live_sessions_excludes_old_events() {
+        let store = test_db();
+        let old = (chrono::Utc::now() - chrono::Duration::hours(2)).to_rfc3339();
+        store
+            .conn
+            .execute(
+                "INSERT INTO events (timestamp, kind, agent, session_id) \
+                 VALUES (?1, 'session_seen', 'claude-code', 'old-events-session')",
+                params![old],
+            )
+            .unwrap();
+
+        let rows = store.query_live_sessions(60).unwrap();
+        assert!(
+            rows.iter().all(|r| r.session_id != "old-events-session"),
+            "session with 2-hour-old event must be excluded from 60-minute window; got {:?}",
+            rows.iter().map(|r| &r.session_id).collect::<Vec<_>>()
+        );
+    }
+
+    /// Mirror of daemon/src/process.rs Agent::as_str — keep in sync when adding agents.
+    const KNOWN_AGENT_NAMES: &[&str] = &[
+        "claude-code", "cursor", "conductor", "aider", "codex", "cline",
+    ];
+
+    #[test]
+    fn top_edited_files_orders_by_edit_count_desc() {
+        let store = test_db();
+        let now = ago_iso(10);
+        for _ in 0..5 {
+            store.conn.execute(
+                "INSERT INTO events (timestamp, kind, file_path, agent) VALUES (?1, 'file_modify', 'a.rs', 'claude-code')",
+                params![now.clone()],
+            ).unwrap();
+        }
+        for _ in 0..3 {
+            store.conn.execute(
+                "INSERT INTO events (timestamp, kind, file_path, agent) VALUES (?1, 'file_modify', 'b.rs', 'claude-code')",
+                params![now.clone()],
+            ).unwrap();
+        }
+        for _ in 0..2 {
+            store.conn.execute(
+                "INSERT INTO events (timestamp, kind, file_path, agent) VALUES (?1, 'file_modify', 'c.rs', 'claude-code')",
+                params![now.clone()],
+            ).unwrap();
+        }
+
+        let rows = store.query_top_edited_files(60, 5).unwrap();
+        assert_eq!(rows.len(), 3);
+        assert_eq!(rows[0].path, "a.rs");
+        assert_eq!(rows[0].edit_count, 5);
+        assert_eq!(rows[1].path, "b.rs");
+        assert_eq!(rows[2].path, "c.rs");
+    }
+
+    #[test]
+    fn top_edited_files_respects_limit() {
+        let store = test_db();
+        let now = ago_iso(10);
+        for i in 0..8 {
+            store.conn.execute(
+                "INSERT INTO events (timestamp, kind, file_path, agent) VALUES (?1, 'file_modify', ?2, 'claude-code')",
+                params![now.clone(), format!("f{i}.rs")],
+            ).unwrap();
+        }
+        let rows = store.query_top_edited_files(60, 5).unwrap();
+        assert_eq!(rows.len(), 5);
+    }
+
+    #[test]
+    fn top_edited_files_window_filter() {
+        let store = test_db();
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, file_path, agent) VALUES (?1, 'file_modify', 'recent.rs', 'claude-code')",
+            params![ago_iso(30)],
+        ).unwrap();
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, file_path, agent) VALUES (?1, 'file_modify', 'old.rs', 'claude-code')",
+            params![ago_iso(90)],
+        ).unwrap();
+
+        let rows = store.query_top_edited_files(60, 5).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].path, "recent.rs");
+    }
+
+    #[test]
+    fn top_edited_files_distinct_agents_per_file() {
+        let store = test_db();
+        let now = ago_iso(10);
+        for _ in 0..5 {
+            store.conn.execute(
+                "INSERT INTO events (timestamp, kind, file_path, agent) VALUES (?1, 'file_modify', 'shared.rs', 'claude-code')",
+                params![now.clone()],
+            ).unwrap();
+        }
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, file_path, agent) VALUES (?1, 'file_modify', 'shared.rs', 'cursor')",
+            params![now.clone()],
+        ).unwrap();
+
+        let rows = store.query_top_edited_files(60, 5).unwrap();
+        assert_eq!(rows[0].edit_count, 6);
+        let mut agents = rows[0].agents.clone();
+        agents.sort();
+        assert_eq!(agents, vec!["claude-code", "cursor"]);
+    }
+
+    #[test]
+    fn top_edited_files_agent_csv_round_trips() {
+        let store = test_db();
+        let now = ago_iso(10);
+        for name in KNOWN_AGENT_NAMES {
+            store.conn.execute(
+                "INSERT INTO events (timestamp, kind, file_path, agent) VALUES (?1, 'file_modify', 'all.rs', ?2)",
+                params![now.clone(), *name],
+            ).unwrap();
+        }
+        let rows = store.query_top_edited_files(60, 5).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].edit_count as usize, KNOWN_AGENT_NAMES.len());
+        let mut got = rows[0].agents.clone();
+        got.sort();
+        let mut expected: Vec<String> = KNOWN_AGENT_NAMES.iter().map(|s| s.to_string()).collect();
+        expected.sort();
+        assert_eq!(got, expected, "GROUP_CONCAT round-trip preserved every name");
+    }
+
+    #[test]
+    fn no_known_agent_name_contains_comma() {
+        for name in KNOWN_AGENT_NAMES {
+            assert!(!name.contains(','), "agent '{}' contains comma — would corrupt GROUP_CONCAT", name);
+        }
+    }
+
+    #[test]
+    fn top_edited_files_excludes_null_paths() {
+        let store = test_db();
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, file_path, agent) VALUES (?1, 'git_commit', NULL, 'claude-code')",
+            params![ago_iso(10)],
+        ).unwrap();
+        let rows = store.query_top_edited_files(60, 5).unwrap();
+        assert!(rows.is_empty());
+    }
+
+    #[test]
+    fn top_edited_files_only_includes_modify_and_create_kinds() {
+        let store = test_db();
+        let now = ago_iso(10);
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, file_path, agent) VALUES (?1, 'file_create', 'new.rs', 'claude-code')",
+            params![now.clone()],
+        ).unwrap();
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, file_path, agent) VALUES (?1, 'file_modify', 'edit.rs', 'claude-code')",
+            params![now.clone()],
+        ).unwrap();
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, file_path, agent) VALUES (?1, 'file_delete', 'gone.rs', 'claude-code')",
+            params![now.clone()],
+        ).unwrap();
+
+        let rows = store.query_top_edited_files(60, 5).unwrap();
+        let paths: Vec<&str> = rows.iter().map(|r| r.path.as_str()).collect();
+        assert!(paths.contains(&"new.rs"));
+        assert!(paths.contains(&"edit.rs"));
+        assert!(!paths.contains(&"gone.rs"));
+    }
+
+    /// Yesterday-at-23:00-UTC: 25 hours back guarantees the previous calendar
+    /// date regardless of when this test runs (no edge case at midnight UTC).
+    fn yesterday_iso() -> String {
+        (chrono::Utc::now() - chrono::Duration::hours(25)).to_rfc3339()
+    }
+
+    /// Pins the today-since-midnight filter on `query_agent_stats`. The naked
+    /// `WHERE timestamp >= date('now')` worked by accident of date-prefix
+    /// lex-ordering; `WHERE date(timestamp) >= date('now')` makes both sides
+    /// normalize to YYYY-MM-DD and compare correctly.
+    #[test]
+    fn agent_stats_excludes_yesterday_events() {
+        let store = test_db();
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, agent) VALUES (?1, 'file_modify', 'today-agent')",
+            params![now_iso()],
+        ).unwrap();
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, agent) VALUES (?1, 'file_modify', 'yesterday-agent')",
+            params![yesterday_iso()],
+        ).unwrap();
+
+        let stats = store.query_agent_stats().unwrap();
+        let agents: Vec<&str> = stats.iter().map(|r| r.agent.as_str()).collect();
+        assert!(agents.contains(&"today-agent"));
+        assert!(!agents.contains(&"yesterday-agent"),
+            "yesterday's events must be excluded from today-since-midnight; got {agents:?}");
+    }
+
+    /// Pins the today-since-midnight filter on `query_event_count`.
+    #[test]
+    fn event_count_excludes_yesterday_events() {
+        let store = test_db();
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, agent) VALUES (?1, 'file_modify', 'today')",
+            params![now_iso()],
+        ).unwrap();
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, agent) VALUES (?1, 'file_modify', 'yesterday')",
+            params![yesterday_iso()],
+        ).unwrap();
+
+        let count = store.query_event_count().unwrap();
+        assert_eq!(count, 1, "only today's event should be counted; got {count}");
+    }
+
+    /// Pins the today-since-midnight filters on `query_workspace_summary`
+    /// (commits_today, files_changed_today, agent_commits — three of the four
+    /// fixed sites in one query). The cost_today branch is exercised
+    /// implicitly via .unwrap_or(0.0) when cost_events table is absent.
+    #[test]
+    fn workspace_summary_excludes_yesterday_events() {
+        let store = test_db();
+        let today = now_iso();
+        let yesterday = yesterday_iso();
+
+        // Today: one commit + two file modifies (one path).
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, file_path, agent) VALUES (?1, 'git_commit', NULL, 'today-agent')",
+            params![today.clone()],
+        ).unwrap();
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, file_path, agent) VALUES (?1, 'file_modify', 'today.rs', 'today-agent')",
+            params![today.clone()],
+        ).unwrap();
+
+        // Yesterday: one commit + one file modify with a distinct path.
+        // Without the fix, these would be lex-compared as RFC3339-with-T (LHS)
+        // vs YYYY-MM-DD (RHS). Yesterday's date prefix is lex-less than today's
+        // date prefix so the bug would still exclude these — but the comparison
+        // is doing the right thing by accident of date-prefix ordering, not by
+        // intent. The fix makes intent explicit.
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, file_path, agent) VALUES (?1, 'git_commit', NULL, 'yesterday-agent')",
+            params![yesterday.clone()],
+        ).unwrap();
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, file_path, agent) VALUES (?1, 'file_modify', 'yesterday.rs', 'yesterday-agent')",
+            params![yesterday.clone()],
+        ).unwrap();
+
+        let summary = store.query_workspace_summary().unwrap();
+        assert_eq!(summary.commits_today, 1, "only today's commit should be counted");
+        assert_eq!(summary.files_changed_today, 1, "only today's modified file path");
+        assert_eq!(summary.agent_commits.len(), 1, "only today's agent should appear");
+        assert_eq!(summary.agent_commits[0].agent, "today-agent");
+        assert_eq!(summary.agent_commits[0].commit_count, 1);
     }
 }

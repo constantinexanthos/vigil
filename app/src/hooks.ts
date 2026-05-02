@@ -7,6 +7,8 @@ import type {
   CostSummary,
   CommitGroup,
   WorkspaceSummary,
+  HourBucket,
+  FileHeat,
   HostInfo,
   LiveSessionRow,
   CliStatus,
@@ -55,6 +57,10 @@ interface DaemonState {
   recentTurns: SessionTurn[];
   /** Review signals for the currently-selected session. Null when no session or fetch failed. */
   reviewSignals: ReviewSignals | null;
+  /** 24-hour activity buckets — one entry per hour with at least one event; frontend densifies to 24 contiguous buckets. */
+  hourlyActivity: HourBucket[];
+  /** Top edited files in the last hour, ordered by edit_count desc. */
+  topEditedFiles: FileHeat[];
 }
 
 const DEFAULT_CLI: CliStatus = { claude: false, codex: false };
@@ -84,6 +90,8 @@ export function useDaemonData(): DaemonState {
   const [currentSummary, setCurrentSummary] = useState<ServerSummary | null>(null);
   const [recentTurns, setRecentTurns] = useState<SessionTurn[]>([]);
   const [reviewSignals, setReviewSignals] = useState<ReviewSignals | null>(null);
+  const [hourlyActivity, setHourlyActivity] = useState<HourBucket[]>([]);
+  const [topEditedFiles, setTopEditedFiles] = useState<FileHeat[]>([]);
   // Read selection from the store without subscribing to re-renders on every change —
   // fetchAll re-reads via getState on each tick.
   const selectedSessionIdRef = useRef<string | null>(useSelection.getState().selectedSessionId);
@@ -101,7 +109,7 @@ export function useDaemonData(): DaemonState {
   const fetchAll = useCallback(async () => {
     try {
       const activeSessionId = selectedSessionIdRef.current;
-      const [evts, agents, cols, stats, count, cost, commits, summary, hostRows, liveRows, cliStatus, sessionSummary, turnsResult, reviewResult] = await Promise.all([
+      const [evts, agents, cols, stats, count, cost, commits, summary, hostRows, liveRows, cliStatus, sessionSummary, turnsResult, reviewResult, hourly, topEdited] = await Promise.all([
         invoke<AgentEvent[]>("get_recent_events", { limit: 50 }),
         invoke<string[]>("get_active_agents"),
         invoke<Collision[]>("get_collisions"),
@@ -122,6 +130,8 @@ export function useDaemonData(): DaemonState {
         activeSessionId
           ? invoke<ReviewSignals | null>("get_review_signals", { sessionId: activeSessionId }).catch(() => null)
           : Promise.resolve(null),
+        invoke<HourBucket[]>("get_hourly_activity", { sinceHours: 24 }).catch(() => [] as HourBucket[]),
+        invoke<FileHeat[]>("get_top_edited_files", { sinceMinutes: 60, limit: 5 }).catch(() => [] as FileHeat[]),
       ]);
 
       // Compute new event IDs for entrance animations
@@ -192,6 +202,8 @@ export function useDaemonData(): DaemonState {
       setCurrentSummary(sessionSummary);
       setRecentTurns(turnsResult);
       setReviewSignals(reviewResult);
+      setHourlyActivity(hourly);
+      setTopEditedFiles(topEdited);
       setLastUpdated(Date.now());
       setConnected(true);
       setError(null);
@@ -219,6 +231,8 @@ export function useDaemonData(): DaemonState {
           setCurrentSummary(null);
           setRecentTurns([]);
           setReviewSignals(null);
+          setHourlyActivity([]);
+          setTopEditedFiles([]);
           setLastUpdated(Date.now());
         }
       }
@@ -253,5 +267,7 @@ export function useDaemonData(): DaemonState {
     currentSummary,
     recentTurns,
     reviewSignals,
+    hourlyActivity,
+    topEditedFiles,
   };
 }

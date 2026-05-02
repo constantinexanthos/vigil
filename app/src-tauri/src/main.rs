@@ -80,6 +80,8 @@ fn main() {
             commands::has_api_key,
             commands::get_recent_turns,
             commands::get_review_signals,
+            commands::get_hourly_activity,
+            commands::get_top_edited_files,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
