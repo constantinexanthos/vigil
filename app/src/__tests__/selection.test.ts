@@ -9,6 +9,7 @@ describe("useSelection", () => {
       leftWidth: 280,
       rightWidth: 320,
       rightTab: "changes",
+      viewMode: "overview",
     });
   });
 
@@ -56,5 +57,27 @@ describe("useSelection", () => {
       useSelection.getState().setRightTab(t);
       expect(useSelection.getState().rightTab).toBe(t);
     }
+  });
+
+  it("default viewMode is 'overview'", () => {
+    expect(useSelection.getState().viewMode).toBe("overview");
+  });
+
+  it("setViewMode updates state", () => {
+    useSelection.getState().setViewMode("session");
+    expect(useSelection.getState().viewMode).toBe("session");
+  });
+
+  it("setSelected does not auto-flip viewMode", () => {
+    useSelection.getState().setViewMode("overview");
+    useSelection.getState().setSelected("sess-1");
+    expect(useSelection.getState().viewMode).toBe("overview");
+  });
+
+  it("setViewMode persists through the persist middleware", () => {
+    useSelection.getState().setViewMode("session");
+    const raw = localStorage.getItem("vigil-selection");
+    expect(raw).toBeTruthy();
+    expect(raw).toContain("session");
   });
 });
