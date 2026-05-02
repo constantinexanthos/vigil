@@ -660,6 +660,14 @@ pub struct HourBucketRow {
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
+pub struct FileHeatRow {
+    pub path: String,
+    pub edit_count: u32,
+    pub agents: Vec<String>,
+    pub last_event_at: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct AgentCount {
     pub agent: String,
     pub count: u32,
@@ -845,6 +853,40 @@ impl Store {
             buckets.last_mut().unwrap().by_agent.push(AgentCount { agent, count });
         }
         Ok(buckets)
+    }
+
+    /// Top N most-edited files in the last `since_minutes` minutes.
+    /// GROUP_CONCAT with default ',' separator — the `no_known_agent_name_contains_comma`
+    /// guard test ensures no agent name contains a comma.
+    pub fn query_top_edited_files(&self, since_minutes: i64, limit: u32) -> Result<Vec<FileHeatRow>> {
+        let since = format!("-{since_minutes} minutes");
+        let mut stmt = self.conn.prepare(
+            "SELECT
+               file_path,
+               COUNT(*)                                    AS edit_count,
+               GROUP_CONCAT(DISTINCT agent)                AS agents_csv,
+               MAX(timestamp)                              AS last_at
+             FROM events
+             WHERE file_path IS NOT NULL
+               AND kind IN ('file_create', 'file_modify')
+               AND datetime(timestamp) >= datetime('now', ?1)
+             GROUP BY file_path
+             ORDER BY edit_count DESC, last_at DESC
+             LIMIT ?2",
+        )?;
+
+        let rows: Vec<FileHeatRow> = stmt
+            .query_map(params![since, limit as i64], |r| {
+                let agents_csv: String = r.get(2)?;
+                Ok(FileHeatRow {
+                    path: r.get(0)?,
+                    edit_count: r.get::<_, i64>(1)? as u32,
+                    agents: agents_csv.split(',').map(|s| s.to_string()).collect(),
+                    last_event_at: r.get(3)?,
+                })
+            })?
+            .collect::<Result<_>>()?;
+        Ok(rows)
     }
 
     /// Session-scoped review signals: simple-heuristic confidence + reason +
@@ -1146,5 +1188,156 @@ mod tests {
             "session with 2-hour-old event must be excluded from 60-minute window; got {:?}",
             rows.iter().map(|r| &r.session_id).collect::<Vec<_>>()
         );
+    }
+
+    /// Mirror of daemon/src/process.rs Agent::as_str — keep in sync when adding agents.
+    const KNOWN_AGENT_NAMES: &[&str] = &[
+        "claude-code", "cursor", "conductor", "aider", "codex", "cline",
+    ];
+
+    #[test]
+    fn top_edited_files_orders_by_edit_count_desc() {
+        let store = test_db();
+        let now = ago_iso(10);
+        for _ in 0..5 {
+            store.conn.execute(
+                "INSERT INTO events (timestamp, kind, file_path, agent) VALUES (?1, 'file_modify', 'a.rs', 'claude-code')",
+                params![now.clone()],
+            ).unwrap();
+        }
+        for _ in 0..3 {
+            store.conn.execute(
+                "INSERT INTO events (timestamp, kind, file_path, agent) VALUES (?1, 'file_modify', 'b.rs', 'claude-code')",
+                params![now.clone()],
+            ).unwrap();
+        }
+        for _ in 0..2 {
+            store.conn.execute(
+                "INSERT INTO events (timestamp, kind, file_path, agent) VALUES (?1, 'file_modify', 'c.rs', 'claude-code')",
+                params![now.clone()],
+            ).unwrap();
+        }
+
+        let rows = store.query_top_edited_files(60, 5).unwrap();
+        assert_eq!(rows.len(), 3);
+        assert_eq!(rows[0].path, "a.rs");
+        assert_eq!(rows[0].edit_count, 5);
+        assert_eq!(rows[1].path, "b.rs");
+        assert_eq!(rows[2].path, "c.rs");
+    }
+
+    #[test]
+    fn top_edited_files_respects_limit() {
+        let store = test_db();
+        let now = ago_iso(10);
+        for i in 0..8 {
+            store.conn.execute(
+                "INSERT INTO events (timestamp, kind, file_path, agent) VALUES (?1, 'file_modify', ?2, 'claude-code')",
+                params![now.clone(), format!("f{i}.rs")],
+            ).unwrap();
+        }
+        let rows = store.query_top_edited_files(60, 5).unwrap();
+        assert_eq!(rows.len(), 5);
+    }
+
+    #[test]
+    fn top_edited_files_window_filter() {
+        let store = test_db();
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, file_path, agent) VALUES (?1, 'file_modify', 'recent.rs', 'claude-code')",
+            params![ago_iso(30)],
+        ).unwrap();
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, file_path, agent) VALUES (?1, 'file_modify', 'old.rs', 'claude-code')",
+            params![ago_iso(90)],
+        ).unwrap();
+
+        let rows = store.query_top_edited_files(60, 5).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].path, "recent.rs");
+    }
+
+    #[test]
+    fn top_edited_files_distinct_agents_per_file() {
+        let store = test_db();
+        let now = ago_iso(10);
+        for _ in 0..5 {
+            store.conn.execute(
+                "INSERT INTO events (timestamp, kind, file_path, agent) VALUES (?1, 'file_modify', 'shared.rs', 'claude-code')",
+                params![now.clone()],
+            ).unwrap();
+        }
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, file_path, agent) VALUES (?1, 'file_modify', 'shared.rs', 'cursor')",
+            params![now.clone()],
+        ).unwrap();
+
+        let rows = store.query_top_edited_files(60, 5).unwrap();
+        assert_eq!(rows[0].edit_count, 6);
+        let mut agents = rows[0].agents.clone();
+        agents.sort();
+        assert_eq!(agents, vec!["claude-code", "cursor"]);
+    }
+
+    #[test]
+    fn top_edited_files_agent_csv_round_trips() {
+        let store = test_db();
+        let now = ago_iso(10);
+        for name in KNOWN_AGENT_NAMES {
+            store.conn.execute(
+                "INSERT INTO events (timestamp, kind, file_path, agent) VALUES (?1, 'file_modify', 'all.rs', ?2)",
+                params![now.clone(), *name],
+            ).unwrap();
+        }
+        let rows = store.query_top_edited_files(60, 5).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].edit_count as usize, KNOWN_AGENT_NAMES.len());
+        let mut got = rows[0].agents.clone();
+        got.sort();
+        let mut expected: Vec<String> = KNOWN_AGENT_NAMES.iter().map(|s| s.to_string()).collect();
+        expected.sort();
+        assert_eq!(got, expected, "GROUP_CONCAT round-trip preserved every name");
+    }
+
+    #[test]
+    fn no_known_agent_name_contains_comma() {
+        for name in KNOWN_AGENT_NAMES {
+            assert!(!name.contains(','), "agent '{}' contains comma — would corrupt GROUP_CONCAT", name);
+        }
+    }
+
+    #[test]
+    fn top_edited_files_excludes_null_paths() {
+        let store = test_db();
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, file_path, agent) VALUES (?1, 'git_commit', NULL, 'claude-code')",
+            params![ago_iso(10)],
+        ).unwrap();
+        let rows = store.query_top_edited_files(60, 5).unwrap();
+        assert!(rows.is_empty());
+    }
+
+    #[test]
+    fn top_edited_files_only_includes_modify_and_create_kinds() {
+        let store = test_db();
+        let now = ago_iso(10);
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, file_path, agent) VALUES (?1, 'file_create', 'new.rs', 'claude-code')",
+            params![now.clone()],
+        ).unwrap();
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, file_path, agent) VALUES (?1, 'file_modify', 'edit.rs', 'claude-code')",
+            params![now.clone()],
+        ).unwrap();
+        store.conn.execute(
+            "INSERT INTO events (timestamp, kind, file_path, agent) VALUES (?1, 'file_delete', 'gone.rs', 'claude-code')",
+            params![now.clone()],
+        ).unwrap();
+
+        let rows = store.query_top_edited_files(60, 5).unwrap();
+        let paths: Vec<&str> = rows.iter().map(|r| r.path.as_str()).collect();
+        assert!(paths.contains(&"new.rs"));
+        assert!(paths.contains(&"edit.rs"));
+        assert!(!paths.contains(&"gone.rs"));
     }
 }
