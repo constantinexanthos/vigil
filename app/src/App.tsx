@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useDaemonData } from "./hooks";
 import { TopBar } from "./components/TopBar";
 import { ThreePaneGrid } from "./components/layout/ThreePaneGrid";
@@ -28,8 +28,15 @@ export default function App() {
   const hasCli = data.cli.claude || data.cli.codex;
   const needsOnboarding = !hasCli && !data.demoMode;
 
-  // Mount-only launch resolution: if persisted session is dead, snap to overview.
+  // Launch resolution: if persisted session is dead, snap to overview.
+  // Ref-gated to fire exactly once after the first successful daemon fetch — running
+  // pre-fetch (when sessions[] is still empty) would snap every persisted session to
+  // overview, including valid live ones (spec Q4: live → restore per-session view).
+  const launchResolved = useRef(false);
   useEffect(() => {
+    if (launchResolved.current) return;
+    if (!data.connected) return; // wait for first successful fetch (flips true even with zero sessions)
+    launchResolved.current = true;
     if (selectedId) {
       const s = sessions.find((x) => x.id === selectedId);
       if (!s || !s.isLive) {
@@ -37,8 +44,7 @@ export default function App() {
         setViewMode("overview");
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- launch-only resolution
-  }, []);
+  }, [data.connected, sessions, selectedId, setSelected, setViewMode]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -57,7 +63,9 @@ export default function App() {
     topEditedFiles: data.topEditedFiles ?? [],
     hourlyActivity: data.hourlyActivity ?? [],
     burnRatePerHour: null,  // V3: not yet sourced from query_live_summary; null = render em-dash
-    activeAgents: 0,
+    // Distinct live agents — must match AgentGrid's card cardinality (one card per agent
+    // grouped from liveSessions filtered by is_live).
+    activeAgents: new Set((data.liveSessions ?? []).filter((s) => s.is_live).map((s) => s.agent)).size,
     totalAgents: data.agentStats?.length ?? 0,
     filesToday: data.workspaceSummary?.files_changed_today ?? 0,
   };
