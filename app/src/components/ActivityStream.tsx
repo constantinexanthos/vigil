@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import type { SessionGroup, SessionFile } from "../types";
+import { displayPath } from "../lib/path";
 
 interface Props {
   session: SessionGroup;
@@ -73,17 +74,6 @@ function fileRows(files: SessionFile[], repoPath: string | null | undefined): Ro
         removed: f.removed,
       };
     });
-}
-
-/** Strip repoPath prefix → repo-relative path; fallback to last 3 segments. */
-function displayPath(path: string, repoPath: string | null | undefined): string {
-  if (!path) return path;
-  if (repoPath && path.startsWith(repoPath)) {
-    return path.slice(repoPath.length).replace(/^\//, "");
-  }
-  const parts = path.split("/").filter(Boolean);
-  if (parts.length <= 3) return path;
-  return parts.slice(-3).join("/");
 }
 
 /** Vite HMR / atomic-writer temp files. Pure noise in the activity feed. */
