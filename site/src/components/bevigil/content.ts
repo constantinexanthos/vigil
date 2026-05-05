@@ -24,7 +24,7 @@ export const primitives: { title: string; body: string; iconKey: PrimitiveIconKe
   },
   {
     title: "Fan-out coalescing",
-    body: "When an agent fires the same query repeatedly (which they do constantly), Vigil deduplicates and serves cached results. The single biggest cost-saver — cuts agent infrastructure costs 40–80% in early benchmarks.",
+    body: "When an agent fires the same query repeatedly (which they do constantly), Vigil deduplicates and serves cached results. The single biggest cost-saver: cuts agent infrastructure costs 40–80% in early benchmarks.",
     iconKey: "coalesce",
   },
   {
@@ -70,7 +70,7 @@ export const withoutVigil: { time: string; body: string }[] = [
   },
   {
     time: "11:50",
-    body: "Database load is the obvious culprit, but nobody knows which agent did what — they all share the same DB credentials.",
+    body: "Database load is the obvious culprit, but nobody knows which agent did what. They all share the same DB credentials.",
   },
   {
     time: "12:15",

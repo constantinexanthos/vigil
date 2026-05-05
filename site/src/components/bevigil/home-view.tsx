@@ -3,6 +3,7 @@ import { ArchitectureDiagram } from "./architecture-diagram"
 import { PrimitiveIcon, GithubGlyph } from "./icons"
 import { SiteHeader } from "./site-header"
 import { SiteFooter } from "./site-footer"
+import { Section } from "./section"
 import { RainingBackground } from "@/components/raining-background"
 import {
   primitives,
@@ -55,10 +56,9 @@ export function HomeView() {
               <div className="grid gap-16 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
                 <div>
                   <span
-                    className="mb-9 inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-stone-500"
+                    className="mb-9 inline-flex items-center text-[11px] uppercase tracking-[0.18em] text-stone-500"
                     style={{ fontFamily: MONO }}
                   >
-                    <span aria-hidden className="h-px w-6 bg-stone-300" />
                     Open source · Single binary · Free for individuals
                   </span>
 
@@ -311,42 +311,6 @@ export function HomeView() {
         <SiteFooter />
       </div>
     </div>
-  )
-}
-
-function Section({
-  children,
-  eyebrow,
-  id,
-}: {
-  children: React.ReactNode
-  eyebrow: string
-  id?: string
-}) {
-  return (
-    <section id={id} className="relative">
-      <div className="mx-auto w-full max-w-[1180px] px-6 pb-32 pt-20 sm:pb-40 sm:pt-24">
-        <SectionLabel>{eyebrow}</SectionLabel>
-        <div className="mt-6">{children}</div>
-      </div>
-      <div
-        aria-hidden
-        className="mx-auto h-px max-w-[1180px] bg-stone-200"
-        style={{ marginLeft: "1.5rem", marginRight: "1.5rem" }}
-      />
-    </section>
-  )
-}
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <span
-      className="inline-flex items-center gap-2 text-[10.5px] uppercase tracking-[0.2em] text-cyan-700"
-      style={{ fontFamily: MONO }}
-    >
-      <span aria-hidden className="h-px w-5 bg-cyan-700/40" />
-      {children}
-    </span>
   )
 }
 

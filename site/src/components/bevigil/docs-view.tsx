@@ -1,5 +1,6 @@
 import { SiteHeader } from "./site-header"
 import { SiteFooter } from "./site-footer"
+import { Section } from "./section"
 import { quickstart, REPO_URL } from "./content"
 import { GithubGlyph } from "./icons"
 
@@ -22,10 +23,9 @@ export function DocsView() {
         <section className="relative">
           <div className="mx-auto w-full max-w-[860px] px-6 pt-24 pb-24 sm:pt-32 sm:pb-32">
             <span
-              className="mb-9 inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-stone-500"
+              className="mb-9 inline-flex items-center text-[11px] uppercase tracking-[0.18em] text-stone-500"
               style={{ fontFamily: MONO }}
             >
-              <span aria-hidden className="h-px w-6 bg-stone-300" />
               Docs · {quickstart.length} steps to first identity
             </span>
 
@@ -46,7 +46,7 @@ export function DocsView() {
         </section>
 
         {/* QUICKSTART */}
-        <Section eyebrow="Quickstart">
+        <Section eyebrow="Quickstart" maxWidth={860}>
           <ol className="space-y-12">
             {quickstart.map((step, i) => (
               <li key={step.step}>
@@ -79,7 +79,7 @@ export function DocsView() {
         </Section>
 
         {/* MORE */}
-        <Section eyebrow="What's next">
+        <Section eyebrow="What's next" maxWidth={860}>
           <h2
             className="text-[28px] font-normal leading-[1.15] tracking-[-0.02em] text-stone-900 sm:text-[36px]"
             style={{ fontFamily: SERIF }}
@@ -129,36 +129,3 @@ export function DocsView() {
   )
 }
 
-function Section({
-  children,
-  eyebrow,
-}: {
-  children: React.ReactNode
-  eyebrow: string
-}) {
-  return (
-    <section className="relative">
-      <div className="mx-auto w-full max-w-[860px] px-6 pb-32 pt-20 sm:pb-40 sm:pt-24">
-        <SectionLabel>{eyebrow}</SectionLabel>
-        <div className="mt-6">{children}</div>
-      </div>
-      <div
-        aria-hidden
-        className="mx-auto h-px max-w-[860px] bg-stone-200"
-        style={{ marginLeft: "1.5rem", marginRight: "1.5rem" }}
-      />
-    </section>
-  )
-}
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <span
-      className="inline-flex items-center gap-2 text-[10.5px] uppercase tracking-[0.2em] text-cyan-700"
-      style={{ fontFamily: MONO }}
-    >
-      <span aria-hidden className="h-px w-5 bg-cyan-700/40" />
-      {children}
-    </span>
-  )
-}

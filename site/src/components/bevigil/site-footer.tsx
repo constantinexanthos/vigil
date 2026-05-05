@@ -15,7 +15,7 @@ export function SiteFooter() {
           style={{ fontFamily: MONO }}
         >
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-            <span className="text-stone-700">bevigil.ai</span>
+            <span className="text-stone-700">vigil</span>
             <span aria-hidden className="text-stone-300">
               /
             </span>
