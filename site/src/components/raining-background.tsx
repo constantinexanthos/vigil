@@ -19,7 +19,17 @@ function pickCharCount() {
   return window.matchMedia("(max-width: 767px)").matches ? 100 : 300
 }
 
-export function RainingBackground() {
+interface RainingBackgroundProps {
+  /**
+   * Subtle ("light theme watermark") or full ("legacy dark Vigil chrome").
+   * Default subtle to match v2.
+   */
+  variant?: "subtle" | "full"
+}
+
+export function RainingBackground({
+  variant = "subtle",
+}: RainingBackgroundProps = {}) {
   const [characters, setCharacters] = useState<Character[]>([])
   const [activeIndices, setActiveIndices] = useState<Set<number>>(new Set())
 
@@ -71,8 +81,8 @@ export function RainingBackground() {
     let animationFrameId: number
 
     const updatePositions = () => {
-      setCharacters(prevChars =>
-        prevChars.map(char => ({
+      setCharacters((prevChars) =>
+        prevChars.map((char) => ({
           ...char,
           y: char.y + char.speed,
           ...(char.y >= 100 && {
@@ -89,31 +99,43 @@ export function RainingBackground() {
     return () => cancelAnimationFrame(animationFrameId)
   }, [])
 
+  // Subtle watermark for the v2 light theme: muted gray characters at very
+  // low opacity, low-intensity cyan flicker. Must NOT compete with content.
+  // Full variant preserves the legacy dark behaviour for /old.
+  const isSubtle = variant === "subtle"
+  const baseColor = isSubtle ? "#a8a29e" : "#3d4150"
+  const baseOpacity = isSubtle ? 0.08 : 0.4
+  const activeColor = isSubtle ? "#0891b2" : "#22d3ee"
+  const activeOpacity = isSubtle ? 0.3 : 1
+
   return (
     <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-      {characters.map((char, index) => (
-        <span
-          key={index}
-          className="absolute text-xs"
-          style={{
-            left: `${char.x}%`,
-            top: `${char.y}%`,
-            transform: `translate(-50%, -50%) ${activeIndices.has(index) ? 'scale(1.25)' : 'scale(1)'}`,
-            color: activeIndices.has(index) ? '#22d3ee' : '#3d4150',
-            fontWeight: activeIndices.has(index) ? 700 : 300,
-            textShadow: activeIndices.has(index)
-              ? '0 0 8px rgba(34, 211, 238, 0.8), 0 0 12px rgba(34, 211, 238, 0.4)'
-              : 'none',
-            opacity: activeIndices.has(index) ? 1 : 0.4,
-            transition: 'color 0.1s, transform 0.1s, text-shadow 0.1s',
-            willChange: 'transform, top',
-            fontSize: '1.8rem',
-            fontFamily: 'var(--font-mono), monospace',
-          }}
-        >
-          {char.char}
-        </span>
-      ))}
+      {characters.map((char, index) => {
+        const active = activeIndices.has(index)
+        return (
+          <span
+            key={index}
+            className="absolute text-xs"
+            style={{
+              left: `${char.x}%`,
+              top: `${char.y}%`,
+              transform: `translate(-50%, -50%) ${active ? "scale(1.25)" : "scale(1)"}`,
+              color: active ? activeColor : baseColor,
+              fontWeight: active ? 700 : 300,
+              textShadow: active && !isSubtle
+                ? "0 0 8px rgba(34, 211, 238, 0.8), 0 0 12px rgba(34, 211, 238, 0.4)"
+                : "none",
+              opacity: active ? activeOpacity : baseOpacity,
+              transition: "color 0.1s, transform 0.1s, text-shadow 0.1s",
+              willChange: "transform, top",
+              fontSize: "1.8rem",
+              fontFamily: "var(--font-mono), monospace",
+            }}
+          >
+            {char.char}
+          </span>
+        )
+      })}
     </div>
   )
 }
