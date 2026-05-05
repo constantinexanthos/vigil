@@ -1,5 +1,6 @@
 import { EarlyAccessForm } from "./early-access-form"
 import { ArchitectureDiagram } from "./architecture-diagram"
+import { BlastRadiusDiagram } from "./blast-radius-diagram"
 import { PrimitiveIcon, GithubGlyph } from "./icons"
 import { SiteHeader } from "./site-header"
 import { SiteFooter } from "./site-footer"
@@ -221,6 +222,28 @@ export function HomeView() {
                 </li>
               ))}
             </ol>
+          </Section>
+
+          {/* BLAST RADIUS — second hero-sibling visual, sits between
+              the WHAT IT DOES primitives and the Without/With scenario.
+              Reinforces a different concept than the hero diagram:
+              scoped permissions per agent, not the request data path. */}
+          <Section eyebrow="Blast radius">
+            <h2
+              className="max-w-[20ch] text-[32px] font-normal leading-[1.1] tracking-[-0.02em] text-stone-900 sm:text-[44px]"
+              style={{ fontFamily: SERIF }}
+            >
+              Each agent runs inside a{" "}
+              <span className="italic">scope it can&rsquo;t escape.</span>
+            </h2>
+            <p className="mt-5 max-w-[60ch] text-[16.5px] leading-relaxed text-stone-600">
+              Permissions are enforced at the proxy, not in the agent&rsquo;s
+              prompt. An agent can issue any query it wants &mdash; Vigil
+              decides whether the query reaches the data store.
+            </p>
+            <div className="mt-12">
+              <BlastRadiusDiagram />
+            </div>
           </Section>
 
           {/* SCENARIO */}
