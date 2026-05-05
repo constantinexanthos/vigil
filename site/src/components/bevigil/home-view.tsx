@@ -1,6 +1,7 @@
 import { EarlyAccessForm } from "./early-access-form"
 import { ArchitectureDiagram } from "./architecture-diagram"
 import { BlastRadiusDiagram } from "./blast-radius-diagram"
+import { LayeredStackDiagram } from "./layered-stack-diagram"
 import { PrimitiveIcon, GithubGlyph } from "./icons"
 import { SiteHeader } from "./site-header"
 import { SiteFooter } from "./site-footer"
@@ -11,7 +12,6 @@ import {
   trafficMismatch,
   withoutVigil,
   withVigil,
-  notList,
   REPO_URL,
 } from "./content"
 
@@ -275,25 +275,26 @@ export function HomeView() {
             </p>
           </Section>
 
-          {/* POSITIONING */}
-          <Section eyebrow="Where Vigil fits">
+          {/* POSITIONING — replaces the previous "what we are NOT" text
+              list. Names categories, not companies. The visual makes the
+              "we sit in the request path, they sit adjacent to it" claim
+              self-evident; the prose underneath is just the caption. */}
+          <Section eyebrow="Where we sit">
             <h2
-              className="text-[32px] font-normal leading-[1.1] tracking-[-0.02em] text-stone-900 sm:text-[44px]"
+              className="max-w-[20ch] text-[32px] font-normal leading-[1.1] tracking-[-0.02em] text-stone-900 sm:text-[44px]"
               style={{ fontFamily: SERIF }}
             >
-              We sit below the stack you already have.
+              In the request path, not{" "}
+              <span className="italic">adjacent to it.</span>
             </h2>
-
-            <ul className="mt-10 grid gap-px overflow-hidden rounded-md border border-stone-200 bg-stone-200 sm:grid-cols-2">
-              {notList.map((line) => (
-                <li
-                  key={line}
-                  className="bg-white px-7 py-6 text-[15.5px] leading-snug text-stone-700"
-                >
-                  {line}
-                </li>
-              ))}
-            </ul>
+            <p className="mt-5 max-w-[60ch] text-[16.5px] leading-relaxed text-stone-600">
+              Orchestration, observability, and identity tools watch agents
+              from the side. Vigil is in the line between every agent
+              request and the system that answers it.
+            </p>
+            <div className="mt-12">
+              <LayeredStackDiagram />
+            </div>
           </Section>
 
           {/* EARLY ACCESS */}

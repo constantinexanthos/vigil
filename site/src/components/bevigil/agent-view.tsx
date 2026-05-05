@@ -4,7 +4,7 @@ import {
   withoutVigil,
   withVigil,
   trafficMismatch,
-  notList,
+  positioning,
   beliefs,
   quickstart,
   REPO_URL,
@@ -206,14 +206,11 @@ function HomeProse() {
 
       <Hr />
 
-      <H2>Where Vigil fits</H2>
-      <ul className="mb-4 list-disc pl-6 text-stone-700 marker:text-cyan-700">
-        {notList.map((line) => (
-          <li key={line} className="mb-2">
-            {line}
-          </li>
-        ))}
-      </ul>
+      <H2>Where we sit</H2>
+      <P>{positioning.paragraph}</P>
+      <P>
+        <em className="text-stone-500">{positioning.caption}.</em>
+      </P>
 
       <Hr />
 
