@@ -18,7 +18,7 @@ export default function LegacyLayout({
 }) {
   return (
     <div className="theme-legacy min-h-screen bg-background text-foreground font-mono">
-      <RainingBackground />
+      <RainingBackground variant="full" />
       <Nav />
       <div className="relative z-10">{children}</div>
       <Footer />
