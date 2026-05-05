@@ -38,11 +38,17 @@ export function RainingBackground() {
     return newCharacters
   }, [])
 
+  // One-shot init: matches the original behaviour.
   useEffect(() => {
     setCharacters(createCharacters(pickCharCount()))
+  }, [createCharacters])
 
+  // Re-create the field when the mobile breakpoint flips.
+  useEffect(() => {
     const mql = window.matchMedia("(max-width: 767px)")
-    const onChange = () => setCharacters(createCharacters(pickCharCount()))
+    const onChange = () => {
+      setCharacters(createCharacters(pickCharCount()))
+    }
     mql.addEventListener("change", onChange)
     return () => mql.removeEventListener("change", onChange)
   }, [createCharacters])
