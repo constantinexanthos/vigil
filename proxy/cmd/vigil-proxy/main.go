@@ -1,8 +1,9 @@
 // vigil-proxy is the agent-aware data plane for Vigil.
 //
-// v0.0.2: persistent identity issuer. Ed25519 keypair on disk so tokens
-// stay verifiable across restarts; SQLite-backed identity store so the
-// list of issued identities survives a process bounce.
+// v0.1.0a: bytes-equivalent Postgres wire-protocol passthrough proxy. The
+// HTTP identity issuer from v0.0.2 still runs unconditionally; the Postgres
+// proxy starts when --postgres-listen and --postgres-upstream are set
+// (and --postgres-disabled is not).
 //
 // See docs/superpowers/specs/2026-05-04-vigil-data-plane-design.md
 package main
@@ -16,11 +17,13 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/costaxanthos/vigil/proxy/internal/config"
 	"github.com/costaxanthos/vigil/proxy/internal/identity"
+	"github.com/costaxanthos/vigil/proxy/internal/pgproxy"
 )
 
 func main() {
@@ -61,11 +64,11 @@ func run() error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("content-type", "application/json")
-		w.Write([]byte(`{"ok":true,"version":"v0.0.2"}`))
+		w.Write([]byte(`{"ok":true,"version":"v0.1.0a"}`))
 	})
 	idSvc.Routes(mux)
 
-	srv := &http.Server{
+	httpSrv := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           withLog(mux),
 		ReadHeaderTimeout: 5 * time.Second,
@@ -74,23 +77,66 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	go func() {
+	// Compose startup log line so HTTP and Postgres lines stay together.
+	if cfg.PostgresProxyEnabled() {
 		log.Printf(
-			"vigil-proxy v0.0.2 listening on %s (db=%s key=%s pubkey=%s)",
+			"vigil-proxy v0.1.0a — http=%s postgres=%s → upstream=%s (db=%s key=%s pubkey=%s)",
+			cfg.Addr, cfg.PostgresListen, cfg.PostgresUpstream,
+			cfg.DBPath, cfg.KeyPath, iss.PublicKeyB64(),
+		)
+	} else {
+		log.Printf(
+			"vigil-proxy v0.1.0a — http=%s postgres=disabled (db=%s key=%s pubkey=%s)",
 			cfg.Addr, cfg.DBPath, cfg.KeyPath, iss.PublicKeyB64(),
 		)
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Printf("server error: %v", err)
+	}
+
+	// Track both servers so SIGTERM drains both before we exit.
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Printf("http server error: %v", err)
 			stop()
 		}
 	}()
+
+	if cfg.PostgresProxyEnabled() {
+		pgSrv := &pgproxy.Server{
+			ListenAddr:   cfg.PostgresListen,
+			UpstreamAddr: cfg.PostgresUpstream,
+			Logger:       log.Default(),
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := pgSrv.ListenAndServe(ctx); err != nil {
+				log.Printf("pgproxy error: %v", err)
+				stop()
+			}
+		}()
+	}
 
 	<-ctx.Done()
 	log.Println("shutting down")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	return srv.Shutdown(shutdownCtx)
+	httpErr := httpSrv.Shutdown(shutdownCtx)
+
+	// pgproxy.Server.ListenAndServe exits when ctx is canceled (which
+	// signal.NotifyContext just did via stop()). Give it a moment to
+	// drain before we return.
+	done := make(chan struct{})
+	go func() { wg.Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		log.Println("shutdown timeout — proceeding")
+	}
+	return httpErr
 }
 
 // ensureParentDir creates the parent directory of `path` only if it's the
