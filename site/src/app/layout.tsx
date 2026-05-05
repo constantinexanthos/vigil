@@ -1,12 +1,21 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, IBM_Plex_Sans, Inter } from "next/font/google";
+import { IBM_Plex_Mono, IBM_Plex_Sans, Inter, Newsreader } from "next/font/google";
 import "./globals.css";
 
-// Inter is the type stack for the new bevigil.ai landing.
+// Inter is the sans body type for the bevigil.ai landing.
+// Newsreader carries the editorial serif headline (Sycamore-flavored).
 // IBM Plex stays available for the legacy /old/* subtree.
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
+  display: "swap",
+});
+
+const newsreader = Newsreader({
+  variable: "--font-serif",
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  style: ["normal", "italic"],
   display: "swap",
 });
 
@@ -43,7 +52,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${ibmPlexMono.variable} ${ibmPlexSans.variable} antialiased`}
+      className={`${inter.variable} ${newsreader.variable} ${ibmPlexMono.variable} ${ibmPlexSans.variable} antialiased`}
     >
       <body className="min-h-screen bg-background text-foreground">
         {children}
