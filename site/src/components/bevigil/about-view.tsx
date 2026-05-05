@@ -1,6 +1,7 @@
 import { EarlyAccessForm } from "./early-access-form"
 import { SiteHeader } from "./site-header"
 import { SiteFooter } from "./site-footer"
+import { Section } from "./section"
 import { beliefs, REPO_URL } from "./content"
 import { GithubGlyph } from "./icons"
 
@@ -23,10 +24,9 @@ export function AboutView() {
         <section className="relative">
           <div className="mx-auto w-full max-w-[860px] px-6 pt-24 pb-32 sm:pt-32 sm:pb-40">
             <span
-              className="mb-9 inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-stone-500"
+              className="mb-9 inline-flex items-center text-[11px] uppercase tracking-[0.18em] text-stone-500"
               style={{ fontFamily: MONO }}
             >
-              <span aria-hidden className="h-px w-6 bg-stone-300" />
               About
             </span>
 
@@ -47,7 +47,7 @@ export function AboutView() {
         </section>
 
         {/* WHY VIGIL */}
-        <Section eyebrow="Why Vigil">
+        <Section eyebrow="Why Vigil" maxWidth={860}>
           <h2
             className="text-[32px] font-normal leading-[1.15] tracking-[-0.02em] text-stone-900 sm:text-[40px]"
             style={{ fontFamily: SERIF }}
@@ -89,7 +89,7 @@ export function AboutView() {
         </Section>
 
         {/* BELIEFS */}
-        <Section eyebrow="What we believe">
+        <Section eyebrow="What we believe" maxWidth={860}>
           <h2
             className="text-[32px] font-normal leading-[1.15] tracking-[-0.02em] text-stone-900 sm:text-[40px]"
             style={{ fontFamily: SERIF }}
@@ -116,7 +116,7 @@ export function AboutView() {
         </Section>
 
         {/* CTA / EARLY ACCESS */}
-        <Section eyebrow="Stay close">
+        <Section eyebrow="Stay close" maxWidth={860}>
           <div className="grid gap-10 lg:grid-cols-[1.1fr_1fr] lg:items-center">
             <div className="max-w-[560px]">
               <h2
@@ -161,36 +161,3 @@ export function AboutView() {
   )
 }
 
-function Section({
-  children,
-  eyebrow,
-}: {
-  children: React.ReactNode
-  eyebrow: string
-}) {
-  return (
-    <section className="relative">
-      <div className="mx-auto w-full max-w-[860px] px-6 pb-32 pt-20 sm:pb-40 sm:pt-24">
-        <SectionLabel>{eyebrow}</SectionLabel>
-        <div className="mt-6">{children}</div>
-      </div>
-      <div
-        aria-hidden
-        className="mx-auto h-px max-w-[860px] bg-stone-200"
-        style={{ marginLeft: "1.5rem", marginRight: "1.5rem" }}
-      />
-    </section>
-  )
-}
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <span
-      className="inline-flex items-center gap-2 text-[10.5px] uppercase tracking-[0.2em] text-cyan-700"
-      style={{ fontFamily: MONO }}
-    >
-      <span aria-hidden className="h-px w-5 bg-cyan-700/40" />
-      {children}
-    </span>
-  )
-}

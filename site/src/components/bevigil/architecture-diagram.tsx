@@ -37,17 +37,18 @@ export function ArchitectureDiagram() {
             AGENTS
           </text>
           {[
-            { x: 60, label: "claude" },
-            { x: 200, label: "cursor" },
-            { x: 340, label: "codex" },
-            { x: 480, label: "custom" },
-            { x: 620, label: "your fleet" },
+            { x: 40, label: "Claude Code" },
+            { x: 154, label: "Cursor" },
+            { x: 268, label: "Codex" },
+            { x: 382, label: "Copilot" },
+            { x: 496, label: "Cline" },
+            { x: 610, label: "and more" },
           ].map((node) => (
             <g key={node.label}>
               <rect
                 x={node.x}
                 y={62}
-                width={80}
+                width={90}
                 height={42}
                 rx={4}
                 fill="#ffffff"
@@ -55,7 +56,7 @@ export function ArchitectureDiagram() {
                 strokeWidth={1}
               />
               <text
-                x={node.x + 40}
+                x={node.x + 45}
                 y={88}
                 textAnchor="middle"
                 fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
@@ -70,11 +71,12 @@ export function ArchitectureDiagram() {
 
         {/* Connectors top -> middle */}
         <g stroke={FAINT} strokeWidth={1} fill="none">
-          <path d="M100 104 L100 150" />
-          <path d="M240 104 L240 150" />
-          <path d="M380 104 L380 150" />
-          <path d="M520 104 L520 150" />
-          <path d="M660 104 L660 150" />
+          <path d="M85 104 L85 150" />
+          <path d="M199 104 L199 150" />
+          <path d="M313 104 L313 150" />
+          <path d="M427 104 L427 150" />
+          <path d="M541 104 L541 150" />
+          <path d="M655 104 L655 150" />
         </g>
 
         {/* Middle layer: Vigil */}

@@ -1,8 +1,10 @@
 import Link from "next/link"
 import { Suspense } from "react"
-import { ACCENT, REPO_URL, PROXY_URL, VERSION } from "./content"
+import { REPO_URL, PROXY_URL, VERSION } from "./content"
 import { GithubGlyph } from "./icons"
+import { BrandLogo } from "./brand-logo"
 import { ViewToggle } from "./view-toggle"
+import type { ViewMode } from "./view"
 
 const MONO = "var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace"
 const SANS =
@@ -10,41 +12,41 @@ const SANS =
 
 interface SiteHeaderProps {
   pathname?: "/" | "/about" | "/docs"
+  /** When 'agent', internal nav links carry ?view=agent so the user
+   *  doesn't get bounced back to human view by clicking around. */
+  view?: ViewMode
 }
 
-// Sticky top header used across the v2 site (home, about, docs).
-// All nav targets are real routes — no scroll-to-anchor on the home page.
-export function SiteHeader({ pathname = "/" }: SiteHeaderProps) {
+// Sticky top header used across the v2 site (home, about, docs) — and
+// also rendered above the agent view's terminal body so the top nav
+// ribbon stays visually identical in both modes. Only the body below
+// changes between marketing-rendered and terminal-prose-rendered.
+export function SiteHeader({
+  pathname = "/",
+  view = "human",
+}: SiteHeaderProps) {
+  // Internal nav suffix preserves the active view across page nav.
+  const suffix = view === "agent" ? "?view=agent" : ""
   return (
     <header className="sticky top-0 z-40 border-b border-stone-200 bg-white/85 backdrop-blur-md">
-      <div className="mx-auto flex w-full max-w-[1180px] items-center justify-between gap-4 px-6 py-4">
-        <Link
-          href="/"
-          className="flex items-center gap-2.5 text-[14px] font-medium tracking-tight text-stone-900"
-        >
-          <span
-            aria-hidden
-            className="inline-block h-2 w-2 rounded-full"
-            style={{ background: ACCENT }}
-          />
-          <span>bevigil.ai</span>
-        </Link>
+      <div className="mx-auto flex w-full max-w-[1180px] items-center justify-between gap-4 px-6 py-3.5">
+        <BrandLogo href={`/${suffix}`} />
 
         <nav
           className="hidden items-center gap-1 rounded-full border border-stone-200 bg-white px-1.5 py-1 text-[12.5px] text-stone-500 sm:flex"
           aria-label="Primary"
           style={{ fontFamily: SANS }}
         >
-          <NavItem href="/" active={pathname === "/"}>
+          <NavItem href={`/${suffix}`} active={pathname === "/"}>
             home
           </NavItem>
-          <NavItem href="/about" active={pathname === "/about"}>
+          <NavItem href={`/about${suffix}`} active={pathname === "/about"}>
             about
           </NavItem>
           <NavItem href={PROXY_URL} external ariaLabel="Vigil proxy on GitHub">
             proxy
           </NavItem>
-          <NavItem href="/docs" active={pathname === "/docs"}>
+          <NavItem href={`/docs${suffix}`} active={pathname === "/docs"}>
             docs
           </NavItem>
           <NavItem

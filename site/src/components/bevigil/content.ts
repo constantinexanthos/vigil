@@ -24,7 +24,7 @@ export const primitives: { title: string; body: string; iconKey: PrimitiveIconKe
   },
   {
     title: "Fan-out coalescing",
-    body: "When an agent fires the same query repeatedly (which they do constantly), Vigil deduplicates and serves cached results. The single biggest cost-saver — cuts agent infrastructure costs 40–80% in early benchmarks.",
+    body: "When an agent fires the same query repeatedly (which they do constantly), Vigil deduplicates and serves cached results. The single biggest cost-saver: cuts agent infrastructure costs 40–80% in early benchmarks.",
     iconKey: "coalesce",
   },
   {
@@ -70,7 +70,7 @@ export const withoutVigil: { time: string; body: string }[] = [
   },
   {
     time: "11:50",
-    body: "Database load is the obvious culprit, but nobody knows which agent did what — they all share the same DB credentials.",
+    body: "Database load is the obvious culprit, but nobody knows which agent did what. They all share the same DB credentials.",
   },
   {
     time: "12:15",
@@ -133,13 +133,14 @@ export const trafficMismatch: { humans: string; agents: string }[] = [
   },
 ]
 
-// Positioning row.
-export const notList: string[] = [
-  "Not an orchestrator (Conductor does that).",
-  "Not an LLM observability tool (Langfuse does that).",
-  "Not an agent identity provider (Keycard does that).",
-  "Vigil sits below all of them, in the data path.",
-]
+// Positioning prose — used by the agent (plain-text) view.
+// Deliberately names categories, never companies. The human view renders
+// the same idea as a layered-stack diagram (see LayeredStackDiagram).
+export const positioning = {
+  paragraph:
+    "Vigil sits in the request path between agents and your systems. Orchestration, observability, and identity tools sit adjacent to it — they spawn agents, watch what they did, and know who they are, but none of them sit in line on every request. Different layer, different job.",
+  caption: "in the request path, not adjacent to it",
+}
 
 // Quickstart curl examples for the docs page, sourced from proxy/README.md.
 export const quickstart: {

@@ -1,15 +1,17 @@
 import { EarlyAccessForm } from "./early-access-form"
 import { ArchitectureDiagram } from "./architecture-diagram"
+import { BlastRadiusDiagram } from "./blast-radius-diagram"
+import { LayeredStackDiagram } from "./layered-stack-diagram"
 import { PrimitiveIcon, GithubGlyph } from "./icons"
 import { SiteHeader } from "./site-header"
 import { SiteFooter } from "./site-footer"
+import { Section } from "./section"
 import { RainingBackground } from "@/components/raining-background"
 import {
   primitives,
   trafficMismatch,
   withoutVigil,
   withVigil,
-  notList,
   REPO_URL,
 } from "./content"
 
@@ -55,10 +57,9 @@ export function HomeView() {
               <div className="grid gap-16 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
                 <div>
                   <span
-                    className="mb-9 inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-stone-500"
+                    className="mb-9 inline-flex items-center text-[11px] uppercase tracking-[0.18em] text-stone-500"
                     style={{ fontFamily: MONO }}
                   >
-                    <span aria-hidden className="h-px w-6 bg-stone-300" />
                     Open source · Single binary · Free for individuals
                   </span>
 
@@ -223,6 +224,28 @@ export function HomeView() {
             </ol>
           </Section>
 
+          {/* BLAST RADIUS — second hero-sibling visual, sits between
+              the WHAT IT DOES primitives and the Without/With scenario.
+              Reinforces a different concept than the hero diagram:
+              scoped permissions per agent, not the request data path. */}
+          <Section eyebrow="Blast radius">
+            <h2
+              className="max-w-[20ch] text-[32px] font-normal leading-[1.1] tracking-[-0.02em] text-stone-900 sm:text-[44px]"
+              style={{ fontFamily: SERIF }}
+            >
+              Each agent runs inside a{" "}
+              <span className="italic">scope it can&rsquo;t escape.</span>
+            </h2>
+            <p className="mt-5 max-w-[60ch] text-[16.5px] leading-relaxed text-stone-600">
+              Permissions are enforced at the proxy, not in the agent&rsquo;s
+              prompt. An agent can issue any query it wants &mdash; Vigil
+              decides whether the query reaches the data store.
+            </p>
+            <div className="mt-12">
+              <BlastRadiusDiagram />
+            </div>
+          </Section>
+
           {/* SCENARIO */}
           <Section eyebrow="A concrete scenario">
             <h2
@@ -252,25 +275,26 @@ export function HomeView() {
             </p>
           </Section>
 
-          {/* POSITIONING */}
-          <Section eyebrow="Where Vigil fits">
+          {/* POSITIONING — replaces the previous "what we are NOT" text
+              list. Names categories, not companies. The visual makes the
+              "we sit in the request path, they sit adjacent to it" claim
+              self-evident; the prose underneath is just the caption. */}
+          <Section eyebrow="Where we sit">
             <h2
-              className="text-[32px] font-normal leading-[1.1] tracking-[-0.02em] text-stone-900 sm:text-[44px]"
+              className="max-w-[20ch] text-[32px] font-normal leading-[1.1] tracking-[-0.02em] text-stone-900 sm:text-[44px]"
               style={{ fontFamily: SERIF }}
             >
-              We sit below the stack you already have.
+              In the request path, not{" "}
+              <span className="italic">adjacent to it.</span>
             </h2>
-
-            <ul className="mt-10 grid gap-px overflow-hidden rounded-md border border-stone-200 bg-stone-200 sm:grid-cols-2">
-              {notList.map((line) => (
-                <li
-                  key={line}
-                  className="bg-white px-7 py-6 text-[15.5px] leading-snug text-stone-700"
-                >
-                  {line}
-                </li>
-              ))}
-            </ul>
+            <p className="mt-5 max-w-[60ch] text-[16.5px] leading-relaxed text-stone-600">
+              Orchestration, observability, and identity tools watch agents
+              from the side. Vigil is in the line between every agent
+              request and the system that answers it.
+            </p>
+            <div className="mt-12">
+              <LayeredStackDiagram />
+            </div>
           </Section>
 
           {/* EARLY ACCESS */}
@@ -311,42 +335,6 @@ export function HomeView() {
         <SiteFooter />
       </div>
     </div>
-  )
-}
-
-function Section({
-  children,
-  eyebrow,
-  id,
-}: {
-  children: React.ReactNode
-  eyebrow: string
-  id?: string
-}) {
-  return (
-    <section id={id} className="relative">
-      <div className="mx-auto w-full max-w-[1180px] px-6 pb-32 pt-20 sm:pb-40 sm:pt-24">
-        <SectionLabel>{eyebrow}</SectionLabel>
-        <div className="mt-6">{children}</div>
-      </div>
-      <div
-        aria-hidden
-        className="mx-auto h-px max-w-[1180px] bg-stone-200"
-        style={{ marginLeft: "1.5rem", marginRight: "1.5rem" }}
-      />
-    </section>
-  )
-}
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <span
-      className="inline-flex items-center gap-2 text-[10.5px] uppercase tracking-[0.2em] text-cyan-700"
-      style={{ fontFamily: MONO }}
-    >
-      <span aria-hidden className="h-px w-5 bg-cyan-700/40" />
-      {children}
-    </span>
   )
 }
 
