@@ -101,7 +101,7 @@ export function DocsSidebar() {
             className="block text-[#22d3ee] text-[10px] uppercase tracking-[0.15em] font-mono mb-2"
             style={{ textShadow: "0 0 10px rgba(34, 211, 238, 0.25)" }}
           >
-            // {section.label}
+            {`// ${section.label}`}
           </span>
           <ul className="space-y-1">
             {section.items.map((item) => (

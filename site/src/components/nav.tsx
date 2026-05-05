@@ -3,11 +3,14 @@
 import Link from "next/link"
 import Image from "next/image"
 
+// Legacy nav — only rendered inside the (legacy) route group.
+// All links point to /old/* so the original marketing keeps working
+// while the new bevigil.ai landing owns "/".
 export function Nav() {
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 border-b border-[#1a1d23] bg-[rgba(7,8,10,0.88)] backdrop-blur-md">
       <div className="w-full px-6 sm:px-10 py-3 flex justify-between items-center">
-        <Link href="/" className="flex items-center gap-2.5">
+        <Link href="/old" className="flex items-center gap-2.5">
           <Image
             src="/logo.png"
             alt="Vigil"
@@ -27,36 +30,34 @@ export function Nav() {
         </Link>
         <div className="flex items-center gap-6 font-mono text-xs">
           <Link
-            href="/#features"
+            href="/old#features"
             className="text-[#6b7084] uppercase tracking-[0.08em] transition-colors hover:text-[#22d3ee]"
           >
             Features
           </Link>
           <Link
-            href="/#how"
+            href="/old#how"
             className="text-[#6b7084] uppercase tracking-[0.08em] transition-colors hover:text-[#22d3ee]"
           >
             How
           </Link>
           <Link
-            href="/#agents"
+            href="/old#agents"
             className="text-[#6b7084] uppercase tracking-[0.08em] transition-colors hover:text-[#22d3ee]"
           >
             Agents
           </Link>
-          <a
-            href="/docs"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[#6b7084] uppercase tracking-[0.08em] transition-colors hover:text-[#22d3ee]"
-          >
-            Docs
-          </a>
           <Link
-            href="/changelog"
+            href="/old/changelog"
             className="text-[#6b7084] uppercase tracking-[0.08em] transition-colors hover:text-[#22d3ee]"
           >
             Changelog
+          </Link>
+          <Link
+            href="/"
+            className="text-[#6b7084] uppercase tracking-[0.08em] transition-colors hover:text-[#22d3ee]"
+          >
+            New site
           </Link>
           <a
             href="https://github.com/constantinexanthos/vigil"

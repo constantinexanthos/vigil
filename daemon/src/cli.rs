@@ -1167,6 +1167,11 @@ fn spawn_turn_consumer<E, F>(
     tokio::spawn(async move {
         let mut last_summary: HashMap<String, Instant> = HashMap::new();
         let debounce = std::time::Duration::from_secs(30);
+        // Sessions for which we've already emitted a synthetic session_seen
+        // event. Per-process; restart re-emits once. Idempotent in SQL is OK
+        // — we just avoid the extra round-trip and log noise.
+        let mut emitted_session_seen: std::collections::HashSet<String> =
+            std::collections::HashSet::new();
 
         while let Some(ev) = rx.recv().await {
             let (path, turn) = into_pair(ev);
@@ -1184,6 +1189,38 @@ fn spawn_turn_consumer<E, F>(
                 if let Err(e) = store.insert_session_turn(&record) {
                     eprintln!("vigil: insert turn failed ({source}): {e}");
                     continue;
+                }
+            }
+
+            // For Claude Code: emit a synthetic session_seen event the first
+            // time we see this session. This makes the session visible to
+            // queries that only look at the events table — including the rail
+            // — even when the project lives outside the file watcher's roots.
+            // Decoded from the JSONL parent folder: Claude encodes cwd by
+            // replacing every '/' with '-'.
+            if source == "claude" && !emitted_session_seen.contains(&session_id) {
+                if let Some(repo_path) = crate::sessionlog::decode_cwd_from_jsonl_path(&path) {
+                    let synth = AgentEvent {
+                        id: None,
+                        timestamp: Utc::now(),
+                        kind: EventKind::SessionSeen,
+                        file_path: None,
+                        agent: "claude-code".to_string(),
+                        session_id: Some(session_id.clone()),
+                        repo_path: Some(repo_path.to_string_lossy().to_string()),
+                        branch: None,
+                        diff: None,
+                        metadata: None,
+                        host_kind: None,
+                        model: None,
+                        is_live: true,
+                    };
+                    let store = db.lock().unwrap();
+                    if let Err(e) = store.insert(&synth) {
+                        eprintln!("vigil: insert session_seen failed: {e}");
+                    } else {
+                        emitted_session_seen.insert(session_id.clone());
+                    }
                 }
             }
 

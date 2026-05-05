@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import type { SessionGroup, SessionFile } from "../types";
+import { displayPath } from "../lib/path";
 
 interface Props {
   session: SessionGroup;
@@ -33,9 +34,9 @@ export function ActivityStream({ session }: Props) {
   }
 
   return (
-    <div ref={ref} onScroll={onScroll} className="flex-1 overflow-y-auto px-5 py-3 font-mono text-[12px]">
+    <div ref={ref} onScroll={onScroll} className="flex-1 overflow-y-auto px-5 py-3 font-mono text-sm">
       {rows.length === 0 && (
-        <div className="text-white/45 text-[12px]">No activity yet.</div>
+        <div className="text-white/45 text-sm">No activity yet.</div>
       )}
       {rows.map((r) => (
         <motion.div
@@ -73,17 +74,6 @@ function fileRows(files: SessionFile[], repoPath: string | null | undefined): Ro
         removed: f.removed,
       };
     });
-}
-
-/** Strip repoPath prefix → repo-relative path; fallback to last 3 segments. */
-function displayPath(path: string, repoPath: string | null | undefined): string {
-  if (!path) return path;
-  if (repoPath && path.startsWith(repoPath)) {
-    return path.slice(repoPath.length).replace(/^\//, "");
-  }
-  const parts = path.split("/").filter(Boolean);
-  if (parts.length <= 3) return path;
-  return parts.slice(-3).join("/");
 }
 
 /** Vite HMR / atomic-writer temp files. Pure noise in the activity feed. */

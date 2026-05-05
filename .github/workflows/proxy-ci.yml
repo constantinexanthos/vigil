@@ -1,0 +1,41 @@
+name: Proxy CI
+
+on:
+  push:
+    branches: [main]
+    paths: ["proxy/**", ".github/workflows/proxy-ci.yml"]
+  pull_request:
+    paths: ["proxy/**", ".github/workflows/proxy-ci.yml"]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: proxy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          cache: true
+          cache-dependency-path: proxy/go.sum
+      - name: Build
+        run: go build ./...
+      - name: Test
+        run: go test ./...
+
+  vet:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: proxy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          cache: true
+          cache-dependency-path: proxy/go.sum
+      - name: Vet
+        run: go vet ./...

@@ -3,7 +3,15 @@ import { invoke } from "@tauri-apps/api/core";
 import { SessionFooter } from "../SessionFooter";
 import { SessionHeader } from "../SessionHeader";
 import { SummaryBlock } from "../SummaryBlock";
-import type { SessionGroup, SessionTurn } from "../../types";
+import { OverviewPane } from "./overview/OverviewPane";
+import type {
+  SessionGroup,
+  SessionTurn,
+  LiveSessionRow,
+  Collision,
+  FileHeat,
+  HourBucket,
+} from "../../types";
 import type { ServerSummary } from "../../hooks";
 
 interface Props {
@@ -13,24 +21,35 @@ interface Props {
   summary: ServerSummary | null;
   /** Recent turns for the selected session — drives PulseLine + MilestoneFeed in SummaryBlock. */
   turns: SessionTurn[];
+  viewMode: "overview" | "session";
+  overviewData: {
+    liveSessions: LiveSessionRow[];
+    collisions: Collision[];
+    topEditedFiles: FileHeat[];
+    hourlyActivity: HourBucket[];
+    burnRatePerHour: number | null;
+    activeAgents: number;
+    totalAgents: number;
+    filesToday: number;
+  };
+  onSelect: (sessionId: string) => void;
 }
 
-export function MiddlePane({ session, hasCli, summary, turns }: Props) {
+export function MiddlePane({ session, hasCli, summary, turns, viewMode, overviewData, onSelect }: Props) {
   const [refreshing, setRefreshing] = useState(false);
 
-  if (!session) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center text-center px-6">
-        <span
-          aria-hidden
-          className="w-3 h-3 rounded-full bg-white/25 mb-4 animate-pulse-alive"
-        />
-        <div className="text-title text-white/75 mb-1">No agents active</div>
-        <div className="text-[12px] text-white/45 leading-relaxed max-w-[280px]">
-          Vigil will light up when you start Claude Code, Cursor, or Codex in a terminal.
-        </div>
-      </div>
-    );
+  if (viewMode === "overview" || !session) {
+    // The existing "No agents active" hero is for truly no data anywhere.
+    // With agents in liveSessions OR any activity today, show Overview instead.
+    const hasAnyData =
+      overviewData.liveSessions.length > 0 ||
+      overviewData.activeAgents > 0 ||
+      overviewData.filesToday > 0;
+    if (!hasAnyData && !session) {
+      // Keep showing the existing No-agents-active hero — no overview content at all.
+      return <NoAgentsHero />;
+    }
+    return <OverviewPane {...overviewData} onSelect={onSelect} />;
   }
 
   async function onRefresh() {
@@ -80,6 +99,21 @@ function ClosedSessionEmpty({ fileCount }: { fileCount: number }) {
         {fileCount > 0
           ? <>Open the <span className="text-white/80 font-medium">Files</span> tab to see what changed.</>
           : <>Nothing was changed.</>}
+      </div>
+    </div>
+  );
+}
+
+function NoAgentsHero() {
+  return (
+    <div className="h-full flex flex-col items-center justify-center text-center px-6">
+      <span
+        aria-hidden
+        className="w-3 h-3 rounded-full bg-white/25 mb-4 animate-pulse-alive"
+      />
+      <div className="text-title text-white/75 mb-1">No agents active</div>
+      <div className="text-sm text-white/45 leading-relaxed max-w-[280px]">
+        Vigil will light up when you start Claude Code, Cursor, or Codex in a terminal.
       </div>
     </div>
   );

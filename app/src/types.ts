@@ -209,6 +209,18 @@ export interface WorkspaceSummary {
   active_collisions: Collision[];
 }
 
+export interface HourBucket {
+  hour_iso: string;
+  by_agent: Array<{ agent: string; count: number }>;
+}
+
+export interface FileHeat {
+  path: string;
+  edit_count: number;
+  agents: string[];
+  last_event_at: string;
+}
+
 export function relativeTime(isoString: string): string {
   const now = Date.now();
   const then = new Date(isoString).getTime();

@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { hostToken } from "../lib/host-tokens";
 import { repoName } from "../lib/formatters";
 import { ModelChip } from "./ModelChip";
+import { AgentGlyph } from "./AgentGlyph";
 import type { SessionGroup } from "../types";
 
 interface Props {
@@ -30,12 +31,15 @@ export function SessionRow({ session, selected, onSelect }: Props) {
       }}
     >
       <div className="flex items-baseline justify-between gap-2">
-        <span className={`text-[12px] truncate ${selected ? "text-white font-semibold" : "text-white/80"}`}>
-          {session.description || "(no description)"}
-        </span>
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          <AgentGlyph agent={session.agent} size={12} />
+          <span className={`text-sm truncate ${selected ? "text-white font-semibold" : "text-white/80"}`}>
+            {session.description || "(no description)"}
+          </span>
+        </div>
         <ModelChip model={session.model} />
       </div>
-      <div className="text-[11px] text-white/50 flex justify-between gap-2 mt-0.5">
+      <div className="text-xs text-white/50 flex justify-between gap-2 mt-0.5 pl-[18px]">
         <span className="truncate">{session.agent} · {repoName(session.repoPath)}</span>
         <span className="font-mono shrink-0">
           <span className="text-emerald-400">+{addedRemoved.added}</span>{" "}
@@ -52,4 +56,3 @@ function tallyFiles(s: SessionGroup) {
     { added: 0, removed: 0 },
   );
 }
-

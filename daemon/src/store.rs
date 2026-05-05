@@ -11,6 +11,10 @@ pub enum EventKind {
     GitCommit,
     GitBranchCreate,
     GitWorktreeCreate,
+    /// Synthetic event emitted by the JSONL tailer when a session is first
+    /// seen, regardless of whether the file watcher is watching that project.
+    /// Lets `query_live_sessions` surface sessions in unwatched directories.
+    SessionSeen,
 }
 
 impl EventKind {
@@ -22,6 +26,7 @@ impl EventKind {
             Self::GitCommit => "git_commit",
             Self::GitBranchCreate => "git_branch_create",
             Self::GitWorktreeCreate => "git_worktree_create",
+            Self::SessionSeen => "session_seen",
         }
     }
 
@@ -33,6 +38,7 @@ impl EventKind {
             "git_commit" => Some(Self::GitCommit),
             "git_branch_create" => Some(Self::GitBranchCreate),
             "git_worktree_create" => Some(Self::GitWorktreeCreate),
+            "session_seen" => Some(Self::SessionSeen),
             _ => None,
         }
     }
@@ -125,6 +131,20 @@ impl Store {
             CREATE INDEX IF NOT EXISTS idx_events_file_path ON events(file_path);
             CREATE INDEX IF NOT EXISTS idx_events_session_id ON events(session_id);
 
+            -- Issue #1: queries wrap the timestamp column in datetime() / date()
+            -- for time-window comparisons. SQLite can't use idx_events_timestamp
+            -- under that wrapper, so the planner falls back to other indexes
+            -- (often idx_events_file_path because file_path IS NOT NULL matches
+            -- almost everything). At 1.5M rows that pegged a user's CPU at 76%.
+            -- These expression and compound indexes give the planner the right
+            -- shape to use:
+            CREATE INDEX IF NOT EXISTS idx_events_dt_timestamp   ON events(datetime(timestamp));
+            CREATE INDEX IF NOT EXISTS idx_events_date_timestamp ON events(date(timestamp));
+            CREATE INDEX IF NOT EXISTS idx_events_kind_dt        ON events(kind, datetime(timestamp));
+            CREATE INDEX IF NOT EXISTS idx_events_agent_dt       ON events(agent, datetime(timestamp));
+            CREATE INDEX IF NOT EXISTS idx_events_session_dt     ON events(session_id, datetime(timestamp));
+            CREATE INDEX IF NOT EXISTS idx_events_kind_date      ON events(kind, date(timestamp));
+
             CREATE TABLE IF NOT EXISTS session_turns (
                 id          INTEGER PRIMARY KEY,
                 session_id  TEXT NOT NULL,
@@ -160,7 +180,16 @@ impl Store {
         )?;
         crate::cost::init_cost_schema(&self.conn)?;
         crate::hallucination::init_hallucination_schema(&self.conn)?;
-        crate::github::init_github_schema(&self.conn)
+        crate::github::init_github_schema(&self.conn)?;
+
+        // Refresh stats so the planner picks up the new compound/expression
+        // indexes added in issue #1's fix. Without this, existing user DBs
+        // upgraded into this build won't have stats for the new indexes and
+        // the planner keeps making the slow choice. ANALYZE on a 1.5M-row DB
+        // takes ~5–10 seconds total — paid once at startup after the upgrade.
+        self.conn.execute("ANALYZE events", [])?;
+        self.conn.execute("ANALYZE cost_events", [])?;
+        Ok(())
     }
 
     /// Insert a new event. Returns the row id.
@@ -733,5 +762,40 @@ mod tests {
             .filter_map(Result::ok)
             .collect();
         assert!(cols.contains(&"source".to_string()), "missing source column");
+    }
+
+    /// Indexes added in 2026-04-25 (issue #1) — the planner picked the wrong
+    /// index for `WHERE file_path IS NOT NULL AND datetime(timestamp) >= ?`
+    /// patterns at 1.5M rows because `idx_events_file_path` matched almost
+    /// every row. Adding expression and compound (column + datetime/date)
+    /// indexes restores the right plan choice.
+    #[test]
+    fn time_window_indexes_exist_after_init() {
+        let store = Store::open_in_memory().unwrap();
+        let names: Vec<String> = store
+            .conn()
+            .prepare("SELECT name FROM sqlite_master WHERE type = 'index'")
+            .unwrap()
+            .query_map([], |row| row.get::<_, String>(0))
+            .unwrap()
+            .filter_map(Result::ok)
+            .collect();
+
+        let required = [
+            "idx_events_dt_timestamp",
+            "idx_events_date_timestamp",
+            "idx_events_kind_dt",
+            "idx_events_agent_dt",
+            "idx_events_session_dt",
+            "idx_events_kind_date",
+            "idx_cost_dt_timestamp",
+            "idx_cost_agent_dt",
+        ];
+        for needed in required {
+            assert!(
+                names.iter().any(|n| n == needed),
+                "missing index {needed}; have: {names:?}",
+            );
+        }
     }
 }

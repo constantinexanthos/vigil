@@ -12,7 +12,7 @@ export function FilesPanel({ files }: Props) {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      <div className="flex-1 overflow-y-auto font-mono text-[11px]">
+      <div className="flex-1 overflow-y-auto font-mono text-xs">
         {files.length === 0 && (
           <div className="px-4 py-5 text-white/45">No files touched yet.</div>
         )}
@@ -35,7 +35,7 @@ export function FilesPanel({ files }: Props) {
       </div>
       {selected?.diff && (
         <div className="border-t border-white/5 max-h-[45%] overflow-auto">
-          <div className="px-4 py-2 text-[11px] text-white/55 font-mono">{selected.path}</div>
+          <div className="px-4 py-2 text-xs text-white/55 font-mono">{selected.path}</div>
           <DiffViewer diff={selected.diff} />
         </div>
       )}

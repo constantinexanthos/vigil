@@ -7,3 +7,14 @@ dist/
 app/src-tauri/gen/
 .superpowers/
 .worktrees/
+
+# Go
+bin/
+*.test
+coverage.out
+
+# Editors / OS noise
+.vscode/
+.idea/
+*.swp
+Thumbs.db

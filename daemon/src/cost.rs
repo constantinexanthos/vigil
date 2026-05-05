@@ -71,6 +71,12 @@ pub fn init_cost_schema(conn: &Connection) -> Result<()> {
         CREATE INDEX IF NOT EXISTS idx_cost_timestamp ON cost_events(timestamp);
         CREATE INDEX IF NOT EXISTS idx_cost_agent ON cost_events(agent);
         CREATE INDEX IF NOT EXISTS idx_cost_session ON cost_events(session_id);
+
+        -- Issue #1: same wrap-the-timestamp problem on cost_events. The
+        -- get_cost_summary path filters with `datetime(timestamp) >= ?`
+        -- and often by agent too.
+        CREATE INDEX IF NOT EXISTS idx_cost_dt_timestamp ON cost_events(datetime(timestamp));
+        CREATE INDEX IF NOT EXISTS idx_cost_agent_dt     ON cost_events(agent, datetime(timestamp));
         ",
     )
 }

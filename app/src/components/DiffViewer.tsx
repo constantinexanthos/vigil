@@ -78,7 +78,7 @@ const STYLES: Record<LineKind, { color: string; bg: string; borderLeft: string }
 export default function DiffViewer({ diff }: DiffViewerProps) {
   if (!diff || diff.trim() === "" || diff === "(no changes)") {
     return (
-      <div className="flex items-center justify-center py-6 text-[12px] text-text-muted">
+      <div className="flex items-center justify-center py-6 text-sm text-text-muted">
         Diff not available
       </div>
     );
