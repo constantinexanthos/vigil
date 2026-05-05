@@ -1,7 +1,9 @@
 import Link from "next/link"
 import { EarlyAccessForm } from "@/components/bevigil/early-access-form"
+import { RainingBackground } from "@/components/raining-background"
 
-const ACCENT = "#c2410c"
+const ACCENT = "#22d3ee"
+const VERSION = "v0.1.0"
 
 // Five primitives — text lifted verbatim from vigil-candidate-a.html.
 const primitives: { title: string; body: string }[] = [
@@ -122,355 +124,529 @@ const notList: string[] = [
   "Vigil sits below all of them, in the data path.",
 ]
 
+const SERIF =
+  "var(--font-serif), 'Newsreader', ui-serif, Georgia, Cambria, 'Times New Roman', serif"
+const SANS =
+  "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'Helvetica Neue', Arial, sans-serif"
+const MONO = "var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace"
+
+// Section backdrop — sits above RainingBackground, dims the falling
+// chars enough that body copy is readable. Keep transparent enough that
+// the signature still bleeds through.
+const SECTION_BACKDROP = "bg-[rgba(10,10,10,0.85)]"
+
 export default function BevigilLanding() {
   return (
     <div
-      className="min-h-screen bg-white text-stone-900 [--accent:#c2410c]"
-      style={{
-        fontFamily:
-          "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'Helvetica Neue', Arial, sans-serif",
-      }}
+      className="relative min-h-screen overflow-x-hidden bg-[#0a0a0a] text-stone-100"
+      style={{ fontFamily: SANS }}
     >
-      {/* Header */}
-      <header className="sticky top-0 z-40 border-b border-stone-200/80 bg-white/85 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-[1100px] items-center justify-between px-6 py-4 sm:py-5">
-          <Link
-            href="/"
-            className="flex items-center gap-2 text-[15px] font-semibold tracking-tight"
-          >
-            <span
-              aria-hidden
-              className="inline-block h-2.5 w-2.5 rounded-full"
-              style={{ background: ACCENT }}
-            />
-            <span>bevigil.ai</span>
-          </Link>
-          <nav className="flex items-center gap-5 text-[13px] font-medium text-stone-600">
-            <a
-              href="#what-it-does"
-              className="hidden transition-colors hover:text-stone-900 sm:inline"
-            >
-              What it does
-            </a>
-            <a
-              href="#scenario"
-              className="hidden transition-colors hover:text-stone-900 sm:inline"
-            >
-              Scenario
-            </a>
-            <a
-              href="#"
-              className="inline-flex items-center gap-1.5 transition-colors hover:text-stone-900"
-              aria-label="View Vigil on GitHub"
-            >
-              <GithubGlyph />
-              <span>GitHub</span>
-            </a>
-          </nav>
-        </div>
-      </header>
+      {/* Falling-character signature — fixed, full-screen, behind everything. */}
+      <RainingBackground />
 
-      <main>
-        {/* HERO */}
-        <section className="border-b border-stone-200/70">
-          <div className="mx-auto w-full max-w-[1100px] px-6 pt-16 pb-20 sm:pt-24 sm:pb-28">
-            <span
-              className="mb-5 inline-flex items-center gap-2 rounded-full border border-[color:var(--accent)]/25 bg-[color:var(--accent)]/[0.06] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--accent)]"
+      {/* Subtle vignette to settle the chars at top/bottom edges. */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 z-[1]"
+        style={{
+          background:
+            "radial-gradient(ellipse at top, rgba(10,10,10,0) 0%, rgba(10,10,10,0.55) 70%, rgba(10,10,10,0.85) 100%)",
+        }}
+      />
+
+      <div className="relative z-10">
+        {/* HEADER */}
+        <header className="sticky top-0 z-40 border-b border-white/5 bg-[rgba(10,10,10,0.65)] backdrop-blur-md">
+          <div className="mx-auto flex w-full max-w-[1180px] items-center justify-between px-6 py-4">
+            <Link
+              href="/"
+              className="flex items-center gap-2.5 text-[14px] font-medium tracking-tight text-stone-100"
             >
               <span
                 aria-hidden
-                className="h-1.5 w-1.5 rounded-full"
-                style={{ background: ACCENT }}
+                className="inline-block h-2 w-2 rounded-full"
+                style={{
+                  background: ACCENT,
+                  boxShadow: "0 0 10px rgba(34, 211, 238, 0.7)",
+                }}
               />
-              Open source · Single binary · Free for individuals
-            </span>
-            <h1 className="max-w-3xl text-[40px] font-bold leading-[1.06] tracking-tight text-stone-900 sm:text-[56px] sm:leading-[1.04]">
-              The seatbelt for your agent fleet.
-            </h1>
-            <p className="mt-6 max-w-2xl text-[18px] leading-[1.6] text-stone-600 sm:text-[19px]">
-              Vigil is the agent-aware data plane that sits between your AI
-              agents and your databases, APIs, and services. Per-agent
-              identity, smart rate limiting, fan-out coalescing, blast-radius
-              control. Open source. Single binary. Free for individuals.
-            </p>
+              <span>bevigil.ai</span>
+            </Link>
 
-            <div className="mt-9 flex flex-col gap-4 sm:max-w-md">
-              <EarlyAccessForm />
-              <a
-                href="#"
-                className="text-[14px] font-medium text-stone-700 underline-offset-4 transition hover:text-[color:var(--accent)] hover:underline"
+            <nav
+              className="hidden items-center gap-1.5 rounded-full border border-white/5 bg-white/[0.025] px-1.5 py-1 text-[12.5px] text-stone-400 sm:flex"
+              aria-label="Primary"
+              style={{ fontFamily: SANS }}
+            >
+              <NavItem href="/" active>
+                home
+              </NavItem>
+              <NavItem href="#what-it-does">proxy</NavItem>
+              <NavItem href="/old">docs</NavItem>
+              <NavItem
+                href="https://github.com"
+                ariaLabel="View Vigil on GitHub"
+                external
               >
                 <span className="inline-flex items-center gap-1.5">
                   <GithubGlyph />
-                  View on GitHub
-                  <span aria-hidden>&rarr;</span>
+                  github
                 </span>
+              </NavItem>
+            </nav>
+
+            <div className="flex items-center gap-3">
+              <span
+                className="hidden text-[11px] tracking-tight text-stone-500 md:inline"
+                style={{ fontFamily: MONO }}
+              >
+                {VERSION}
+              </span>
+              <a
+                href="#early-access"
+                className="inline-flex h-8 items-center rounded-full border border-cyan-400/30 bg-cyan-400/[0.08] px-3 text-[12px] font-medium tracking-tight text-cyan-200 transition hover:border-cyan-400/60 hover:bg-cyan-400/[0.14]"
+              >
+                early access
               </a>
             </div>
           </div>
-        </section>
+        </header>
 
-        {/* THE PROBLEM — human vs agent traffic */}
-        <section id="problem" className="border-b border-stone-200/70 bg-stone-50/60">
-          <div className="mx-auto w-full max-w-[1100px] px-6 py-20 sm:py-24">
-            <div className="mb-10 max-w-2xl">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--accent)]">
-                The problem
+        <main>
+          {/* HERO */}
+          <section className="relative">
+            <div className="mx-auto w-full max-w-[1180px] px-6 pt-24 pb-24 sm:pt-32 sm:pb-32">
+              <span
+                className="mb-9 inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-stone-500"
+                style={{ fontFamily: MONO }}
+              >
+                <span
+                  aria-hidden
+                  className="h-px w-6 bg-stone-700"
+                />
+                Open source · Single binary · Free for individuals
               </span>
-              <h2 className="mt-3 text-[28px] font-bold leading-tight tracking-tight sm:text-[34px]">
-                Today&rsquo;s infrastructure was built for humans. Agents look
-                like a DDoS.
-              </h2>
-              <p className="mt-4 text-[16px] leading-relaxed text-stone-600">
-                Postgres, Redis, Cloudflare rate limiters, AWS API Gateway
-                were tuned for human-shaped traffic. Agents shift the shape
-                from one user, one request to one goal, thousands of
-                sub-requests, many of them redundant.
+
+              <h1
+                className="max-w-[18ch] text-[44px] font-normal leading-[1.02] tracking-[-0.02em] text-stone-50 sm:text-[64px] md:text-[72px]"
+                style={{ fontFamily: SERIF }}
+              >
+                The seatbelt for your{" "}
+                <span className="italic text-stone-200">agent fleet.</span>
+              </h1>
+
+              <p className="mt-7 max-w-[600px] text-[18px] leading-[1.55] text-stone-400 sm:text-[19px]">
+                Vigil is the agent-aware data plane that sits between your AI
+                agents and your databases, APIs, and services. Per-agent
+                identity, smart rate limiting, fan-out coalescing, blast-radius
+                control. Open source. Single binary. Free for individuals.
               </p>
-            </div>
 
-            <div className="grid gap-px overflow-hidden rounded-xl border border-stone-200 bg-stone-200 sm:grid-cols-2">
-              <div className="bg-white p-5 sm:p-6">
-                <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-stone-500">
-                  Humans
-                </div>
-                <ul className="space-y-3 text-[15px] leading-relaxed text-stone-700">
-                  {trafficMismatch.map((row) => (
-                    <li
-                      key={row.humans}
-                      className="flex gap-3 border-b border-stone-100 pb-3 last:border-b-0 last:pb-0"
-                    >
-                      <span
-                        aria-hidden
-                        className="mt-2 h-1 w-1 shrink-0 rounded-full bg-stone-300"
-                      />
-                      <span>{row.humans}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="bg-white p-5 sm:p-6">
-                <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--accent)]">
-                  Agents
-                </div>
-                <ul className="space-y-3 text-[15px] leading-relaxed text-stone-900">
-                  {trafficMismatch.map((row) => (
-                    <li
-                      key={row.agents}
-                      className="flex gap-3 border-b border-stone-100 pb-3 last:border-b-0 last:pb-0"
-                    >
-                      <span
-                        aria-hidden
-                        className="mt-2 h-1 w-1 shrink-0 rounded-full"
-                        style={{ background: ACCENT }}
-                      />
-                      <span>{row.agents}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* WHAT IT DOES — five primitives */}
-        <section id="what-it-does" className="border-b border-stone-200/70">
-          <div className="mx-auto w-full max-w-[1100px] px-6 py-20 sm:py-24">
-            <div className="mb-12 max-w-2xl">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--accent)]">
-                What it does
-              </span>
-              <h2 className="mt-3 text-[28px] font-bold leading-tight tracking-tight sm:text-[34px]">
-                Five primitives, one binary in your data path.
-              </h2>
-            </div>
-
-            <ol className="grid gap-px overflow-hidden rounded-xl border border-stone-200 bg-stone-200 sm:grid-cols-2 lg:grid-cols-3">
-              {primitives.map((p, i) => (
-                <li
-                  key={p.title}
-                  className="flex flex-col gap-3 bg-white p-6 sm:p-7"
+              <div className="mt-10 flex flex-col gap-5 sm:max-w-md">
+                <EarlyAccessForm />
+                <a
+                  href="#"
+                  className="text-[13.5px] font-medium tracking-tight text-stone-400 underline-offset-4 transition hover:text-cyan-300 hover:underline"
                 >
-                  <span
-                    className="font-mono text-[12px] font-semibold tracking-wider"
-                    style={{ color: ACCENT }}
-                  >
-                    {String(i + 1).padStart(2, "0")}
+                  <span className="inline-flex items-center gap-1.5">
+                    <GithubGlyph />
+                    View on GitHub
+                    <span aria-hidden>&rarr;</span>
                   </span>
-                  <h3 className="text-[18px] font-semibold leading-tight tracking-tight text-stone-900">
-                    {p.title}
-                  </h3>
-                  <p className="text-[15px] leading-relaxed text-stone-600">
-                    {p.body}
-                  </p>
-                </li>
-              ))}
-            </ol>
-          </div>
-        </section>
-
-        {/* THE SCENARIO — without/with Vigil */}
-        <section id="scenario" className="border-b border-stone-200/70 bg-stone-50/60">
-          <div className="mx-auto w-full max-w-[1100px] px-6 py-20 sm:py-24">
-            <div className="mb-10 max-w-2xl">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--accent)]">
-                A concrete scenario
-              </span>
-              <h2 className="mt-3 text-[28px] font-bold leading-tight tracking-tight sm:text-[34px]">
-                10-person startup. Postgres, Redis, five coding agents.
-              </h2>
-              <p className="mt-4 text-[16px] leading-relaxed text-stone-600">
-                Same Tuesday morning, told two ways.
-              </p>
-            </div>
-
-            <div className="grid gap-6 lg:grid-cols-2">
-              {/* Without */}
-              <div className="overflow-hidden rounded-xl border border-red-200 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-                <div className="flex items-center gap-2 border-b border-red-200 bg-red-50 px-5 py-3">
-                  <span
-                    aria-hidden
-                    className="h-1.5 w-1.5 rounded-full bg-red-700"
-                  />
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-red-800">
-                    Without Vigil
-                  </span>
-                </div>
-                <ul className="divide-y divide-stone-100 px-5 py-2 sm:px-6">
-                  {withoutVigil.map((row, i) => (
-                    <li
-                      key={`${row.time}-${i}`}
-                      className="flex gap-4 py-3 text-[14.5px] leading-relaxed text-stone-700"
-                    >
-                      <span
-                        className="font-mono text-[12px] font-semibold uppercase tracking-wider text-red-800"
-                        style={{ minWidth: "3.25rem" }}
-                      >
-                        {row.time}
-                      </span>
-                      <span>{row.body}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              {/* With */}
-              <div className="overflow-hidden rounded-xl border border-emerald-200 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-                <div className="flex items-center gap-2 border-b border-emerald-200 bg-emerald-50 px-5 py-3">
-                  <span
-                    aria-hidden
-                    className="h-1.5 w-1.5 rounded-full bg-emerald-700"
-                  />
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-800">
-                    With Vigil
-                  </span>
-                </div>
-                <ul className="divide-y divide-stone-100 px-5 py-2 sm:px-6">
-                  {withVigil.map((row, i) => (
-                    <li
-                      key={`${row.time}-${i}`}
-                      className="flex gap-4 py-3 text-[14.5px] leading-relaxed text-stone-700"
-                    >
-                      <span
-                        className="font-mono text-[12px] font-semibold uppercase tracking-wider text-emerald-800"
-                        style={{ minWidth: "3.25rem" }}
-                      >
-                        {row.time}
-                      </span>
-                      <span>{row.body}</span>
-                    </li>
-                  ))}
-                </ul>
+                </a>
               </div>
             </div>
+          </section>
 
-            <p className="mt-8 text-[15px] italic text-stone-500">
-              Not glamorous. Deeply useful.
-            </p>
-          </div>
-        </section>
-
-        {/* POSITIONING ROW */}
-        <section id="positioning" className="border-b border-stone-200/70">
-          <div className="mx-auto w-full max-w-[1100px] px-6 py-20 sm:py-24">
-            <div className="mb-8 max-w-2xl">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--accent)]">
-                Where Vigil fits
-              </span>
-              <h2 className="mt-3 text-[28px] font-bold leading-tight tracking-tight sm:text-[34px]">
-                We sit below the stack you already have.
-              </h2>
-            </div>
-
-            <ul className="grid gap-3 sm:grid-cols-2">
-              {notList.map((line) => (
-                <li
-                  key={line}
-                  className="rounded-lg border border-stone-200 bg-white px-5 py-4 text-[15.5px] leading-snug text-stone-800"
+          {/* THE PROBLEM */}
+          <section id="problem" className={`relative ${SECTION_BACKDROP}`}>
+            <div className="absolute inset-x-0 top-0 h-px bg-white/5" />
+            <div className="mx-auto w-full max-w-[1180px] px-6 py-24 sm:py-28">
+              <div className="mb-12 max-w-[640px]">
+                <SectionLabel>The problem</SectionLabel>
+                <h2
+                  className="mt-5 text-[32px] font-normal leading-[1.1] tracking-[-0.02em] text-stone-50 sm:text-[44px]"
+                  style={{ fontFamily: SERIF }}
                 >
-                  {line}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
-
-        {/* EMAIL CAPTURE */}
-        <section id="early-access" className="border-b border-stone-200/70 bg-stone-50/60">
-          <div className="mx-auto w-full max-w-[1100px] px-6 py-20 sm:py-24">
-            <div className="grid gap-10 lg:grid-cols-[1.1fr_1fr] lg:items-center">
-              <div className="max-w-xl">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--accent)]">
-                  Early access
-                </span>
-                <h2 className="mt-3 text-[28px] font-bold leading-tight tracking-tight sm:text-[34px]">
-                  Get the binary. Run it next to your database.
+                  Today&rsquo;s infrastructure was built for humans. Agents look
+                  like a <span className="italic">DDoS</span>.
                 </h2>
-                <p className="mt-4 text-[16px] leading-relaxed text-stone-600">
-                  Vigil ships as a single Go binary. Drop it between an agent
-                  and your data store, point it at a config file, watch the
-                  audit trail land. Free for individuals; paid tiers when you
-                  need team policy + cloud retention.
+                <p className="mt-5 max-w-[580px] text-[16.5px] leading-relaxed text-stone-400">
+                  Postgres, Redis, Cloudflare rate limiters, AWS API Gateway
+                  were tuned for human-shaped traffic. Agents shift the shape
+                  from one user, one request to one goal, thousands of
+                  sub-requests, many of them redundant.
                 </p>
               </div>
-              <div className="rounded-xl border border-stone-200 bg-white p-6 shadow-[0_1px_2px_rgba(0,0,0,0.02)] sm:p-7">
-                <p className="mb-4 text-[14px] font-medium text-stone-700">
-                  Drop your work email. We&rsquo;ll send the binary and a
-                  walkthrough.
-                </p>
-                <EarlyAccessForm id="ea-email-bottom" />
-                <p className="mt-4 text-[12px] text-stone-500">
-                  No spam. Unsubscribe in one click.
-                </p>
+
+              <div className="grid gap-px overflow-hidden rounded-md border border-white/5 bg-white/5 sm:grid-cols-2">
+                <div className="bg-[#0a0a0a] p-7 sm:p-8">
+                  <div
+                    className="mb-5 text-[10.5px] uppercase tracking-[0.2em] text-stone-500"
+                    style={{ fontFamily: MONO }}
+                  >
+                    Humans
+                  </div>
+                  <ul className="space-y-4 text-[15px] leading-relaxed text-stone-400">
+                    {trafficMismatch.map((row) => (
+                      <li
+                        key={row.humans}
+                        className="flex gap-3 border-b border-white/[0.04] pb-4 last:border-b-0 last:pb-0"
+                      >
+                        <span
+                          aria-hidden
+                          className="mt-2 h-1 w-1 shrink-0 rounded-full bg-stone-600"
+                        />
+                        <span>{row.humans}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="bg-[#0a0a0a] p-7 sm:p-8">
+                  <div
+                    className="mb-5 text-[10.5px] uppercase tracking-[0.2em] text-cyan-300"
+                    style={{ fontFamily: MONO }}
+                  >
+                    Agents
+                  </div>
+                  <ul className="space-y-4 text-[15px] leading-relaxed text-stone-100">
+                    {trafficMismatch.map((row) => (
+                      <li
+                        key={row.agents}
+                        className="flex gap-3 border-b border-white/[0.04] pb-4 last:border-b-0 last:pb-0"
+                      >
+                        <span
+                          aria-hidden
+                          className="mt-2 h-1 w-1 shrink-0 rounded-full"
+                          style={{ background: ACCENT }}
+                        />
+                        <span>{row.agents}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </div>
             </div>
-          </div>
-        </section>
-      </main>
+          </section>
 
-      {/* FOOTER */}
-      <footer className="bg-white">
-        <div className="mx-auto flex w-full max-w-[1100px] flex-col items-start justify-between gap-3 px-6 py-10 text-[13px] text-stone-500 sm:flex-row sm:items-center">
-          <div>
-            <span className="font-medium text-stone-700">bevigil.ai</span>
-            <span className="mx-2 text-stone-300">·</span>
-            <span>Vigil is open source</span>
-            <span className="mx-2 text-stone-300">·</span>
-            <span>MIT licensed</span>
-            <span className="mx-2 text-stone-300">·</span>
-            <span>Made by Costa</span>
-          </div>
-          <a
-            href="#"
-            aria-label="Vigil on GitHub"
-            className="inline-flex items-center gap-1.5 text-stone-600 transition-colors hover:text-stone-900"
+          {/* WHAT IT DOES */}
+          <section
+            id="what-it-does"
+            className={`relative ${SECTION_BACKDROP}`}
           >
-            <GithubGlyph />
-            <span>GitHub</span>
-          </a>
-        </div>
-      </footer>
+            <div className="absolute inset-x-0 top-0 h-px bg-white/5" />
+            <div className="mx-auto w-full max-w-[1180px] px-6 py-24 sm:py-28">
+              <div className="mb-14 max-w-[640px]">
+                <SectionLabel>What it does</SectionLabel>
+                <h2
+                  className="mt-5 text-[32px] font-normal leading-[1.1] tracking-[-0.02em] text-stone-50 sm:text-[44px]"
+                  style={{ fontFamily: SERIF }}
+                >
+                  Five primitives, one binary in your{" "}
+                  <span className="italic">data path.</span>
+                </h2>
+              </div>
+
+              <ol className="grid gap-px overflow-hidden rounded-md border border-white/5 bg-white/5 sm:grid-cols-2 lg:grid-cols-3">
+                {primitives.map((p, i) => (
+                  <li
+                    key={p.title}
+                    className="flex flex-col gap-4 bg-[#0a0a0a] p-7 sm:p-8"
+                  >
+                    <span
+                      className="text-[36px] font-light leading-none text-cyan-300/90"
+                      style={{ fontFamily: SERIF }}
+                    >
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <h3
+                      className="text-[20px] font-medium leading-tight tracking-tight text-stone-100"
+                      style={{ fontFamily: SANS }}
+                    >
+                      {p.title}
+                    </h3>
+                    <p className="text-[14.5px] leading-[1.65] text-stone-400">
+                      {p.body}
+                    </p>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </section>
+
+          {/* SCENARIO */}
+          <section id="scenario" className={`relative ${SECTION_BACKDROP}`}>
+            <div className="absolute inset-x-0 top-0 h-px bg-white/5" />
+            <div className="mx-auto w-full max-w-[1180px] px-6 py-24 sm:py-28">
+              <div className="mb-12 max-w-[640px]">
+                <SectionLabel>A concrete scenario</SectionLabel>
+                <h2
+                  className="mt-5 text-[32px] font-normal leading-[1.1] tracking-[-0.02em] text-stone-50 sm:text-[44px]"
+                  style={{ fontFamily: SERIF }}
+                >
+                  10-person startup. Postgres, Redis, five coding agents.
+                </h2>
+                <p className="mt-5 text-[16.5px] leading-relaxed text-stone-400">
+                  Same Tuesday morning, told two ways.
+                </p>
+              </div>
+
+              <div className="grid gap-6 lg:grid-cols-2">
+                {/* Without */}
+                <div className="overflow-hidden rounded-md border border-white/5 bg-[#0d0a0a]">
+                  <div
+                    className="border-t-2 px-6 py-4"
+                    style={{ borderColor: "#6b1d1d" }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        aria-hidden
+                        className="h-1.5 w-1.5 rounded-full"
+                        style={{ background: "#b85050" }}
+                      />
+                      <span
+                        className="text-[10.5px] uppercase tracking-[0.2em] text-[#d99090]"
+                        style={{ fontFamily: MONO }}
+                      >
+                        Without Vigil
+                      </span>
+                    </div>
+                  </div>
+                  <ul className="divide-y divide-white/[0.04] px-6 py-2">
+                    {withoutVigil.map((row, i) => (
+                      <li
+                        key={`${row.time}-${i}`}
+                        className="flex gap-5 py-4 text-[14.5px] leading-relaxed text-stone-400"
+                      >
+                        <span
+                          className="text-[12px] font-medium tracking-wider text-[#a96d6d]"
+                          style={{
+                            fontFamily: MONO,
+                            minWidth: "3.25rem",
+                          }}
+                        >
+                          {row.time}
+                        </span>
+                        <span>{row.body}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* With */}
+                <div className="overflow-hidden rounded-md border border-white/5 bg-[#0a0d0b]">
+                  <div
+                    className="border-t-2 px-6 py-4"
+                    style={{ borderColor: "#1d4d2e" }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        aria-hidden
+                        className="h-1.5 w-1.5 rounded-full"
+                        style={{ background: "#5fb37b" }}
+                      />
+                      <span
+                        className="text-[10.5px] uppercase tracking-[0.2em] text-[#9bd3ae]"
+                        style={{ fontFamily: MONO }}
+                      >
+                        With Vigil
+                      </span>
+                    </div>
+                  </div>
+                  <ul className="divide-y divide-white/[0.04] px-6 py-2">
+                    {withVigil.map((row, i) => (
+                      <li
+                        key={`${row.time}-${i}`}
+                        className="flex gap-5 py-4 text-[14.5px] leading-relaxed text-stone-400"
+                      >
+                        <span
+                          className="text-[12px] font-medium tracking-wider text-[#6fa185]"
+                          style={{
+                            fontFamily: MONO,
+                            minWidth: "3.25rem",
+                          }}
+                        >
+                          {row.time}
+                        </span>
+                        <span>{row.body}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              <p
+                className="mt-10 text-[15px] italic text-stone-500"
+                style={{ fontFamily: SERIF }}
+              >
+                Not glamorous. Deeply useful.
+              </p>
+            </div>
+          </section>
+
+          {/* POSITIONING */}
+          <section id="positioning" className="relative">
+            <div className="absolute inset-x-0 top-0 h-px bg-white/5" />
+            <div className="mx-auto w-full max-w-[1180px] px-6 py-24 sm:py-28">
+              <div className="mb-10 max-w-[640px]">
+                <SectionLabel>Where Vigil fits</SectionLabel>
+                <h2
+                  className="mt-5 text-[32px] font-normal leading-[1.1] tracking-[-0.02em] text-stone-50 sm:text-[44px]"
+                  style={{ fontFamily: SERIF }}
+                >
+                  We sit below the stack you already have.
+                </h2>
+              </div>
+
+              <ul className="grid gap-px overflow-hidden rounded-md border border-white/5 bg-white/5 sm:grid-cols-2">
+                {notList.map((line) => (
+                  <li
+                    key={line}
+                    className="bg-[rgba(10,10,10,0.92)] px-7 py-6 text-[15.5px] leading-snug text-stone-300"
+                  >
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </section>
+
+          {/* EARLY ACCESS */}
+          <section
+            id="early-access"
+            className={`relative ${SECTION_BACKDROP}`}
+          >
+            <div className="absolute inset-x-0 top-0 h-px bg-white/5" />
+            <div className="mx-auto w-full max-w-[1180px] px-6 py-24 sm:py-28">
+              <div className="grid gap-12 lg:grid-cols-[1.1fr_1fr] lg:items-center">
+                <div className="max-w-[560px]">
+                  <SectionLabel>Early access</SectionLabel>
+                  <h2
+                    className="mt-5 text-[32px] font-normal leading-[1.1] tracking-[-0.02em] text-stone-50 sm:text-[44px]"
+                    style={{ fontFamily: SERIF }}
+                  >
+                    Get the binary. Run it next to your{" "}
+                    <span className="italic">database.</span>
+                  </h2>
+                  <p className="mt-5 text-[16.5px] leading-relaxed text-stone-400">
+                    Vigil ships as a single Go binary. Drop it between an agent
+                    and your data store, point it at a config file, watch the
+                    audit trail land. Free for individuals; paid tiers when you
+                    need team policy + cloud retention.
+                  </p>
+                </div>
+                <div className="rounded-md border border-white/5 bg-[rgba(10,10,10,0.92)] p-7 sm:p-8">
+                  <p className="mb-5 text-[14px] font-medium text-stone-300">
+                    Drop your work email. We&rsquo;ll send the binary and a
+                    walkthrough.
+                  </p>
+                  <EarlyAccessForm id="ea-email-bottom" />
+                  <p
+                    className="mt-5 text-[11.5px] uppercase tracking-[0.18em] text-stone-500"
+                    style={{ fontFamily: MONO }}
+                  >
+                    No spam. Unsubscribe in one click.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+        </main>
+
+        {/* FOOTER */}
+        <footer className="relative border-t border-white/5 bg-[rgba(10,10,10,0.92)]">
+          <div
+            className="mx-auto flex w-full max-w-[1180px] flex-col items-start justify-between gap-3 px-6 py-10 text-[11.5px] uppercase tracking-[0.18em] text-stone-500 sm:flex-row sm:items-center"
+            style={{ fontFamily: MONO }}
+          >
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+              <span className="text-stone-400">bevigil.ai</span>
+              <span aria-hidden className="text-stone-700">
+                /
+              </span>
+              <span>open source</span>
+              <span aria-hidden className="text-stone-700">
+                /
+              </span>
+              <span>MIT</span>
+              <span aria-hidden className="text-stone-700">
+                /
+              </span>
+              <span>made by costa</span>
+              <span aria-hidden className="text-stone-700">
+                /
+              </span>
+              <span>{VERSION}</span>
+            </div>
+            <a
+              href="#"
+              aria-label="Vigil on GitHub"
+              className="inline-flex items-center gap-1.5 text-stone-500 transition-colors hover:text-cyan-300"
+            >
+              <GithubGlyph />
+              <span>github</span>
+            </a>
+          </div>
+        </footer>
+      </div>
     </div>
+  )
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      className="inline-flex items-center gap-2 text-[10.5px] uppercase tracking-[0.2em] text-cyan-300/90"
+      style={{ fontFamily: "var(--font-mono), ui-monospace, monospace" }}
+    >
+      <span aria-hidden className="h-px w-5 bg-cyan-400/40" />
+      {children}
+    </span>
+  )
+}
+
+function NavItem({
+  href,
+  active,
+  children,
+  ariaLabel,
+  external,
+}: {
+  href: string
+  active?: boolean
+  children: React.ReactNode
+  ariaLabel?: string
+  external?: boolean
+}) {
+  const className = `inline-flex items-center rounded-full px-3 py-1 transition-colors ${
+    active
+      ? "bg-white/[0.06] text-stone-100"
+      : "text-stone-400 hover:text-stone-100"
+  }`
+  if (external) {
+    return (
+      <a
+        href={href}
+        aria-label={ariaLabel}
+        className={className}
+        target="_blank"
+        rel="noreferrer noopener"
+      >
+        {children}
+      </a>
+    )
+  }
+  if (href.startsWith("#")) {
+    return (
+      <a href={href} aria-label={ariaLabel} className={className}>
+        {children}
+      </a>
+    )
+  }
+  return (
+    <Link href={href} aria-label={ariaLabel} className={className}>
+      {children}
+    </Link>
   )
 }
 
@@ -479,8 +655,8 @@ function GithubGlyph() {
     <svg
       aria-hidden
       viewBox="0 0 16 16"
-      width="16"
-      height="16"
+      width="14"
+      height="14"
       fill="currentColor"
       className="shrink-0"
     >
