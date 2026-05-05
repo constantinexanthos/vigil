@@ -104,17 +104,19 @@ The proxy is a separate Go binary. It writes audit events to a shared SQLite dat
 
 ## v0.1.0a — Postgres Wire Passthrough (this milestone)
 
-Bytes-equivalent Postgres proxy. Vigil sits between a Postgres client and the upstream server and relays every `pgproto3` message without modification.
+Bytes-equivalent Postgres proxy. Vigil sits between a Postgres client and the upstream server and forwards every byte without modification.
 
-The test bar is **`psql` works identically through the proxy**: same query results, same errors, same transaction behavior, same prepared-statement support. If we change query semantics in v0.1.0a, we have failed.
+The test bar is **`psql` works identically through the proxy**: same query results, same errors, same transaction behavior, same prepared-statement support, same SCRAM authentication. If we change query semantics in v0.1.0a, we have failed.
 
 What ships:
 
-- `proxy/internal/pgproxy/` — `Server` type with `ListenAndServe(ctx)`. Per-connection: dial upstream, run two pgproto3 message pumps (`Backend` on the client side, `Frontend` on the upstream side), relay messages until either side EOFs.
+- `proxy/internal/pgproxy/` — `Server` type with `ListenAndServe(ctx)`. Per-connection: dial upstream, parse the startup phase in-band (SSL/GSS decline, StartupMessage forwarding), then run `io.Copy` in both directions until either side EOFs.
 - Three new flags: `--postgres-listen`, `--postgres-upstream`, `--postgres-disabled` (gating). Empty listen leaves the Postgres proxy off; HTTP identity server still runs unconditionally.
 - SSL declined with single byte `'N'`; clients fall back to plaintext per Postgres convention. TLS termination is a tracked TODO.
 - Upstream-unreachable returns FATAL `08006` ErrorResponse to the client (Postgres-shaped error, not TCP RST).
-- Five unit tests cover the relay, SSL decline, startup forwarding, upstream-unreachable error, and client mid-stream disconnect cleanup.
+- Five unit tests cover the relay, SSL decline, startup forwarding, upstream-unreachable error, and client mid-stream disconnect cleanup. Plus a `scripts/smoke-postgres.sh` end-to-end test against real Docker Postgres.
+
+**Implementation note — pgproto3 deferred to v0.1.0b.** The brief said "use pgproto3 for wire protocol parsing." We ship pgproto3 in the codebase (used in startup-phase decoding and to synthesize the FATAL ErrorResponse on dial failure) but the post-startup relay is `io.Copy`. Reason: `pgproto3.Backend` needs `SetAuthType()` called between an upstream `Authentication*` message arriving and the client's matching `'p'` response, because the wire format of `'p'` (`PasswordMessage` vs `SASLInitialResponse` vs `SASLResponse`) is context-dependent on the most recent auth challenge. In a two-goroutine relay, the auth-type signal lives on the upstream→client side and the parser lives on the client→upstream side, so propagating it without a race requires per-message synchronization. That's design work that belongs in v0.1.0b — where we replace `io.Copy` with a single-goroutine message pump and gain the ability to attach identity headers anyway.
 
 Out of scope for v0.1.0a, all named in the brief and tracked for later milestones:
 
@@ -127,7 +129,7 @@ Out of scope for v0.1.0a, all named in the brief and tracked for later milestone
 - TLS termination
 - Prepared-statement caching
 - Prometheus metrics
-- SQL parsing — only message-type-level visibility via pgproto3
+- SQL parsing — message-type-level visibility deferred to v0.1.0b along with the pgproto3 message pump
 
 ## v0.0.1 — This Commit
 

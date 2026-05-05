@@ -6,7 +6,9 @@ Part of [bevigil.ai](https://bevigil.ai).
 
 ## Status
 
-**v0.1.0a** — Bytes-equivalent Postgres wire-protocol passthrough. Vigil sits between a Postgres client and the upstream server and relays every pgproto3 message without modification. `psql` through the proxy behaves identically to direct connection. The HTTP identity issuer from v0.0.2 still runs unconditionally; the Postgres proxy starts when `--postgres-listen` and `--postgres-upstream` are set.
+**v0.1.0a** — Bytes-equivalent Postgres wire-protocol passthrough. Vigil sits between a Postgres client and the upstream server and forwards every byte unmodified. `psql` through the proxy behaves identically to direct connection. The HTTP identity issuer from v0.0.2 still runs unconditionally; the Postgres proxy starts when `--postgres-listen` and `--postgres-upstream` are set.
+
+The startup phase (SSL/GSS decline, StartupMessage forwarding) is parsed in-band so we can negotiate plaintext. Everything after that runs as raw byte forwarding — see the package doc on `internal/pgproxy/postgres.go` for why message-level proxying is deferred to v0.1.0b.
 
 This is the wire-layer foundation. v0.1.0b layers identity attachment and audit; v0.1.0c adds rate shaping; v0.1.0d adds fan-out coalescing.
 
