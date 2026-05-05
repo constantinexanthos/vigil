@@ -6,9 +6,28 @@ Part of [bevigil.ai](https://bevigil.ai).
 
 ## Status
 
-**v0.0.1** — Identity issuer only. HTTP server that issues, fetches, and lists Ed25519-signed agent identities. In-memory store.
+**v0.0.2** — Identity issuer with persistent state. HTTP server that issues, fetches, and lists Ed25519-signed agent identities. SQLite-backed store; on-disk Ed25519 keypair so previously-issued tokens stay verifiable across restarts.
 
 See [docs/superpowers/specs/2026-05-04-vigil-data-plane-design.md](../docs/superpowers/specs/2026-05-04-vigil-data-plane-design.md) for the full design.
+
+## Persistence
+
+State lives in `~/.vigil/` next to the daemon's `vigil.db` so a single backup covers everything Vigil-related:
+
+| File | Purpose |
+|---|---|
+| `~/.vigil/proxy.db` | SQLite identity store (created on first start) |
+| `~/.vigil/proxy.key` | Ed25519 issuer private key, mode 0600 (generated on first start) |
+
+Override with flags or env vars:
+
+| Flag | Env var | Default |
+|---|---|---|
+| `--db <path>` | `VIGIL_PROXY_DB` | `~/.vigil/proxy.db` |
+| `--key <path>` | `VIGIL_PROXY_KEY` | `~/.vigil/proxy.key` |
+| `--addr <addr>` | `VIGIL_PROXY_ADDR` | `:7878` |
+
+The SQLite driver is `modernc.org/sqlite` — pure Go, no CGO, so cross-compiling for distribution is trivial. Timestamps are stored as RFC3339 strings (not SQLite's native `datetime()`) to keep range queries lex-correct.
 
 ## Quick start
 

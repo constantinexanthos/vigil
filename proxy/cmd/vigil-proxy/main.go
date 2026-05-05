@@ -1,8 +1,8 @@
 // vigil-proxy is the agent-aware data plane for Vigil.
 //
-// v0.0.1: HTTP server that issues, fetches, and lists Ed25519-signed
-// agent identities. In-memory store. The first useful primitive in
-// the proxy stack.
+// v0.0.2: persistent identity issuer. Ed25519 keypair on disk so tokens
+// stay verifiable across restarts; SQLite-backed identity store so the
+// list of issued identities survives a process bounce.
 //
 // See docs/superpowers/specs/2026-05-04-vigil-data-plane-design.md
 package main
@@ -10,10 +10,12 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -33,17 +35,33 @@ func run() error {
 		return err
 	}
 
-	iss, err := identity.NewIssuer()
+	// Make sure the parent directory exists for both default paths
+	// (~/.vigil/). If the operator pointed --db / --key elsewhere, that
+	// directory must already exist — LoadOrCreateIssuer + OpenSQLiteStore
+	// both fail loud rather than silently creating arbitrary paths.
+	if err := ensureParentDir(cfg.KeyPath); err != nil {
+		return err
+	}
+	if err := ensureParentDir(cfg.DBPath); err != nil {
+		return err
+	}
+
+	iss, err := identity.LoadOrCreateIssuer(cfg.KeyPath)
 	if err != nil {
 		return err
 	}
-	store := identity.NewMemStore()
+	store, err := identity.OpenSQLiteStore(cfg.DBPath)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+
 	idSvc := identity.NewService(iss, store)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("content-type", "application/json")
-		w.Write([]byte(`{"ok":true,"version":"v0.0.1"}`))
+		w.Write([]byte(`{"ok":true,"version":"v0.0.2"}`))
 	})
 	idSvc.Routes(mux)
 
@@ -57,7 +75,10 @@ func run() error {
 	defer stop()
 
 	go func() {
-		log.Printf("vigil-proxy v0.0.1 listening on %s (issuer pubkey %s)", cfg.Addr, iss.PublicKeyB64())
+		log.Printf(
+			"vigil-proxy v0.0.2 listening on %s (db=%s key=%s pubkey=%s)",
+			cfg.Addr, cfg.DBPath, cfg.KeyPath, iss.PublicKeyB64(),
+		)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Printf("server error: %v", err)
 			stop()
@@ -70,6 +91,26 @@ func run() error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	return srv.Shutdown(shutdownCtx)
+}
+
+// ensureParentDir creates the parent directory of `path` only if it's the
+// default ~/.vigil location. For non-default operator-supplied paths we
+// leave directory creation to them — the spec says "fail clean if the
+// parent dir is missing" and that contract holds for both --db and --key.
+func ensureParentDir(path string) error {
+	parent := filepath.Dir(path)
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil // can't compare; let downstream surface the real error
+	}
+	defaultDir := filepath.Join(home, ".vigil")
+	if parent != defaultDir {
+		return nil
+	}
+	if err := os.MkdirAll(parent, 0o700); err != nil {
+		return fmt.Errorf("create %s: %w", parent, err)
+	}
+	return nil
 }
 
 func withLog(h http.Handler) http.Handler {
