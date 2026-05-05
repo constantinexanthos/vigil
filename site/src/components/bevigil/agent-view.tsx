@@ -1,5 +1,4 @@
 import Link from "next/link"
-import { Suspense } from "react"
 import {
   primitives,
   withoutVigil,
@@ -12,12 +11,14 @@ import {
   PROXY_URL,
   VERSION,
 } from "./content"
-import { ViewToggle } from "./view-toggle"
+import { SiteHeader } from "./site-header"
 
 const MONO = "var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace"
 
 // Plain README-in-terminal rendering for ?view=agent.
-// No marketing chrome, no animations, no images, no nav drawer.
+// The persistent SiteHeader (logo + nav + view toggle + version) renders
+// above this view so users always have a way home; below the header sits
+// a slim terminal "file path" strip and then the prose body.
 // Section headings as `#`/`##`/`###`, inline link refs, monospace.
 // Server component — works without client JS once mounted.
 
@@ -26,12 +27,16 @@ interface AgentViewProps {
 }
 
 export function AgentView({ page }: AgentViewProps) {
+  // Map agent-view page key onto SiteHeader's pathname prop so the nav
+  // ribbon highlights the active route consistently with the human view.
+  const pathname = page === "home" ? "/" : page === "about" ? "/about" : "/docs"
   return (
     <div
       className="min-h-screen bg-white text-stone-900"
       style={{ fontFamily: MONO }}
     >
-      <TerminalHeader page={page} />
+      <SiteHeader pathname={pathname} view="agent" />
+      <TerminalPathStrip page={page} />
       <main className="mx-auto w-full max-w-[760px] px-6 py-10 text-[14px] leading-[1.7]">
         {page === "home" ? <HomeProse /> : null}
         {page === "about" ? <AboutProse /> : null}
@@ -41,29 +46,23 @@ export function AgentView({ page }: AgentViewProps) {
   )
 }
 
-function TerminalHeader({ page }: { page: AgentViewProps["page"] }) {
+// Slim secondary strip — preserves the "README in terminal" framing
+// (a file path you're "viewing") under the persistent top nav.
+// The redundant in-prose nav row is intentionally retained per design
+// review (useful as inline reference inside the README itself).
+function TerminalPathStrip({ page }: { page: AgentViewProps["page"] }) {
   return (
     <div className="border-b border-stone-200 bg-stone-50">
-      <div className="mx-auto flex w-full max-w-[760px] items-center justify-between gap-4 px-6 py-3 text-[12px]">
-        <span className="text-stone-500">~/bevigil/{page === "home" ? "README.md" : `${page}.md`}</span>
+      <div className="mx-auto flex w-full max-w-[760px] items-center justify-between gap-4 px-6 py-2 text-[12px]">
+        <span className="text-stone-500">
+          ~/bevigil/{page === "home" ? "README.md" : `${page}.md`}
+        </span>
         <div className="flex items-center gap-3 text-[11px]">
           <NavLink href="/" label="home" page={page} target="home" />
           <span aria-hidden className="text-stone-300">·</span>
           <NavLink href="/about" label="about" page={page} target="about" />
           <span aria-hidden className="text-stone-300">·</span>
           <NavLink href="/docs" label="docs" page={page} target="docs" />
-          <span aria-hidden className="text-stone-300">·</span>
-          <a
-            href={REPO_URL}
-            target="_blank"
-            rel="noreferrer noopener"
-            className="text-stone-500 hover:text-cyan-700"
-          >
-            github
-          </a>
-          <Suspense fallback={null}>
-            <ViewToggle />
-          </Suspense>
         </div>
       </div>
     </div>

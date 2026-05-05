@@ -123,3 +123,31 @@ export function GithubGlyph({
     </svg>
   )
 }
+
+// Vigil brand mark — stylized eye. Watchful, abstract, single-color.
+// Used in the bordered logo pill across all nav surfaces.
+export function VigilMark({
+  size = 14,
+  className,
+}: {
+  size?: number
+  className?: string
+}) {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.6}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className ?? "shrink-0"}
+    >
+      <path d="M2.5 12c2.6-4.4 5.8-6.6 9.5-6.6S18.9 7.6 21.5 12c-2.6 4.4-5.8 6.6-9.5 6.6S5.1 16.4 2.5 12Z" />
+      <circle cx="12" cy="12" r="2.6" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
