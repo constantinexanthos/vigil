@@ -62,13 +62,13 @@ export function EarlyAccessForm({ id = "ea-email" }: EarlyAccessFormProps) {
         placeholder="you@yourcompany.com"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        className="h-11 flex-1 rounded-md border border-stone-300 bg-white px-3.5 text-[15px] text-stone-900 placeholder:text-stone-400 outline-none transition focus:border-[#c2410c] focus:ring-2 focus:ring-[#c2410c]/20"
+        className="h-11 flex-1 rounded-md border border-white/10 bg-white/[0.04] px-3.5 text-[15px] text-stone-100 placeholder:text-stone-500 outline-none transition focus:border-cyan-400/60 focus:ring-2 focus:ring-cyan-400/20"
         disabled={status === "submitting"}
       />
       <button
         type="submit"
         disabled={status === "submitting"}
-        className="inline-flex h-11 items-center justify-center rounded-md bg-[#c2410c] px-5 text-[15px] font-semibold text-white transition hover:bg-[#9a330a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c2410c]/40 disabled:opacity-60"
+        className="inline-flex h-11 items-center justify-center rounded-md bg-cyan-400 px-5 text-[14px] font-semibold tracking-tight text-stone-950 transition hover:bg-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 disabled:opacity-60"
       >
         {status === "submitting" ? "Sending…" : "Get early access"}
       </button>
@@ -76,7 +76,7 @@ export function EarlyAccessForm({ id = "ea-email" }: EarlyAccessFormProps) {
         <p
           role="status"
           className={`mt-1 text-[13px] ${
-            status === "ok" ? "text-emerald-700" : "text-red-700"
+            status === "ok" ? "text-emerald-300" : "text-red-300"
           } sm:absolute sm:translate-y-12 sm:mt-0`}
         >
           {message}

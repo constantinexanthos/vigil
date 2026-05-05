@@ -9,18 +9,26 @@ interface Character {
   speed: number
 }
 
+const ALL_CHARS =
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;:,.<>?"
+
+// Mobile devices halve out at ~100 chars to keep the falling-character
+// signature visible without tanking Lighthouse perf below 80.
+function pickCharCount() {
+  if (typeof window === "undefined") return 300
+  return window.matchMedia("(max-width: 767px)").matches ? 100 : 300
+}
+
 export function RainingBackground() {
   const [characters, setCharacters] = useState<Character[]>([])
   const [activeIndices, setActiveIndices] = useState<Set<number>>(new Set())
 
-  const createCharacters = useCallback(() => {
-    const allChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;:,.<>?"
-    const charCount = 300
+  const createCharacters = useCallback((charCount: number) => {
     const newCharacters: Character[] = []
 
     for (let i = 0; i < charCount; i++) {
       newCharacters.push({
-        char: allChars[Math.floor(Math.random() * allChars.length)],
+        char: ALL_CHARS[Math.floor(Math.random() * ALL_CHARS.length)],
         x: Math.random() * 100,
         y: Math.random() * 100,
         speed: 0.1 + Math.random() * 0.3,
@@ -30,8 +38,19 @@ export function RainingBackground() {
     return newCharacters
   }, [])
 
+  // One-shot init: matches the original behaviour.
   useEffect(() => {
-    setCharacters(createCharacters())
+    setCharacters(createCharacters(pickCharCount()))
+  }, [createCharacters])
+
+  // Re-create the field when the mobile breakpoint flips.
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 767px)")
+    const onChange = () => {
+      setCharacters(createCharacters(pickCharCount()))
+    }
+    mql.addEventListener("change", onChange)
+    return () => mql.removeEventListener("change", onChange)
   }, [createCharacters])
 
   useEffect(() => {
@@ -59,9 +78,7 @@ export function RainingBackground() {
           ...(char.y >= 100 && {
             y: -5,
             x: Math.random() * 100,
-            char: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;:,.<>?"[
-              Math.floor(Math.random() * "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;:,.<>?".length)
-            ],
+            char: ALL_CHARS[Math.floor(Math.random() * ALL_CHARS.length)],
           }),
         }))
       )
