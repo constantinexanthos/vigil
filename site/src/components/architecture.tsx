@@ -28,7 +28,7 @@ export function Architecture() {
           className="block text-[#22d3ee] text-xs uppercase tracking-[0.15em] font-mono mb-3"
           style={{ textShadow: "0 0 10px rgba(34, 211, 238, 0.25)" }}
         >
-          // architecture
+          {"// architecture"}
         </span>
         <h2 className="text-xl font-bold text-[#e4e4e7] font-mono mb-3">
           Three layers of intelligence

@@ -52,6 +52,7 @@ class TextScramble {
     let complete = 0
 
     for (let i = 0, n = this.queue.length; i < n; i++) {
+      // eslint-disable-next-line prefer-const
       let { from, to, start, end, char } = this.queue[i]
       if (this.frame >= end) {
         complete++
@@ -86,6 +87,7 @@ const ScrambledTitle: React.FC = () => {
   useEffect(() => {
     if (elementRef.current && !scramblerRef.current) {
       scramblerRef.current = new TextScramble(elementRef.current)
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMounted(true)
     }
   }, [])
@@ -161,7 +163,7 @@ const HeroSection: React.FC = () => {
         <span className="text-[#22d3ee] text-xs uppercase tracking-[0.15em] font-mono"
           style={{ textShadow: '0 0 10px rgba(34, 211, 238, 0.3)' }}
         >
-          // the control panel for coding agents
+          {"// the control panel for coding agents"}
         </span>
 
         <ScrambledTitle />
