@@ -54,7 +54,48 @@
   --color-vigil-green: #4ade80;
 }
 
+/*
+ * Default theme — light. Used by the new bevigil.ai landing at /.
+ * The legacy dark theme lives under .theme-legacy and is applied
+ * by the (legacy) route group layout.
+ */
 :root {
+  --background: #ffffff;
+  --foreground: #0c0a09;
+  --card: #ffffff;
+  --card-foreground: #0c0a09;
+  --popover: #ffffff;
+  --popover-foreground: #0c0a09;
+  --primary: #c2410c;
+  --primary-foreground: #ffffff;
+  --secondary: #f5f5f4;
+  --secondary-foreground: #0c0a09;
+  --muted: #fafaf9;
+  --muted-foreground: #57534e;
+  --accent: #c2410c;
+  --accent-foreground: #ffffff;
+  --destructive: #b91c1c;
+  --border: #e7e5e4;
+  --input: #e7e5e4;
+  --ring: #c2410c;
+  --chart-1: #c2410c;
+  --chart-2: #16a34a;
+  --chart-3: #ca8a04;
+  --chart-4: #b91c1c;
+  --chart-5: #0f766e;
+  --radius: 0.5rem;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #0c0a09;
+  --sidebar-primary: #c2410c;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #fafaf9;
+  --sidebar-accent-foreground: #0c0a09;
+  --sidebar-border: #e7e5e4;
+  --sidebar-ring: #c2410c;
+}
+
+/* Legacy dark theme — applied by the (legacy) route group layout. */
+.theme-legacy {
   --background: #07080a;
   --foreground: #e4e4e7;
   --card: #0d0f12;
@@ -97,17 +138,25 @@
     @apply bg-background text-foreground;
   }
   html {
-    @apply font-mono;
     scroll-behavior: smooth;
   }
+  /* Legacy subtree keeps its mono-first body type. */
+  .theme-legacy body,
+  body:has(.theme-legacy) {
+    font-family: var(--font-mono), ui-monospace, monospace;
+  }
   ::selection {
+    background: #c2410c;
+    color: #ffffff;
+  }
+  .theme-legacy ::selection {
     background: #22d3ee;
     color: #07080a;
   }
 }
 
-/* Vigil noise grain overlay */
-body::before {
+/* Vigil noise grain overlay — legacy only. */
+.theme-legacy::before {
   content: '';
   position: fixed;
   top: 0; left: 0;
@@ -120,8 +169,8 @@ body::before {
   opacity: 0.04;
 }
 
-/* Vigil scanline overlay */
-body::after {
+/* Vigil scanline overlay — legacy only. */
+.theme-legacy::after {
   content: '';
   position: fixed;
   top: 0; left: 0;
@@ -137,24 +186,24 @@ body::after {
   z-index: 9999;
 }
 
-/* Text scramble dud characters */
+/* Text scramble dud characters (legacy hero animation). */
 .dud {
   color: #22d3ee;
   opacity: 0.7;
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
+/* Custom scrollbar — legacy only. */
+.theme-legacy ::-webkit-scrollbar {
   width: 6px;
 }
-::-webkit-scrollbar-track {
+.theme-legacy ::-webkit-scrollbar-track {
   background: #07080a;
 }
-::-webkit-scrollbar-thumb {
+.theme-legacy ::-webkit-scrollbar-thumb {
   background: #1a1d23;
   border-radius: 3px;
 }
-::-webkit-scrollbar-thumb:hover {
+.theme-legacy ::-webkit-scrollbar-thumb:hover {
   background: #2a2e37;
 }
 

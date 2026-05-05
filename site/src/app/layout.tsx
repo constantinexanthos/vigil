@@ -1,9 +1,14 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
-import { Nav } from "@/components/nav";
-import { Footer } from "@/components/footer";
-import { RainingBackground } from "@/components/raining-background";
+import { IBM_Plex_Mono, IBM_Plex_Sans, Inter } from "next/font/google";
 import "./globals.css";
+
+// Inter is the type stack for the new bevigil.ai landing.
+// IBM Plex stays available for the legacy /old/* subtree.
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin"],
+  display: "swap",
+});
 
 const ibmPlexMono = IBM_Plex_Mono({
   variable: "--font-mono",
@@ -18,14 +23,15 @@ const ibmPlexSans = IBM_Plex_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Vigil — The control panel for coding agents",
+  title: "Vigil — The seatbelt for your agent fleet",
   description:
-    "Monitor every AI coding agent on your machine. See what they're doing, what they're costing, and whether you should trust their output.",
+    "Vigil is the agent-aware data plane that sits between your AI agents and your databases, APIs, and services. Per-agent identity, smart rate limiting, fan-out coalescing, blast-radius control. Open source. Single binary. Free for individuals.",
   openGraph: {
-    title: "Vigil — The control panel for coding agents",
+    title: "Vigil — The seatbelt for your agent fleet",
     description:
-      "Monitor every AI coding agent on your machine. See what they're doing, what they're costing, and whether you should trust their output.",
+      "The agent-aware data plane between your AI agents and your databases, APIs, and services.",
     type: "website",
+    url: "https://bevigil.ai",
   },
 };
 
@@ -37,15 +43,10 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${ibmPlexMono.variable} ${ibmPlexSans.variable} antialiased`}
+      className={`${inter.variable} ${ibmPlexMono.variable} ${ibmPlexSans.variable} antialiased`}
     >
       <body className="min-h-screen bg-background text-foreground">
-        <RainingBackground />
-        <Nav />
-        <div className="relative z-10">
-          {children}
-        </div>
-        <Footer />
+        {children}
       </body>
     </html>
   );
