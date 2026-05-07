@@ -41,7 +41,7 @@ func Load() (*Config, error) {
 	flag.Parse()
 
 	if *version {
-		fmt.Println("vigil-proxy v0.1.0a")
+		fmt.Println("vigil-proxy v0.1.0b")
 		os.Exit(0)
 	}
 
