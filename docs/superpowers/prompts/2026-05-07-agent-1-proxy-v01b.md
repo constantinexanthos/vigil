@@ -59,7 +59,7 @@ agent_id|conn_id|ts|msg_type|len(query_text)|sha256(query_text)
 
 - `proxy/internal/pgproxy/` — the message pump rewrite.
 - `proxy/internal/audit/` — new package: schema migration, write API, signing.
-- `proxy/internal/identity/` — additive only: a `VerifyToken(token string) (*Identity, error)` helper. Do not change existing storage layout.
+- `proxy/internal/identity/` — **read-only**. The existing `Issuer.Verify(rawToken string) (Identity, error)` is exactly what you need; do not add new helpers, do not change storage. Just import and call it.
 - `proxy/cmd/vigil-proxy/main.go` — wire the audit writer in.
 - `proxy/internal/pgproxy/*_test.go`, `proxy/internal/audit/*_test.go`, `proxy/scripts/smoke-postgres.sh` — tests.
 
