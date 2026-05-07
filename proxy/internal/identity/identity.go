@@ -146,6 +146,19 @@ func (s *Issuer) PublicKeyB64() string {
 	return base64.RawStdEncoding.EncodeToString(s.pub)
 }
 
+// PublicKey returns the issuer's raw Ed25519 public key. Used by the
+// audit package to verify signatures without reaching back into identity.
+func (s *Issuer) PublicKey() ed25519.PublicKey {
+	return s.pub
+}
+
+// SignRaw produces an Ed25519 signature over payload using the issuer's
+// private key. Used by the audit package to sign canonical audit-row
+// forms — this exposes signing without exposing the private key itself.
+func (s *Issuer) SignRaw(payload []byte) []byte {
+	return ed25519.Sign(s.priv, payload)
+}
+
 func randomID() (string, error) {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
