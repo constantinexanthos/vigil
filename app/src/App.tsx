@@ -7,6 +7,7 @@ import { MiddlePane } from "./components/layout/MiddlePane";
 import { RightRail } from "./components/layout/RightRail";
 import { Onboarding } from "./components/Onboarding";
 import CommandPalette from "./components/CommandPalette";
+import { ProxyPane } from "./components/proxy/ProxyPane";
 import { useSelection } from "./store/selection";
 import { groupEventsIntoSessions, enrichSessionsWithLiveData } from "./types";
 
@@ -52,6 +53,7 @@ export default function App() {
       if (e.key === "k") { e.preventDefault(); setCmdOpen(true); return; }
       if (e.key === "1") { e.preventDefault(); setViewMode("overview"); return; }
       if (e.key === "2" && selected) { e.preventDefault(); setViewMode("session"); return; }
+      if (e.key === "3") { e.preventDefault(); setViewMode("proxy"); return; }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -101,6 +103,8 @@ export default function App() {
       <div className="flex-1 overflow-hidden">
         {needsOnboarding ? (
           <Onboarding cli={data.cli} />
+        ) : viewMode === "proxy" ? (
+          <ProxyPane />
         ) : (
           <ThreePaneGrid
             left={<LeftRail sessions={sessions} />}

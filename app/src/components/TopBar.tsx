@@ -64,6 +64,19 @@ export function TopBar({
         >
           Session
         </button>
+        <span className="text-white/25" aria-hidden>·</span>
+        <button
+          type="button"
+          title="⌘3"
+          className={
+            viewMode === "proxy"
+              ? "text-white border-b border-white pb-px"
+              : "text-white/45 hover:text-white/75 transition-colors duration-fast"
+          }
+          onClick={() => setViewMode("proxy")}
+        >
+          Proxy
+        </button>
       </div>
 
       <button

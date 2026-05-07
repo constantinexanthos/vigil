@@ -746,3 +746,57 @@ export function enrichSessionsWithLiveData(
     }),
   }));
 }
+
+// =============================================================================
+// Proxy tab types — mirror the v0.1.0b audit + identity SQLite schema in
+// ~/.vigil/proxy.db. The Tauri side reads, the React side renders. We never
+// write from the app.
+// =============================================================================
+
+export interface ProxyIdentity {
+  id: string;
+  agent_name: string;
+  principal: string;
+  scopes: string[];
+  public_key: string;
+  issued_at: string;
+  expires_at: string;
+}
+
+export interface AuditRow {
+  id: number;
+  ts: string;
+  agent_id: string | null;
+  agent_name: string | null;
+  conn_id: string;
+  direction: "client" | "server";
+  msg_type: string;
+  query_text: string | null;
+  bytes: number;
+  sig: string;
+}
+
+export interface ProxyCounter {
+  agent_id: string | null;
+  agent_name: string | null;
+  queries_today: number;
+  queries_deduped: number;
+  queries_rate_limited: number;
+}
+
+// ProxyStatus drives the "Fixture data — proxy not running." banner and any
+// future health UI. fixture_mode is true when ~/.vigil/proxy.db is missing or
+// has zero rows in either table; the React layer renders the same way against
+// fixture and real data, the banner is the only fixture-aware piece of UI.
+export interface ProxyStatus {
+  db_present: boolean;
+  fixture_mode: boolean;
+  identity_count: number;
+  audit_count: number;
+}
+
+export interface AuditFilter {
+  agent_id?: string | null;
+  since_ts?: string | null;
+  msg_type?: string | null;
+}

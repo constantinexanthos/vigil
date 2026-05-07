@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 export type RightTab = "changes" | "review";
-export type ViewMode = "overview" | "session";
+export type ViewMode = "overview" | "session" | "proxy";
 
 export interface SelectionState {
   selectedSessionId: string | null;
