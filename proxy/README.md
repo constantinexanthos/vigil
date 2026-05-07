@@ -6,11 +6,13 @@ Part of [bevigil.ai](https://bevigil.ai).
 
 ## Status
 
-**v0.1.0a** — Bytes-equivalent Postgres wire-protocol passthrough. Vigil sits between a Postgres client and the upstream server and forwards every byte unmodified. `psql` through the proxy behaves identically to direct connection. The HTTP identity issuer from v0.0.2 still runs unconditionally; the Postgres proxy starts when `--postgres-listen` and `--postgres-upstream` are set.
+**v0.1.0b** — Identity attachment + signed audit trail. The post-startup `io.Copy` relay from v0.1.0a is replaced with a single-goroutine `pgproto3.Backend`/`Frontend` message pump that parses every Postgres frontend and backend message, attaches per-connection agent identity (via `application_name=vigil:<base64-token>`), and writes one signed Ed25519 audit row per parsed message into a new `audit` table in `~/.vigil/proxy.db`.
 
-The startup phase (SSL/GSS decline, StartupMessage forwarding) is parsed in-band so we can negotiate plaintext. Everything after that runs as raw byte forwarding — see the package doc on `internal/pgproxy/postgres.go` for why message-level proxying is deferred to v0.1.0b.
+Identity attachment is observability-only — invalid tokens fall back to `agent_id=NULL` rather than rejecting the connection. Forwarding stays bytes-equivalent: the existing `psql` smoke test passes unchanged, and SCRAM-SHA-256 (modern Postgres default) negotiates correctly through the message pump because the single-goroutine design lets the parser see the upstream `Authentication*` challenge and call `frontend.SetAuthType()` before reading the client's matching `'p'` response.
 
-This is the wire-layer foundation. v0.1.0b layers identity attachment and audit; v0.1.0c adds rate shaping; v0.1.0d adds fan-out coalescing.
+The startup phase (SSL/GSS decline, StartupMessage forwarding) is still parsed in-band so we can negotiate plaintext. See the package doc on `internal/pgproxy/postgres.go` for the message-pump rationale and the SCRAM trap.
+
+v0.1.0c adds rate shaping; v0.1.0d adds fan-out coalescing.
 
 See [docs/superpowers/specs/2026-05-04-vigil-data-plane-design.md](../docs/superpowers/specs/2026-05-04-vigil-data-plane-design.md) for the full design.
 
@@ -20,8 +22,8 @@ State lives in `~/.vigil/` next to the daemon's `vigil.db` so a single backup co
 
 | File | Purpose |
 |---|---|
-| `~/.vigil/proxy.db` | SQLite identity store (created on first start) |
-| `~/.vigil/proxy.key` | Ed25519 issuer private key, mode 0600 (generated on first start) |
+| `~/.vigil/proxy.db` | SQLite identity store + `audit` table (created on first start; WAL mode for concurrent reads) |
+| `~/.vigil/proxy.key` | Ed25519 issuer private key, mode 0600 (generated on first start). Same key signs identities and audit rows. |
 
 Override with flags or env vars:
 

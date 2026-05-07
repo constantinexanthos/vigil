@@ -1,11 +1,14 @@
 // vigil-proxy is the agent-aware data plane for Vigil.
 //
-// v0.1.0a: bytes-equivalent Postgres wire-protocol passthrough proxy. The
-// HTTP identity issuer from v0.0.2 still runs unconditionally; the Postgres
-// proxy starts when --postgres-listen and --postgres-upstream are set
-// (and --postgres-disabled is not).
+// v0.1.0b: single-goroutine pgproto3 message pump on the Postgres path.
+// Every parsed frame is signed and written to the audit table in
+// proxy.db; identity attachment happens via application_name=vigil:<token>
+// at startup. The HTTP identity issuer from v0.0.2 still runs
+// unconditionally; the Postgres proxy starts when --postgres-listen and
+// --postgres-upstream are set (and --postgres-disabled is not).
 //
-// See docs/superpowers/specs/2026-05-04-vigil-data-plane-design.md
+// See docs/superpowers/specs/2026-05-04-vigil-data-plane-design.md and
+// docs/superpowers/specs/2026-05-07-three-agent-push-design.md.
 package main
 
 import (
@@ -21,6 +24,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/costaxanthos/vigil/proxy/internal/audit"
 	"github.com/costaxanthos/vigil/proxy/internal/config"
 	"github.com/costaxanthos/vigil/proxy/internal/identity"
 	"github.com/costaxanthos/vigil/proxy/internal/pgproxy"
@@ -64,7 +68,7 @@ func run() error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("content-type", "application/json")
-		w.Write([]byte(`{"ok":true,"version":"v0.1.0a"}`))
+		w.Write([]byte(`{"ok":true,"version":"v0.1.0b"}`))
 	})
 	idSvc.Routes(mux)
 
@@ -80,13 +84,13 @@ func run() error {
 	// Compose startup log line so HTTP and Postgres lines stay together.
 	if cfg.PostgresProxyEnabled() {
 		log.Printf(
-			"vigil-proxy v0.1.0a — http=%s postgres=%s → upstream=%s (db=%s key=%s pubkey=%s)",
+			"vigil-proxy v0.1.0b — http=%s postgres=%s → upstream=%s (db=%s key=%s pubkey=%s)",
 			cfg.Addr, cfg.PostgresListen, cfg.PostgresUpstream,
 			cfg.DBPath, cfg.KeyPath, iss.PublicKeyB64(),
 		)
 	} else {
 		log.Printf(
-			"vigil-proxy v0.1.0a — http=%s postgres=disabled (db=%s key=%s pubkey=%s)",
+			"vigil-proxy v0.1.0b — http=%s postgres=disabled (db=%s key=%s pubkey=%s)",
 			cfg.Addr, cfg.DBPath, cfg.KeyPath, iss.PublicKeyB64(),
 		)
 	}
@@ -103,11 +107,29 @@ func run() error {
 		}
 	}()
 
+	// Wire the audit writer for the Postgres proxy. We open it on the
+	// same SQLite file as the identity store so a single ~/.vigil/proxy.db
+	// is the only persistent state file the operator backs up. We use
+	// audit.Open (which manages its own *sql.DB handle) rather than
+	// FromDB on the identity store's handle, because modernc.org/sqlite
+	// is goroutine-safe via *sql.DB and the audit writer wants its own
+	// connection-pool sizing independent of identity reads.
+	var auditWriter *audit.DBWriter
+	if cfg.PostgresProxyEnabled() {
+		auditWriter, err = audit.Open(cfg.DBPath, iss)
+		if err != nil {
+			return fmt.Errorf("init audit writer: %w", err)
+		}
+		defer auditWriter.Close()
+	}
+
 	if cfg.PostgresProxyEnabled() {
 		pgSrv := &pgproxy.Server{
-			ListenAddr:   cfg.PostgresListen,
-			UpstreamAddr: cfg.PostgresUpstream,
-			Logger:       log.Default(),
+			ListenAddr:       cfg.PostgresListen,
+			UpstreamAddr:     cfg.PostgresUpstream,
+			Logger:           log.Default(),
+			AuditWriter:      auditWriter,
+			IdentityVerifier: iss,
 		}
 		wg.Add(1)
 		go func() {
