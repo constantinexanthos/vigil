@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod commands;
+mod proxy;
 mod store;
 
 use tauri::{
@@ -82,6 +83,10 @@ fn main() {
             commands::get_review_signals,
             commands::get_hourly_activity,
             commands::get_top_edited_files,
+            proxy::list_identities,
+            proxy::read_proxy_db,
+            proxy::proxy_counters,
+            proxy::proxy_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
