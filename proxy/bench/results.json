@@ -1,0 +1,80 @@
+[
+  {
+    "preset": "refactor",
+    "seed": 42,
+    "duration_ns": 5000000000,
+    "concurrency": 4,
+    "postgres_version": "PostgreSQL 16.13 (Debian 16.13-1.pgdg13+1) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit",
+    "hardware": "arm64/darwin",
+    "total_issued": 55875,
+    "total_upstream": 55875,
+    "direct": {
+      "p50_ns": 252166,
+      "p95_ns": 387250,
+      "p99_ns": 494958,
+      "throughput_qps": 14847.265735803576,
+      "errors": 0
+    },
+    "proxy": {
+      "p50_ns": 338750,
+      "p95_ns": 489667,
+      "p99_ns": 624583,
+      "throughput_qps": 11174.921122936747,
+      "errors": 0
+    },
+    "wall_time_ns": 11197567666,
+    "dedup_rate": 0
+  },
+  {
+    "preset": "mixed",
+    "seed": 42,
+    "duration_ns": 5000000000,
+    "concurrency": 4,
+    "postgres_version": "PostgreSQL 16.13 (Debian 16.13-1.pgdg13+1) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit",
+    "hardware": "arm64/darwin",
+    "total_issued": 51405,
+    "total_upstream": 51405,
+    "direct": {
+      "p50_ns": 269625,
+      "p95_ns": 432666,
+      "p99_ns": 528666,
+      "throughput_qps": 13735.93455306476,
+      "errors": 0
+    },
+    "proxy": {
+      "p50_ns": 363666,
+      "p95_ns": 558625,
+      "p99_ns": 706583,
+      "throughput_qps": 10280.875515046913,
+      "errors": 0
+    },
+    "wall_time_ns": 11158303875,
+    "dedup_rate": 0
+  },
+  {
+    "preset": "production",
+    "seed": 42,
+    "duration_ns": 5000000000,
+    "concurrency": 4,
+    "postgres_version": "PostgreSQL 16.13 (Debian 16.13-1.pgdg13+1) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit",
+    "hardware": "arm64/darwin",
+    "total_issued": 62880,
+    "total_upstream": 62880,
+    "direct": {
+      "p50_ns": 241791,
+      "p95_ns": 334833,
+      "p99_ns": 397500,
+      "throughput_qps": 16101.191357542151,
+      "errors": 0
+    },
+    "proxy": {
+      "p50_ns": 311584,
+      "p95_ns": 410959,
+      "p99_ns": 469959,
+      "throughput_qps": 12575.774893629405,
+      "errors": 0
+    },
+    "wall_time_ns": 11028268750,
+    "dedup_rate": 0
+  }
+]
