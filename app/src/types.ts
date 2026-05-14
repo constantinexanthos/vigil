@@ -763,6 +763,14 @@ export interface ProxyIdentity {
   expires_at: string;
 }
 
+// Decision is the v0.1.0c/d audit verdict per row. 'allowed' is the default
+// when neither rate-limiting nor coalescing fires. 'coalesced' means the
+// proxy answered from a recent identical-result cache; 'rate_limited' means
+// the proxy refused on policy grounds and returned an ErrorResponse to the
+// client. Values are wire-format (underscored) so they match the SQLite
+// values written by the proxy daemon.
+export type Decision = "allowed" | "coalesced" | "rate_limited";
+
 export interface AuditRow {
   id: number;
   ts: string;
@@ -774,6 +782,11 @@ export interface AuditRow {
   query_text: string | null;
   bytes: number;
   sig: string;
+  // Optional: the prep PR that introduces the audit `decision` column may
+  // not have landed yet, and old proxy.db files on disk won't have it. The
+  // Rust read layer fills 'allowed' when the column is absent, so consumers
+  // can rely on a default rather than checking for undefined.
+  decision?: Decision;
 }
 
 export interface ProxyCounter {
@@ -799,4 +812,9 @@ export interface AuditFilter {
   agent_id?: string | null;
   since_ts?: string | null;
   msg_type?: string | null;
+  // decision is server-side: it cuts from the SQL result, not from already-
+  // loaded rows. Reason: a 10k-row audit table down to just the rate-limited
+  // ones is the natural operator gesture, and we don't want to ship 10k rows
+  // to the renderer to filter to 12.
+  decision?: Decision | null;
 }
