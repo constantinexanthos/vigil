@@ -105,6 +105,19 @@ type Server struct {
 	// non-fatal — observability before enforcement.
 	IdentityVerifier Verifier
 
+	// RateLimiter, if non-nil, is consulted before each client-originated
+	// frame is forwarded to upstream. Implementation lives in
+	// proxy/internal/ratelimit/ (Agent 1, push 2026-05-15). Nil = no
+	// limiting (all calls are implicitly DecisionAllowed).
+	RateLimiter RateLimiter
+
+	// Coalescer, if non-nil, is consulted before forwarding read-only
+	// Query/Parse frames whose connection is outside an explicit
+	// transaction. Implementation lives in proxy/internal/coalesce/
+	// (Agent 2, push 2026-05-15). Nil = no caching (every query
+	// reaches upstream).
+	Coalescer Coalescer
+
 	// DialUpstream is overridable for tests. If nil, defaults to a 10s
 	// TCP dial against UpstreamAddr.
 	DialUpstream func(ctx context.Context) (net.Conn, error)
@@ -210,8 +223,43 @@ type connState struct {
 	// bytes regardless) — only for setting msg_type on the audit row.
 	authType uint32
 
+	// txDepth tracks open transactions inferred from simple-protocol
+	// BEGIN/START TRANSACTION (++) and COMMIT/ROLLBACK/END (--).
+	// Coalescing must be skipped when txDepth > 0 — returning a cached
+	// SELECT inside a transaction violates Postgres isolation. v0.1.0c
+	// prep ships simple-protocol tracking only; extended-protocol
+	// (Parse 'BEGIN') is rare in practice and can be added by Agent 2
+	// in a follow-up file under pgproxy/ if needed.
+	txDepth int
+
+	// database and user are captured from the StartupMessage parameters
+	// so the Coalescer can include them in CacheKey. Empty when not
+	// supplied by the client.
+	database string
+	user     string
+
 	now    func() time.Time
 	writer audit.Writer
+}
+
+// updateTxDepth advances state.txDepth based on a simple-protocol
+// Query body. Called BEFORE auditing/forwarding so coalescing
+// decisions made later in the same iteration see the right depth.
+// Extended-protocol BEGIN via Parse+Bind+Execute is rare and not
+// handled in v0.1.0c prep.
+func updateTxDepth(state *connState, msgType byte, body []byte) {
+	if msgType != 'Q' {
+		return
+	}
+	q := strings.ToUpper(strings.TrimSpace(parseSimpleQueryText(body)))
+	switch {
+	case strings.HasPrefix(q, "BEGIN"), strings.HasPrefix(q, "START TRANSACTION"):
+		state.txDepth++
+	case strings.HasPrefix(q, "COMMIT"), strings.HasPrefix(q, "ROLLBACK"), strings.HasPrefix(q, "END"):
+		if state.txDepth > 0 {
+			state.txDepth--
+		}
+	}
 }
 
 // relay drives the single-goroutine pump. The startup phase is handled
@@ -321,6 +369,34 @@ func (s *Server) relay(ctx context.Context, client, upstream net.Conn, state *co
 				clientOpen = false
 				continue
 			}
+			// Update tx depth from simple-protocol BEGIN/COMMIT/ROLLBACK
+			// before any coalescer consultation can read it.
+			updateTxDepth(state, fr.hdr[0], fr.body)
+
+			// Rate limiter hook (v0.1.0c). Nil-default: no limiting.
+			// Acquire may block until a token is available; the returned
+			// Decision threads into the audit row so the dashboard can
+			// distinguish allowed vs throttled traffic.
+			decision := DecisionAllowed
+			if s.RateLimiter != nil {
+				d, err := s.RateLimiter.Acquire(ctx, state.agentID, classifyRoute(fr.hdr[0]))
+				if err != nil {
+					if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+						s.Logger.Printf("pgproxy: rate-limit acquire: %v", err)
+					}
+					cancel()
+					continue
+				}
+				decision = d
+			}
+
+			// TODO(v0.1.0d / Agent 2): coalescer hook goes here.
+			// On a Lookup hit, write cached bytes to client, audit with
+			// DecisionCoalesced, and `continue` to skip forwarding. The
+			// Coalescer interface, CacheKey, txDepth, database, and user
+			// state are all set up; Agent 2 fills in the call site +
+			// response capture/replay state machine.
+
 			if err := writeFrame(upstream, fr.hdr, fr.body); err != nil {
 				if !isExpectedClose(err) {
 					s.Logger.Printf("pgproxy: client→upstream write: %v", err)
@@ -328,7 +404,7 @@ func (s *Server) relay(ctx context.Context, client, upstream net.Conn, state *co
 				cancel()
 				continue
 			}
-			s.auditClientFrame(state, fr.hdr[0], fr.body, fr.bytes)
+			s.auditClientFrame(state, fr.hdr[0], fr.body, fr.bytes, decision)
 
 		case fr, ok := <-upstreamFrames:
 			if !ok {
@@ -376,7 +452,7 @@ func writeFrame(w io.Writer, hdr [5]byte, body []byte) error {
 //	'H' Flush, 'P' Parse, 'p' (auth response — context-dependent),
 //	'Q' Query (simple), 'S' Sync, 'X' Terminate,
 //	'd' CopyData, 'c' CopyDone, 'f' CopyFail.
-func (s *Server) auditClientFrame(state *connState, msgType byte, body []byte, bytesTotal int) {
+func (s *Server) auditClientFrame(state *connState, msgType byte, body []byte, bytesTotal int, decision Decision) {
 	if state.writer == nil {
 		return
 	}
@@ -390,9 +466,33 @@ func (s *Server) auditClientFrame(state *connState, msgType byte, body []byte, b
 		MsgType:   name,
 		QueryText: queryText,
 		Bytes:     bytesTotal,
+		Decision:  string(decision),
 	}
 	if err := state.writer.Write(ev); err != nil {
 		s.Logger.Printf("pgproxy: audit write: %v", err)
+	}
+}
+
+// classifyRoute maps a client-originated Postgres message type to the
+// route name used for per-route rate limiting. The default for unknown
+// types is "other"; v0.1.0c's RateLimiter treats all routes equally,
+// but the seam is here for v2 per-route weighting.
+func classifyRoute(msgType byte) string {
+	switch msgType {
+	case 'Q':
+		return "simple_query"
+	case 'P':
+		return "parse"
+	case 'B':
+		return "bind"
+	case 'E':
+		return "execute"
+	case 'S':
+		return "sync"
+	case 'p':
+		return "auth"
+	default:
+		return "other"
 	}
 }
 
@@ -647,6 +747,8 @@ func (s *Server) handleStartup(client, upstream net.Conn, state *connState) erro
 			user := scanStartupParam(body[4:], "user")
 			appName := scanStartupParam(body[4:], "application_name")
 			s.Logger.Printf("pgproxy: startup forwarded: db=%q user=%q proto=0x%08x app=%q conn=%s", db, user, code, appName, state.connID)
+			state.database = db
+			state.user = user
 			s.attachIdentity(state, appName)
 			if _, err := writeFull(upstream, lenBuf[:], body); err != nil {
 				return fmt.Errorf("forward startup: %w", err)
