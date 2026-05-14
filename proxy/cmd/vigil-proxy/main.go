@@ -28,6 +28,7 @@ import (
 	"github.com/costaxanthos/vigil/proxy/internal/config"
 	"github.com/costaxanthos/vigil/proxy/internal/identity"
 	"github.com/costaxanthos/vigil/proxy/internal/pgproxy"
+	"github.com/costaxanthos/vigil/proxy/internal/ratelimit"
 )
 
 func main() {
@@ -68,7 +69,7 @@ func run() error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("content-type", "application/json")
-		w.Write([]byte(`{"ok":true,"version":"v0.1.0b"}`))
+		w.Write([]byte(`{"ok":true,"version":"v0.1.0c"}`))
 	})
 	idSvc.Routes(mux)
 
@@ -84,13 +85,13 @@ func run() error {
 	// Compose startup log line so HTTP and Postgres lines stay together.
 	if cfg.PostgresProxyEnabled() {
 		log.Printf(
-			"vigil-proxy v0.1.0b — http=%s postgres=%s → upstream=%s (db=%s key=%s pubkey=%s)",
+			"vigil-proxy v0.1.0c — http=%s postgres=%s → upstream=%s (db=%s key=%s pubkey=%s)",
 			cfg.Addr, cfg.PostgresListen, cfg.PostgresUpstream,
 			cfg.DBPath, cfg.KeyPath, iss.PublicKeyB64(),
 		)
 	} else {
 		log.Printf(
-			"vigil-proxy v0.1.0b — http=%s postgres=disabled (db=%s key=%s pubkey=%s)",
+			"vigil-proxy v0.1.0c — http=%s postgres=disabled (db=%s key=%s pubkey=%s)",
 			cfg.Addr, cfg.DBPath, cfg.KeyPath, iss.PublicKeyB64(),
 		)
 	}
@@ -124,12 +125,27 @@ func run() error {
 	}
 
 	if cfg.PostgresProxyEnabled() {
+		// Rate limiter: built-in defaults unless --ratelimit-config
+		// points at a YAML file. Bad YAML is fatal — we exit non-
+		// zero rather than silently fall back to defaults, which
+		// would hide a misconfigured production deploy.
+		rlCfg := ratelimit.DefaultConfig()
+		if cfg.RateLimitConfigPath != "" {
+			rlCfg, err = ratelimit.LoadConfig(cfg.RateLimitConfigPath)
+			if err != nil {
+				log.Fatalf("vigil-proxy: load ratelimit config: %v", err)
+			}
+			log.Printf("vigil-proxy: rate-limit config loaded from %s", cfg.RateLimitConfigPath)
+		}
+		rateLimiter := ratelimit.New(rlCfg, ratelimit.RealClock{})
+
 		pgSrv := &pgproxy.Server{
 			ListenAddr:       cfg.PostgresListen,
 			UpstreamAddr:     cfg.PostgresUpstream,
 			Logger:           log.Default(),
 			AuditWriter:      auditWriter,
 			IdentityVerifier: iss,
+			RateLimiter:      rateLimiter,
 		}
 		wg.Add(1)
 		go func() {
