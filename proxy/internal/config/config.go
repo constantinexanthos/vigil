@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 )
 
 type Config struct {
@@ -19,6 +20,10 @@ type Config struct {
 	PostgresListen   string
 	PostgresUpstream string
 	PostgresDisabled bool
+
+	// Coalesce settings (v0.1.0d). TTL is the per-entry lifetime in the
+	// per-agent query cache. Default 250ms; tuned in the design doc.
+	CoalesceTTL time.Duration
 }
 
 func Load() (*Config, error) {
@@ -37,6 +42,8 @@ func Load() (*Config, error) {
 	pgUpstream := flag.String("postgres-upstream", envOr("VIGIL_POSTGRES_UPSTREAM", ""), "Real Postgres address to forward to (e.g. localhost:5432).")
 	pgDisabled := flag.Bool("postgres-disabled", envBool("VIGIL_POSTGRES_DISABLED", false), "Disable the Postgres proxy even if --postgres-listen and --postgres-upstream are set.")
 
+	coalesceTTL := flag.Duration("coalesce-ttl", envDuration("VIGIL_COALESCE_TTL", 250*time.Millisecond), "Per-entry TTL for the fan-out coalescing cache. Default 250ms.")
+
 	version := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
 
@@ -51,6 +58,7 @@ func Load() (*Config, error) {
 	c.PostgresListen = *pgListen
 	c.PostgresUpstream = *pgUpstream
 	c.PostgresDisabled = *pgDisabled
+	c.CoalesceTTL = *coalesceTTL
 	return c, nil
 }
 
@@ -89,6 +97,20 @@ func envBool(key string, fallback bool) bool {
 		return fallback
 	}
 	parsed, err := strconv.ParseBool(v)
+	if err != nil {
+		return fallback
+	}
+	return parsed
+}
+
+// envDuration parses an env var as a time.Duration (e.g. "250ms", "2s",
+// "1h30m"). Returns fallback for empty / unparseable values.
+func envDuration(key string, fallback time.Duration) time.Duration {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	parsed, err := time.ParseDuration(v)
 	if err != nil {
 		return fallback
 	}

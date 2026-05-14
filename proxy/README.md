@@ -14,6 +14,25 @@ The startup phase (SSL/GSS decline, StartupMessage forwarding) is still parsed i
 
 v0.1.0c adds rate shaping; v0.1.0d adds fan-out coalescing.
 
+### v0.1.0d coalescing (in flight)
+
+`proxy/internal/coalesce` implements the per-agent query result cache that backs the website's "40–80% cost reduction" claim. It's the type that will satisfy `pgproxy.Coalescer` once the lead-agent prep PR lands the interface seam in the message pump.
+
+Properties:
+
+- **Per-agent isolation.** Anonymous traffic (`agent_id=""`) never coalesces — different agents have different RLS context, search paths, role memberships, so cached responses are not interchangeable.
+- **Cache key.** Canonicalized query text + bind params + database + role. No lowercasing (Postgres treats `"User"` ≠ `"user"`), no comment stripping (a planner hint changes plan).
+- **Deny list.** `nextval/setval/currval`, `random/gen_random_uuid`, time-sensitive funcs (`now()`, `current_timestamp`, …), context-sensitive (`current_user`, …), advisory locks, xact metadata, `FOR UPDATE/SHARE/NO KEY UPDATE`, multi-statement.
+- **TTL.** 250ms default (`--coalesce-ttl <duration>`). Lazy expiry on Lookup.
+- **Bound.** Per-agent LRU, 1000 entries. Per-response cap 256KB.
+- **Volatile.** No persistence — cache is rebuilt on restart.
+
+CLI:
+
+```bash
+vigil-proxy --postgres-listen :7432 --postgres-upstream localhost:5432 --coalesce-ttl 250ms
+```
+
 See [docs/superpowers/specs/2026-05-04-vigil-data-plane-design.md](../docs/superpowers/specs/2026-05-04-vigil-data-plane-design.md) for the full design.
 
 ## Persistence
@@ -103,7 +122,7 @@ go test ./...
 | `internal/pgproxy` | Postgres wire-protocol proxy (v0.1.0a passthrough) |
 | `internal/proxy` | (future) protocol-agnostic proxy dispatcher |
 | `internal/ratelimit` | (future) per-agent token-bucket |
-| `internal/coalesce` | (future) query deduplication |
+| `internal/coalesce` | Per-agent query result cache (v0.1.0d — implementation landed, pgproxy hook pending) |
 | `internal/policy` | (future) rule engine |
 | `internal/audit` | (future) signed audit trail |
 | `internal/mcp` | (future) MCP server for agent introspection |

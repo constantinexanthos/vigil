@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/costaxanthos/vigil/proxy/internal/audit"
+	"github.com/costaxanthos/vigil/proxy/internal/coalesce"
 	"github.com/costaxanthos/vigil/proxy/internal/config"
 	"github.com/costaxanthos/vigil/proxy/internal/identity"
 	"github.com/costaxanthos/vigil/proxy/internal/pgproxy"
@@ -123,6 +124,14 @@ func run() error {
 		defer auditWriter.Close()
 	}
 
+	// Instantiate the fan-out coalescing cache unconditionally — its
+	// existence is cheap. The pgproxy.Server's Coalescer field is added
+	// in the lead-agent prep PR; once that lands, wire it with
+	//   pgSrv.Coalescer = coalesceCache
+	// (one line, no other changes required here).
+	coalesceCache := coalesce.New(coalesce.Options{TTL: cfg.CoalesceTTL})
+	_ = coalesceCache // referenced once pgproxy exposes the Coalescer hook
+
 	if cfg.PostgresProxyEnabled() {
 		pgSrv := &pgproxy.Server{
 			ListenAddr:       cfg.PostgresListen,
@@ -131,6 +140,7 @@ func run() error {
 			AuditWriter:      auditWriter,
 			IdentityVerifier: iss,
 		}
+		log.Printf("coalesce: per-agent cache armed with %s TTL", cfg.CoalesceTTL)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
