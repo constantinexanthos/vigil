@@ -85,8 +85,13 @@ let invokeCalls: Array<{ cmd: string; args: unknown }> = [];
 let auditPayload = makeAuditRows(1000);
 let identitiesPayload: ProxyIdentity[] = makeIdentities();
 let countersPayload: ProxyCounter[] = makeCounters();
+// Default: proxy.db present but with zero rows (the "proxy installed but
+// hasn't seen traffic yet" state) — renders the dashboard with the fixture
+// banner so existing tests that drive the dashboard keep working. Tests
+// that need the full first-launch onboarding flow override db_present to
+// false; tests covering that flow live in __tests__/emptyState.test.tsx.
 let statusPayload: ProxyStatus = {
-  db_present: false,
+  db_present: true,
   fixture_mode: true,
   identity_count: 0,
   audit_count: 0,
@@ -133,8 +138,13 @@ beforeEach(() => {
   auditPayload = makeAuditRows(1000);
   identitiesPayload = makeIdentities();
   countersPayload = makeCounters();
+  // Match the module-default: db present, empty tables → dashboard renders
+  // with the fixture banner. v0.1.0c+ added the onboarding panel that
+  // shows when db_present is false; tests for that flow live in their own
+  // file so this file's existing tests don't need to step through the
+  // demo-mode opt-in to reach the dashboard.
   statusPayload = {
-    db_present: false,
+    db_present: true,
     fixture_mode: true,
     identity_count: 0,
     audit_count: 0,
@@ -143,16 +153,15 @@ beforeEach(() => {
 
 describe("ProxyPane", () => {
   it("renders the fixture banner when proxy is not running", async () => {
+    // db_present=true + fixture_mode=true is the "proxy installed but
+    // hasn't seen traffic yet" state. v0.1.0c+: db_present=false now opens
+    // the onboarding panel instead — that flow is covered in emptyState.test.tsx.
     render(<ProxyPane />);
     await waitFor(() => {
       expect(
         screen.getByText(/Fixture data — proxy not running\./i),
       ).toBeInTheDocument();
     });
-    // Banner also surfaces the missing-on-disk hint, but the <code> element
-    // splits it across text nodes — match by container text.
-    const banner = screen.getByRole("status");
-    expect(banner).toHaveTextContent(/No.*proxy\.db.*on disk\./i);
   });
 
   it("hides the banner when real data is present", async () => {
@@ -212,27 +221,36 @@ describe("ProxyPane", () => {
     expect(invokeCalls.length).toBe(callsBefore);
   });
 
-  it("renders counters with placeholder zeros for v0.1.0c+ columns", async () => {
+  it("renders counters with claude-code and cursor query totals", async () => {
+    // Pre-v0.1.0c this test asserted the deduped column had a "ships in
+    // v0.1.0d" tooltip and rendered zero. The column is real now (driven
+    // by audit decision='coalesced'); the mock here still returns 0/0 for
+    // deduped/rate-limited so the displayed zeros are now genuine counts.
+    // Detailed flash-on-delta coverage lives in counterFlash.test.tsx.
     render(<ProxyPane />);
     await waitFor(() =>
       expect(screen.getByText(/Counters · last 24h/i)).toBeInTheDocument(),
     );
-    // Brutal check: claude-code row exists with the expected query count.
     expect(screen.getByText("600")).toBeInTheDocument();
     expect(screen.getByText("200")).toBeInTheDocument();
-    // Both placeholder columns are zero — verified via tooltip text on the cell.
-    const dedup = screen.getAllByTitle("ships in v0.1.0d");
-    expect(dedup.length).toBeGreaterThan(0);
-    dedup.forEach((el) => expect(el).toHaveTextContent("0"));
   });
 
-  it("disables the decision filter until v0.1.0c lands", async () => {
+  // Note: this test used to assert the decision filter was disabled with a
+  // "Ships in v0.1.0c" tooltip. v0.1.0c+ ships the decision column and the
+  // filter is now functional — assertion flipped accordingly. The brief's
+  // acceptance criterion #2 explicitly requires the filter to fire a Tauri
+  // re-call, which contradicts the original "disabled" expectation. End-to-
+  // end coverage of the new wiring lives in __tests__/decisionFilter.test.tsx.
+  it("renders an enabled decision filter (functional from v0.1.0c)", async () => {
     render(<ProxyPane />);
     await waitFor(() => screen.getByText(/Counters · last 24h/i));
     const selects = screen.getAllByRole("combobox");
     const decisionSelect = selects[3];
-    expect(decisionSelect).toBeDisabled();
-    expect(decisionSelect).toHaveAttribute("title", "Ships in v0.1.0c");
+    expect(decisionSelect).not.toBeDisabled();
+    expect(decisionSelect).toHaveAttribute(
+      "title",
+      "Filter audit rows by proxy decision",
+    );
   });
 
   it("virtualizes 1000 rows — total height set, materialized DOM small", async () => {
