@@ -35,7 +35,7 @@ export function EarlyAccessForm({ id = "ea-email" }: EarlyAccessFormProps) {
       }
       if (res.ok && data.ok) {
         setStatus("ok")
-        setMessage("Thanks. We'll be in touch.")
+        setMessage("You're on the list. We'll email you when v1 ships.")
         setEmail("")
       } else {
         setStatus("error")
@@ -72,7 +72,7 @@ export function EarlyAccessForm({ id = "ea-email" }: EarlyAccessFormProps) {
         disabled={status === "submitting"}
         className="inline-flex h-11 items-center justify-center rounded-md bg-cyan-700 px-5 text-[14px] font-semibold tracking-tight text-white transition hover:bg-cyan-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-700/40 focus-visible:ring-offset-1 focus-visible:ring-offset-white disabled:opacity-60"
       >
-        {status === "submitting" ? "Sending…" : "Get early access"}
+        {status === "submitting" ? "Joining…" : "Join waitlist"}
       </button>
       {message ? (
         <p

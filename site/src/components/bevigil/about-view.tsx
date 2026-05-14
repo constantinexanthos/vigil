@@ -123,11 +123,12 @@ export function AboutView() {
                 className="text-[28px] font-normal leading-[1.15] tracking-[-0.02em] text-stone-900 sm:text-[36px]"
                 style={{ fontFamily: SERIF }}
               >
-                Get the binary as soon as it&rsquo;s ready.
+                Join the waitlist.
               </h2>
               <p className="mt-4 text-[16.5px] leading-relaxed text-stone-600">
-                Vigil is open source. The proxy is on GitHub today; the early-
-                access list gets the first hosted release and the on-call
+                Vigil is open source and under active development. The proxy
+                source is on GitHub today; the waitlist gets the first
+                tagged release, the hosted control plane, and the on-call
                 playbook.
               </p>
               <a

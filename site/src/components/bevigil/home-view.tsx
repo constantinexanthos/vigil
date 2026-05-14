@@ -305,20 +305,22 @@ export function HomeView() {
                   className="text-[32px] font-normal leading-[1.1] tracking-[-0.02em] text-stone-900 sm:text-[44px]"
                   style={{ fontFamily: SERIF }}
                 >
-                  Get the binary. Run it next to your{" "}
-                  <span className="italic">database.</span>
+                  First in line when v1{" "}
+                  <span className="italic">ships.</span>
                 </h2>
                 <p className="mt-5 text-[16.5px] leading-relaxed text-stone-600">
-                  Vigil ships as a single Go binary. Drop it between an agent
-                  and your data store, point it at a config file, watch the
-                  audit trail land. Free for individuals; paid tiers when you
-                  need team policy + cloud retention.
+                  Vigil will ship as a single Go binary you drop between an
+                  agent and your data store. We&rsquo;re building toward a v1
+                  release that bundles identity, rate limiting, fan-out
+                  coalescing, blast-radius control, and a signed audit trail.
+                  Free for individuals; paid tiers when you need team policy
+                  + cloud retention.
                 </p>
               </div>
               <div className="rounded-md border border-stone-200 bg-stone-50 p-7 sm:p-8">
                 <p className="mb-5 text-[14px] font-medium text-stone-700">
-                  Drop your work email. We&rsquo;ll send the binary and a
-                  walkthrough.
+                  Drop your work email. We&rsquo;ll let you know the moment
+                  the proxy is ready &mdash; plus the on-call playbook.
                 </p>
                 <EarlyAccessForm id="ea-email-bottom" />
                 <p
