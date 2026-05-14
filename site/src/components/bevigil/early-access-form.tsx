@@ -48,42 +48,44 @@ export function EarlyAccessForm({ id = "ea-email" }: EarlyAccessFormProps) {
   }
 
   return (
-    <form
-      onSubmit={onSubmit}
-      className="flex w-full max-w-md flex-col gap-3 sm:flex-row"
-      noValidate
-    >
-      <label htmlFor={id} className="sr-only">
-        Email address
-      </label>
-      <input
-        id={id}
-        type="email"
-        required
-        autoComplete="email"
-        placeholder="you@yourcompany.com"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        className="h-11 flex-1 rounded-md border border-stone-300 bg-white px-3.5 text-[15px] text-stone-900 placeholder:text-stone-400 outline-none transition focus:border-cyan-700 focus:ring-2 focus:ring-cyan-700/20"
-        disabled={status === "submitting"}
-      />
-      <button
-        type="submit"
-        disabled={status === "submitting"}
-        className="inline-flex h-11 items-center justify-center rounded-md bg-cyan-700 px-5 text-[14px] font-semibold tracking-tight text-white transition hover:bg-cyan-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-700/40 focus-visible:ring-offset-1 focus-visible:ring-offset-white disabled:opacity-60"
+    <div className="flex w-full max-w-md flex-col gap-2.5">
+      <form
+        onSubmit={onSubmit}
+        className="flex w-full flex-col gap-3 sm:flex-row"
+        noValidate
       >
-        {status === "submitting" ? "Joining…" : "Join waitlist"}
-      </button>
+        <label htmlFor={id} className="sr-only">
+          Email address
+        </label>
+        <input
+          id={id}
+          type="email"
+          required
+          autoComplete="email"
+          placeholder="you@yourcompany.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="h-11 flex-1 rounded-md border border-stone-300 bg-white px-3.5 text-[15px] text-stone-900 placeholder:text-stone-400 outline-none transition focus:border-cyan-700 focus:ring-2 focus:ring-cyan-700/20"
+          disabled={status === "submitting"}
+        />
+        <button
+          type="submit"
+          disabled={status === "submitting"}
+          className="inline-flex h-11 items-center justify-center rounded-md bg-cyan-700 px-5 text-[14px] font-semibold tracking-tight text-white transition hover:bg-cyan-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-700/40 focus-visible:ring-offset-1 focus-visible:ring-offset-white disabled:opacity-60"
+        >
+          {status === "submitting" ? "Joining…" : "Join waitlist"}
+        </button>
+      </form>
       {message ? (
         <p
           role="status"
-          className={`mt-1 text-[13px] ${
+          className={`text-[13px] leading-snug ${
             status === "ok" ? "text-emerald-700" : "text-red-700"
-          } sm:absolute sm:translate-y-12 sm:mt-0`}
+          }`}
         >
           {message}
         </p>
       ) : null}
-    </form>
+    </div>
   )
 }
