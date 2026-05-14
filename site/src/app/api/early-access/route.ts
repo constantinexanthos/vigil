@@ -74,25 +74,39 @@ export async function POST(request: Request) {
     )
   }
 
-  // 2. Fire-and-forget notification email so the team sees signups live.
-  //    Failures here don't fail the request — the user is already on the
-  //    list, which is the load-bearing thing.
+  // 2. Notification email so the team sees signups live. We await this
+  //    rather than fire-and-forget because Vercel's serverless runtime can
+  //    terminate the function as soon as we return — a discarded promise
+  //    may never reach Resend. Failures here are logged but don't fail the
+  //    request: the user is already on the list, which is the load-bearing
+  //    thing. A 3s timeout guards against slow upstream rare cases.
   if (notifyFrom && notifyTo) {
-    void fetch(`${RESEND_API}/emails`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: notifyFrom,
-        to: [notifyTo],
-        subject: `Vigil waitlist: ${email}`,
-        text: `New signup: ${email}\nAt: ${new Date().toISOString()}`,
-      }),
-    }).catch((err) => {
-      console.error("[waitlist] notification email failed:", err)
-    })
+    try {
+      const notifyRes = await fetch(`${RESEND_API}/emails`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: notifyFrom,
+          to: [notifyTo],
+          subject: `Vigil waitlist: ${email}`,
+          text: `New signup: ${email}\nAt: ${new Date().toISOString()}`,
+        }),
+        signal: AbortSignal.timeout(3000),
+      })
+      if (!notifyRes.ok) {
+        const detail = await notifyRes.text().catch(() => "")
+        console.error(
+          "[waitlist] notification email rejected:",
+          notifyRes.status,
+          detail
+        )
+      }
+    } catch (err) {
+      console.error("[waitlist] notification email fetch failed:", err)
+    }
   }
 
   return NextResponse.json({ ok: true })
