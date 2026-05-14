@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -29,6 +30,10 @@ import (
 // Schema is the canonical audit-table schema. Other agents (Tauri app,
 // MCP server, benchmark harness) read this table and rely on these
 // column names. Changes here are a contract change.
+//
+// The decision column was added in the 2026-05-15 prep PR for
+// v0.1.0c (rate-limit) and v0.1.0d (coalesce). v0.1.0b databases
+// without the column are migrated idempotently in Open / FromDB.
 const Schema = `
 CREATE TABLE IF NOT EXISTS audit (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,10 +45,26 @@ CREATE TABLE IF NOT EXISTS audit (
   msg_type TEXT NOT NULL,
   query_text TEXT,
   bytes INTEGER NOT NULL,
-  sig TEXT NOT NULL
+  sig TEXT NOT NULL,
+  decision TEXT NOT NULL DEFAULT 'allowed'
 );
 CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit(ts);
 CREATE INDEX IF NOT EXISTS idx_audit_agent ON audit(agent_id, ts);
+`
+
+// migrateDecisionColumn is the additive migration applied to existing
+// v0.1.0b audit tables that pre-date the decision column. Executed
+// best-effort in Open / FromDB; SQLite errors with "duplicate column"
+// when the column already exists, which we treat as success.
+const migrateDecisionColumn = `
+ALTER TABLE audit ADD COLUMN decision TEXT NOT NULL DEFAULT 'allowed';
+`
+
+// idxDecision creates the decision-column index. Lives separately
+// from Schema so it can run AFTER migrateDecision — for v0.1.0b DBs
+// the column doesn't exist until migration completes.
+const idxDecision = `
+CREATE INDEX IF NOT EXISTS idx_audit_decision ON audit(decision);
 `
 
 
@@ -60,6 +81,12 @@ const (
 // table. AgentID/AgentName are empty when no identity is attached
 // (identity verification failure is non-fatal — observability before
 // enforcement).
+//
+// Decision records the proxy's outcome for the message: "allowed"
+// (default — message forwarded normally), "rate_limited" (queued in
+// a rate-limit bucket then forwarded), or "coalesced" (response
+// served from the per-agent cache, never forwarded to upstream).
+// Empty Decision is treated as "allowed" by Write.
 type Event struct {
 	Timestamp time.Time
 	AgentID   string
@@ -69,6 +96,7 @@ type Event struct {
 	MsgType   string
 	QueryText string
 	Bytes     int
+	Decision  string
 }
 // Signer is the minimal subset of *identity.Issuer that audit needs.
 // We don't import identity here to keep the dependency one-way (the
@@ -136,6 +164,10 @@ func Open(path string, signer Signer) (*DBWriter, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("audit: init schema: %w", err)
 	}
+	if err := migrateDecision(db); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
 	return &DBWriter{db: db, signer: signer, ownsDB: true}, nil
 }
 // FromDB constructs a DBWriter on an already-open *sql.DB. The schema
@@ -152,7 +184,32 @@ func FromDB(db *sql.DB, signer Signer) (*DBWriter, error) {
 	if _, err := db.Exec(Schema); err != nil {
 		return nil, fmt.Errorf("audit: init schema: %w", err)
 	}
+	if err := migrateDecision(db); err != nil {
+		return nil, err
+	}
 	return &DBWriter{db: db, signer: signer, ownsDB: false}, nil
+}
+
+// migrateDecision adds the decision column to v0.1.0b audit tables
+// that pre-date it, then ensures the decision index exists. The
+// CREATE TABLE in Schema is idempotent and includes the column for
+// fresh installs; this migration handles the upgrade path for
+// existing databases. SQLite reports "duplicate column" when the
+// column is already present — that's success.
+//
+// The index lives outside Schema because for v0.1.0b DBs the column
+// doesn't exist until ALTER TABLE completes — Schema's index would
+// fail to compile against the pre-migration table shape.
+func migrateDecision(db *sql.DB) error {
+	if _, err := db.Exec(migrateDecisionColumn); err != nil {
+		if !strings.Contains(err.Error(), "duplicate column") {
+			return fmt.Errorf("audit: add decision column: %w", err)
+		}
+	}
+	if _, err := db.Exec(idxDecision); err != nil {
+		return fmt.Errorf("audit: create decision index: %w", err)
+	}
+	return nil
 }
 // Close releases the underlying database handle if Open created it.
 // FromDB-constructed writers are no-ops on Close.
@@ -195,8 +252,8 @@ func (w *DBWriter) Write(ev Event) error {
 	canonical := CanonicalForm(ev.AgentID, ev.ConnID, ts, ev.MsgType, ev.QueryText)
 	sig := base64.RawStdEncoding.EncodeToString(w.signer.SignRaw([]byte(canonical)))
 	const q = `
-		INSERT INTO audit (ts, agent_id, agent_name, conn_id, direction, msg_type, query_text, bytes, sig)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO audit (ts, agent_id, agent_name, conn_id, direction, msg_type, query_text, bytes, sig, decision)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	var (
 		agentID   any = nil
@@ -212,6 +269,10 @@ func (w *DBWriter) Write(ev Event) error {
 	if ev.QueryText != "" {
 		queryText = ev.QueryText
 	}
+	decision := ev.Decision
+	if decision == "" {
+		decision = "allowed"
+	}
 	_, err := w.db.Exec(q,
 		ts,
 		agentID,
@@ -222,6 +283,7 @@ func (w *DBWriter) Write(ev Event) error {
 		queryText,
 		ev.Bytes,
 		sig,
+		decision,
 	)
 	if err != nil {
 		return fmt.Errorf("audit: write: %w", err)
