@@ -1,0 +1,7 @@
+# Malformed YAML — unterminated mapping value. yaml.v3's strict
+# decoder must surface this as an error rather than silently falling
+# back to defaults. The acceptance test asserts the error is non-nil.
+pools:
+  agents:
+    burst: [oops
+    refill: 50

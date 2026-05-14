@@ -1,0 +1,20 @@
+# Valid config — exercises every supported key. The values mirror the
+# documented defaults; LoadConfig should treat the file as equivalent
+# to DefaultConfig() with one extra per-agent override.
+pools:
+  production:
+    burst: 1000
+    refill: 500
+  agents:
+    burst: 100
+    refill: 50
+  unauth:
+    burst: 10
+    refill: 5
+
+agents:
+  ag_promote_to_prod:
+    pool: production
+  ag_heavy_hitter:
+    burst: 200
+    refill: 100

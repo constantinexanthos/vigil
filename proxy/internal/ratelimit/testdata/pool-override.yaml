@@ -1,0 +1,7 @@
+# Minimal override that demonstrates the merge contract: the operator
+# only specifies one pool, and DefaultConfig fills in the others.
+# Used by tests that check that omitted pools keep their defaults.
+pools:
+  agents:
+    burst: 50
+    refill: 25
