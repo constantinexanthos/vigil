@@ -79,7 +79,7 @@ export function HomeView() {
                     individuals.
                   </p>
 
-                  <div className="mt-10 flex flex-col gap-5 sm:max-w-md">
+                  <div className="mt-10 flex flex-col gap-7 sm:max-w-md">
                     <EarlyAccessForm />
                     <a
                       href={REPO_URL}
