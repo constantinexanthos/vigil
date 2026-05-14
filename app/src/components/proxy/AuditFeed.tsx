@@ -6,8 +6,8 @@ interface Props {
   rows: AuditRow[];
   // Filter state lives in the parent; the feed is a pure renderer plus the
   // toolbar that fires onChange callbacks. The parent re-runs the Tauri
-  // query when agent/window change; msg_type and decision are filtered in
-  // memory because they cut from already-loaded rows.
+  // query when agent/window/decision change; msg_type is filtered in
+  // memory because it cuts from already-loaded rows.
   agentFilter: string | null;
   setAgentFilter: (v: string | null) => void;
   windowMinutes: number;
@@ -17,6 +17,10 @@ interface Props {
   decisionFilter: string;
   setDecisionFilter: (v: string) => void;
   agentOptions: { id: string; name: string }[];
+  // isPolling drives the "Live" indicator in the toolbar — true means
+  // useProxyData has an active 2s interval and the feed is being refreshed
+  // in the background. Off in fixture mode.
+  isPolling: boolean;
 }
 
 const ROW_HEIGHT = 28;
@@ -28,14 +32,13 @@ const TIME_WINDOWS: { label: string; minutes: number }[] = [
   { label: "24h", minutes: 24 * 60 },
   { label: "all", minutes: 0 },
 ];
-// Decision values are placeholders until v0.1.0c lands. Wired through the UI
-// today so the filter shape doesn't churn when the column arrives.
+// Decision values match the wire format written by the proxy daemon. "all"
+// is the UI-only sentinel that maps to filter.decision = null upstream.
 const DECISIONS: { value: string; label: string }[] = [
   { value: "all", label: "All decisions" },
   { value: "allowed", label: "Allowed" },
   { value: "coalesced", label: "Coalesced" },
-  { value: "rate-limited", label: "Rate-limited" },
-  { value: "denied", label: "Denied" },
+  { value: "rate_limited", label: "Rate limited" },
 ];
 const MSG_TYPES = ["all", "Query", "Parse", "Bind", "Execute"];
 
@@ -50,6 +53,7 @@ export function AuditFeed({
   decisionFilter,
   setDecisionFilter,
   agentOptions,
+  isPolling,
 }: Props) {
   const filtered = useMemo(() => {
     if (msgTypeFilter === "all") return rows;
@@ -70,8 +74,18 @@ export function AuditFeed({
       className="flex flex-col flex-1 min-w-0 min-h-0"
     >
       <div className="flex items-center gap-2 px-3 py-2 border-b border-white/[0.06] flex-wrap">
-        <h3 className="text-[9px] uppercase tracking-[0.08em] text-white/35 mr-2">
+        <h3 className="text-[9px] uppercase tracking-[0.08em] text-white/35 mr-2 flex items-center gap-1.5">
           Live audit
+          {isPolling && (
+            <span
+              aria-label="Polling for new audit rows"
+              data-testid="audit-live-indicator"
+              className="inline-flex items-center gap-1 text-[8px] text-emerald-300/80 normal-case tracking-normal"
+            >
+              <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse-alive" />
+              Live
+            </span>
+          )}
         </h3>
         <Select
           value={agentFilter ?? "all"}
@@ -98,11 +112,7 @@ export function AuditFeed({
           value={decisionFilter}
           onChange={setDecisionFilter}
           options={DECISIONS}
-          // The decision column doesn't exist in v0.1.0b. Showing the filter
-          // grayed-out makes the future surface visible without lying about
-          // the data backing it.
-          disabled
-          title="Ships in v0.1.0c"
+          title="Filter audit rows by proxy decision"
         />
         <span className="ml-auto text-[10px] text-white/40 tabular-nums">
           {filtered.length.toLocaleString()} rows

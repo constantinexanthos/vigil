@@ -36,6 +36,10 @@ pub struct AuditRow {
     pub query_text: Option<String>,
     pub bytes: i64,
     pub sig: String,
+    // v0.1.0c/d adds the `decision` column. When the on-disk schema doesn't
+    // yet have it, the read layer projects 'allowed' so consumers always see
+    // a non-empty value. Fixture rows fill this directly.
+    pub decision: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -60,6 +64,10 @@ pub struct AuditFilter {
     pub agent_id: Option<String>,
     pub since_ts: Option<String>,
     pub msg_type: Option<String>,
+    // Server-side decision filter — clean SQL cut, not a renderer filter.
+    // When the on-disk schema lacks the decision column, a non-null filter
+    // here turns into a no-op (since everything is implicitly 'allowed').
+    pub decision: Option<String>,
 }
 
 // ---- Path resolution ----
@@ -146,6 +154,22 @@ fn read_identities(conn: &Connection) -> Result<Vec<ProxyIdentity>, String> {
         .map_err(|e| format!("collect identities: {e}"))
 }
 
+// has_decision_column reports whether the audit table has a `decision`
+// column. Pre-v0.1.0c proxy.db files won't, so we project a literal
+// 'allowed' for those rows; this keeps the read shape stable across schemas
+// without requiring a coordinated migration.
+fn has_decision_column(conn: &Connection) -> bool {
+    conn.query_row(
+        "SELECT 1 FROM pragma_table_info('audit') WHERE name='decision'",
+        [],
+        |_| Ok(()),
+    )
+    .optional()
+    .ok()
+    .flatten()
+    .is_some()
+}
+
 fn read_audit(
     conn: &Connection,
     filter: &AuditFilter,
@@ -155,9 +179,15 @@ fn read_audit(
     // Build a parameterized query. We constrain by id < cursor for stable
     // descending pagination — even if new rows arrive between calls, the
     // older page boundaries stay deterministic.
-    let mut sql = String::from(
+    let with_decision = has_decision_column(conn);
+    let decision_select = if with_decision {
+        "decision"
+    } else {
+        "'allowed' AS decision"
+    };
+    let mut sql = format!(
         "SELECT id, ts, agent_id, agent_name, conn_id, direction, msg_type, \
-         query_text, bytes, sig FROM audit WHERE 1=1",
+         query_text, bytes, sig, {decision_select} FROM audit WHERE 1=1",
     );
     let mut bindings: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
     if let Some(aid) = &filter.agent_id {
@@ -171,6 +201,20 @@ fn read_audit(
     if let Some(mt) = &filter.msg_type {
         sql.push_str(" AND msg_type = ?");
         bindings.push(Box::new(mt.clone()));
+    }
+    // decision filter only meaningful if the column exists on disk. If it
+    // doesn't, applying the filter against the literal projection would
+    // either always match (decision='allowed') or always miss, neither of
+    // which is what the user wants — skip it instead.
+    if let Some(d) = &filter.decision {
+        if with_decision {
+            sql.push_str(" AND decision = ?");
+            bindings.push(Box::new(d.clone()));
+        } else if d != "allowed" {
+            // Caller asked for coalesced/rate_limited on a schema that
+            // can't store either yet. The honest answer is zero rows.
+            return Ok(Vec::new());
+        }
     }
     if let Some(c) = cursor {
         sql.push_str(" AND id < ?");
@@ -194,6 +238,7 @@ fn read_audit(
                 query_text: row.get(7)?,
                 bytes: row.get(8)?,
                 sig: row.get(9)?,
+                decision: row.get(10)?,
             })
         })
         .map_err(|e| format!("query audit: {e}"))?;
@@ -202,28 +247,44 @@ fn read_audit(
 }
 
 fn read_counters(conn: &Connection, since: Option<&str>) -> Result<Vec<ProxyCounter>, String> {
-    // queries_today = count of Query/Parse rows since `since` (or today-utc),
-    // grouped by agent. The deduped/rate-limited columns are placeholder
-    // zeros until v0.1.0d/c respectively, per the brief.
+    // queries_today  = count of Query/Parse rows since `since` (or today-utc)
+    // queries_deduped       = subset with decision='coalesced'
+    // queries_rate_limited  = subset with decision='rate_limited'
+    // Grouped by agent. On the pre-v0.1.0c schema, the decision column doesn't
+    // exist; the two coalesced/rate-limited sums become hard zeros without
+    // failing the query.
     let cutoff = since
         .map(|s| s.to_string())
         .unwrap_or_else(default_today_cutoff);
 
-    let mut stmt = conn
-        .prepare(
-            "SELECT agent_id, MAX(agent_name), COUNT(*) FROM audit \
-             WHERE ts >= ? AND msg_type IN ('Query','Parse') \
-             GROUP BY agent_id",
-        )
-        .map_err(|e| format!("prepare counters: {e}"))?;
+    let with_decision = has_decision_column(conn);
+    let coalesced_expr = if with_decision {
+        "SUM(CASE WHEN decision='coalesced' THEN 1 ELSE 0 END)"
+    } else {
+        "0"
+    };
+    let rate_limited_expr = if with_decision {
+        "SUM(CASE WHEN decision='rate_limited' THEN 1 ELSE 0 END)"
+    } else {
+        "0"
+    };
+    let sql = format!(
+        "SELECT agent_id, MAX(agent_name), COUNT(*), \
+                {coalesced_expr}, {rate_limited_expr} \
+         FROM audit \
+         WHERE ts >= ? AND msg_type IN ('Query','Parse') \
+         GROUP BY agent_id"
+    );
+
+    let mut stmt = conn.prepare(&sql).map_err(|e| format!("prepare counters: {e}"))?;
     let rows = stmt
         .query_map(params![cutoff], |row| {
             Ok(ProxyCounter {
                 agent_id: row.get(0)?,
                 agent_name: row.get(1)?,
                 queries_today: row.get(2)?,
-                queries_deduped: 0,
-                queries_rate_limited: 0,
+                queries_deduped: row.get(3)?,
+                queries_rate_limited: row.get(4)?,
             })
         })
         .map_err(|e| format!("query counters: {e}"))?;
@@ -316,7 +377,8 @@ fn fixture_audit_rows() -> Vec<AuditRow> {
                     conn: &str,
                     msg_type: &str,
                     query: Option<&str>,
-                    bytes: i64| {
+                    bytes: i64,
+                    decision: &str| {
         // Distribute across the last hour evenly. Index 0 is oldest.
         let secs_back = 3600 - (i as i64 * 3600 / 1000);
         let ts = now - chrono::Duration::seconds(secs_back);
@@ -331,16 +393,28 @@ fn fixture_audit_rows() -> Vec<AuditRow> {
             query_text: query.map(String::from),
             bytes,
             sig: format!("fix-sig-{i:04}"),
+            decision: decision.to_string(),
         });
     };
 
-    // claude-code: 600 rows, 80% are duplicate SELECT users by email
+    // claude-code: 600 rows, 80% duplicate SELECT-by-email (the agent
+    // rediscovery pattern). Decisions: 565 allowed + 30 coalesced + 5
+    // rate_limited. Coalesced rows are sprinkled in among the duplicate
+    // path (that's what coalescing fires on); rate-limited are clustered
+    // near the start of the window (bursty agent → policy kicks in).
     for i in 0..600 {
         let dup = i % 5 != 0;
         let q = if dup {
             "SELECT * FROM users WHERE email = $1"
         } else {
             "SELECT id, name FROM accounts WHERE created_at > NOW() - INTERVAL '7 day'"
+        };
+        let decision = if i < 5 {
+            "rate_limited"
+        } else if i >= 5 && i < 35 {
+            "coalesced"
+        } else {
+            "allowed"
         };
         push(
             &mut rows,
@@ -350,9 +424,11 @@ fn fixture_audit_rows() -> Vec<AuditRow> {
             "Query",
             Some(q),
             (q.len() + 5) as i64,
+            decision,
         );
     }
-    // cursor: 200 rows, mixed analytics
+    // cursor: 200 rows, mixed analytics. A few coalesce on repeat
+    // aggregates; none rate-limited (cursor pattern is bursty but unique).
     for i in 600..800 {
         let q = match i % 4 {
             0 => "SELECT COUNT(*) FROM events WHERE ts > $1",
@@ -360,6 +436,7 @@ fn fixture_audit_rows() -> Vec<AuditRow> {
             2 => "SELECT * FROM sessions WHERE is_live = true",
             _ => "SELECT MAX(ts) FROM heartbeats",
         };
+        let decision = if i % 40 == 0 { "coalesced" } else { "allowed" };
         push(
             &mut rows,
             i,
@@ -368,9 +445,10 @@ fn fixture_audit_rows() -> Vec<AuditRow> {
             "Query",
             Some(q),
             (q.len() + 5) as i64,
+            decision,
         );
     }
-    // codex: 100 rows, bursty Parse + Bind + Execute
+    // codex: 100 rows, bursty Parse + Bind + Execute, all allowed.
     for i in 800..900 {
         let (mt, q) = match i % 3 {
             0 => ("Parse", Some("SELECT title FROM tickets WHERE id = $1")),
@@ -385,14 +463,20 @@ fn fixture_audit_rows() -> Vec<AuditRow> {
             mt,
             q,
             32,
+            "allowed",
         );
     }
-    // custom-agent: 70 rows, INSERT/UPDATE traffic
+    // custom-agent: 70 rows, INSERT/UPDATE traffic. Two writes rate-limited.
     for i in 900..970 {
         let q = if i % 2 == 0 {
             "INSERT INTO audit_dev (id, body) VALUES ($1, $2)"
         } else {
             "UPDATE settings SET value = $1 WHERE key = $2"
+        };
+        let decision = if i == 901 || i == 903 {
+            "rate_limited"
+        } else {
+            "allowed"
         };
         push(
             &mut rows,
@@ -402,9 +486,10 @@ fn fixture_audit_rows() -> Vec<AuditRow> {
             "Query",
             Some(q),
             (q.len() + 12) as i64,
+            decision,
         );
     }
-    // no-id (unauthenticated): 30 rows
+    // no-id (unauthenticated): 30 rows, all allowed.
     for i in 970..1000 {
         push(
             &mut rows,
@@ -414,6 +499,7 @@ fn fixture_audit_rows() -> Vec<AuditRow> {
             "Query",
             Some("SELECT 1"),
             16,
+            "allowed",
         );
     }
     // Rows are oldest→newest; UI expects newest first (descending id).
@@ -436,6 +522,10 @@ fn fixture_filter_audit(filter: &AuditFilter, cursor: Option<i64>, limit: u32) -
             Some(m) => r.msg_type == *m,
             None => true,
         })
+        .filter(|r| match &filter.decision {
+            Some(d) => r.decision == *d,
+            None => true,
+        })
         .filter(|r| match cursor {
             Some(c) => r.id < c,
             None => true,
@@ -444,31 +534,43 @@ fn fixture_filter_audit(filter: &AuditFilter, cursor: Option<i64>, limit: u32) -
         .collect()
 }
 
+// fixture_counters mirrors the real read_counters: queries_today counts
+// Query+Parse rows, queries_deduped counts decision='coalesced', and
+// queries_rate_limited counts decision='rate_limited'. Restricted to
+// query-class messages so Bind/Execute don't pollute counts.
 fn fixture_counters(filter_agent: Option<&str>) -> Vec<ProxyCounter> {
-    let mut counts: std::collections::BTreeMap<Option<String>, (Option<String>, i64)> =
-        Default::default();
+    type Bucket = (Option<String>, i64, i64, i64);
+    let mut counts: std::collections::BTreeMap<Option<String>, Bucket> = Default::default();
     for r in fixture_audit_rows() {
         if let Some(a) = filter_agent {
             if r.agent_id.as_deref() != Some(a) {
                 continue;
             }
         }
+        if !matches!(r.msg_type.as_str(), "Query" | "Parse") {
+            continue;
+        }
         let entry = counts
             .entry(r.agent_id.clone())
-            .or_insert((r.agent_name.clone(), 0));
-        if matches!(r.msg_type.as_str(), "Query" | "Parse") {
-            entry.1 += 1;
+            .or_insert((r.agent_name.clone(), 0, 0, 0));
+        entry.1 += 1;
+        if r.decision == "coalesced" {
+            entry.2 += 1;
+        } else if r.decision == "rate_limited" {
+            entry.3 += 1;
         }
     }
     counts
         .into_iter()
-        .map(|(agent_id, (agent_name, queries_today))| ProxyCounter {
-            agent_id,
-            agent_name,
-            queries_today,
-            queries_deduped: 0,
-            queries_rate_limited: 0,
-        })
+        .map(
+            |(agent_id, (agent_name, queries_today, deduped, rate_limited))| ProxyCounter {
+                agent_id,
+                agent_name,
+                queries_today,
+                queries_deduped: deduped,
+                queries_rate_limited: rate_limited,
+            },
+        )
         .collect()
 }
 
@@ -664,9 +766,14 @@ mod tests {
             .iter()
             .find(|c| c.agent_name.as_deref() == Some("claude-code"))
             .unwrap();
+        // Fixture decision distribution for claude-code:
+        //   5 rate_limited (the initial burst)
+        //  30 coalesced    (the dedup window)
+        // 565 allowed      (the rest)
+        // Total            = 600 Query rows → queries_today.
         assert_eq!(cc.queries_today, 600);
-        assert_eq!(cc.queries_deduped, 0);
-        assert_eq!(cc.queries_rate_limited, 0);
+        assert_eq!(cc.queries_deduped, 30);
+        assert_eq!(cc.queries_rate_limited, 5);
     }
 
     #[test]
@@ -815,6 +922,7 @@ mod tests {
                 agent_id: None,
                 since_ts: None,
                 msg_type: Some("Query".into()),
+                decision: None,
             },
             None,
             500,
@@ -838,6 +946,175 @@ mod tests {
         let rows = fixture_audit_rows();
         let null_count = rows.iter().filter(|r| r.agent_id.is_none()).count();
         assert!(null_count > 0, "fixture must include unauthenticated rows");
+    }
+
+    // create_schema_with_decision builds the same tables as create_schema
+    // plus the new `decision TEXT NOT NULL` column. Simulates a proxy.db
+    // produced by v0.1.0c+ daemons.
+    fn create_schema_with_decision(conn: &Connection) {
+        conn.execute_batch(
+            "CREATE TABLE identities (
+                id TEXT PRIMARY KEY,
+                agent_name TEXT NOT NULL,
+                principal TEXT NOT NULL,
+                scopes TEXT NOT NULL,
+                public_key TEXT NOT NULL,
+                issued_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL
+             );
+             CREATE TABLE audit (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ts TEXT NOT NULL,
+                agent_id TEXT,
+                agent_name TEXT,
+                conn_id TEXT NOT NULL,
+                direction TEXT NOT NULL,
+                msg_type TEXT NOT NULL,
+                query_text TEXT,
+                bytes INTEGER NOT NULL,
+                sig TEXT NOT NULL,
+                decision TEXT NOT NULL DEFAULT 'allowed'
+             );",
+        )
+        .unwrap();
+    }
+
+    fn insert_audit_row(
+        conn: &Connection,
+        agent: &str,
+        msg_type: &str,
+        decision: &str,
+    ) {
+        conn.execute(
+            "INSERT INTO audit (ts,agent_id,agent_name,conn_id,direction,msg_type,query_text,bytes,sig,decision) \
+             VALUES (?,?,?,?,?,?,?,?,?,?)",
+            params![
+                "2026-05-14T12:00:00Z",
+                agent,
+                agent,
+                "c1",
+                "client",
+                msg_type,
+                "SELECT 1",
+                8i64,
+                "sig",
+                decision
+            ],
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn brief_acceptance_1_counter_math_100_allowed_30_coalesced_5_rate_limited() {
+        // Brief acceptance #1: given fixture audit data with 100 allowed +
+        // 30 coalesced + 5 rate-limited rows for agent cc, proxy_counters_at
+        // returns those exact numbers.
+        let path = temp_db_path();
+        let _ = fs::remove_file(&path);
+        let conn = Connection::open(&path).unwrap();
+        create_schema_with_decision(&conn);
+        for _ in 0..100 {
+            insert_audit_row(&conn, "cc", "Query", "allowed");
+        }
+        for _ in 0..30 {
+            insert_audit_row(&conn, "cc", "Query", "coalesced");
+        }
+        for _ in 0..5 {
+            insert_audit_row(&conn, "cc", "Query", "rate_limited");
+        }
+        drop(conn);
+
+        let counters = proxy_counters_at(&path, None, Some("2025-01-01".into())).unwrap();
+        let cc = counters.iter().find(|c| c.agent_id.as_deref() == Some("cc")).unwrap();
+        assert_eq!(cc.queries_today, 135);
+        assert_eq!(cc.queries_deduped, 30);
+        assert_eq!(cc.queries_rate_limited, 5);
+
+        let _ = fs::remove_file(&path);
+    }
+
+    #[test]
+    fn brief_acceptance_2_decision_filter_end_to_end() {
+        // Brief acceptance #2: filter.decision flows into SQL and cuts the
+        // result set. Insert mixed-decision rows, ask for only coalesced.
+        let path = temp_db_path();
+        let _ = fs::remove_file(&path);
+        let conn = Connection::open(&path).unwrap();
+        create_schema_with_decision(&conn);
+        for _ in 0..10 {
+            insert_audit_row(&conn, "cc", "Query", "allowed");
+        }
+        for _ in 0..3 {
+            insert_audit_row(&conn, "cc", "Query", "coalesced");
+        }
+        for _ in 0..2 {
+            insert_audit_row(&conn, "cc", "Query", "rate_limited");
+        }
+        drop(conn);
+
+        let filter = AuditFilter {
+            decision: Some("coalesced".into()),
+            ..Default::default()
+        };
+        let rows = read_proxy_db_at(&path, filter, None, 100).unwrap();
+        assert_eq!(rows.len(), 3, "decision filter must cut to coalesced only");
+        for r in &rows {
+            assert_eq!(r.decision, "coalesced");
+        }
+
+        let _ = fs::remove_file(&path);
+    }
+
+    #[test]
+    fn old_schema_without_decision_column_degrades_gracefully() {
+        // Pre-v0.1.0c proxy.db files don't have the decision column. The
+        // read layer must project 'allowed' for the missing column so the
+        // wire shape stays stable; counters must show 0 for coalesced/
+        // rate_limited rather than failing.
+        let path = temp_db_path();
+        let _ = fs::remove_file(&path);
+        let conn = Connection::open(&path).unwrap();
+        create_schema(&conn); // no decision column
+        conn.execute(
+            "INSERT INTO audit (ts,agent_id,agent_name,conn_id,direction,msg_type,query_text,bytes,sig) \
+             VALUES ('2026-05-14T00:00:00Z','cc','cc','c1','client','Query','SELECT 1',8,'sig')",
+            [],
+        ).unwrap();
+        drop(conn);
+
+        let rows = read_proxy_db_at(&path, AuditFilter::default(), None, 10).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].decision, "allowed");
+
+        let counters = proxy_counters_at(&path, None, Some("2025-01-01".into())).unwrap();
+        assert_eq!(counters[0].queries_today, 1);
+        assert_eq!(counters[0].queries_deduped, 0);
+        assert_eq!(counters[0].queries_rate_limited, 0);
+
+        // Asking for coalesced rows on a schema that can't store them
+        // returns empty, not Err.
+        let coalesced_filter = AuditFilter {
+            decision: Some("coalesced".into()),
+            ..Default::default()
+        };
+        let none = read_proxy_db_at(&path, coalesced_filter, None, 10).unwrap();
+        assert_eq!(none.len(), 0);
+
+        let _ = fs::remove_file(&path);
+    }
+
+    #[test]
+    fn fixture_audit_rows_carry_decision_values() {
+        let rows = fixture_audit_rows();
+        let coalesced = rows.iter().filter(|r| r.decision == "coalesced").count();
+        let rate_limited = rows.iter().filter(|r| r.decision == "rate_limited").count();
+        let allowed = rows.iter().filter(|r| r.decision == "allowed").count();
+        // Brief calls for visibly non-zero counts for the live cells. The
+        // fixture distributes 35 coalesced + 7 rate_limited across the 1000
+        // rows so the UI shows real motion in dev mode.
+        assert!(coalesced > 0);
+        assert!(rate_limited > 0);
+        assert_eq!(coalesced + rate_limited + allowed, rows.len());
     }
 
     #[test]
