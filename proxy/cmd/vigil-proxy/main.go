@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/costaxanthos/vigil/proxy/internal/audit"
+	"github.com/costaxanthos/vigil/proxy/internal/coalesce"
 	"github.com/costaxanthos/vigil/proxy/internal/config"
 	"github.com/costaxanthos/vigil/proxy/internal/identity"
 	"github.com/costaxanthos/vigil/proxy/internal/pgproxy"
@@ -124,6 +125,11 @@ func run() error {
 		defer auditWriter.Close()
 	}
 
+	// Instantiate the fan-out coalescing cache unconditionally — its
+	// existence is cheap. Wired into pgproxy.Server below; the relay
+	// loop calls Lookup/Store on read-only frames outside transactions.
+	coalesceCache := coalesce.New(coalesce.Options{TTL: cfg.CoalesceTTL})
+
 	if cfg.PostgresProxyEnabled() {
 		// Rate limiter: built-in defaults unless --ratelimit-config
 		// points at a YAML file. Bad YAML is fatal — we exit non-
@@ -146,7 +152,9 @@ func run() error {
 			AuditWriter:      auditWriter,
 			IdentityVerifier: iss,
 			RateLimiter:      rateLimiter,
+			Coalescer:        coalesceCache,
 		}
+		log.Printf("coalesce: per-agent cache armed with %s TTL", cfg.CoalesceTTL)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

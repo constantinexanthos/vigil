@@ -1,11 +1,12 @@
 # Vigil bench — RESULTS
 
-Generated 2026-05-07T21:10:13Z · seed=42 · runtime=darwin/arm64
+Generated 2026-05-14T23:07:13Z · seed=42 · runtime=darwin/arm64
 
-> The proxy is currently bytes-equivalent passthrough (v0.1.0a). Dedup rate is
-> expected to be ≈ 0% — the harness reports it for sanity. Once coalescing
-> lands (v0.1.0d), the same harness re-runs against the same seed to publish
-> the actual reduction.
+> v0.1.0d coalescing: per-agent query result cache, 250ms TTL. The refactor
+> preset models an AI coding agent re-fetching the same handful of records;
+> dedup rate is what the website's "40-80% cost reduction" claim quantifies.
+> Production preset's low dedup rate is by design — human-shaped traffic
+> against a wide key universe runs untouched.
 
 ### Preset: refactor
 
@@ -18,24 +19,24 @@ Generated 2026-05-07T21:10:13Z · seed=42 · runtime=darwin/arm64
 | Concurrency | 4 |
 | Postgres | PostgreSQL 16.13 (Debian 16.13-1.pgdg13+1) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit |
 | Hardware | arm64/darwin |
-| Wall time | 11.198s |
+| Wall time | 10.819s |
 
 **Volume & dedup**
 
 | | |
 |---|---|
-| Total queries issued | 55875 |
-| Queries hitting upstream | 55875 |
-| Dedup rate | 0.00% |
+| Total queries issued | 63435 |
+| Queries hitting upstream | 484 |
+| Dedup rate | 99.24% |
 
 **Latency**
 
 | Arm | p50 | p95 | p99 | Throughput | Errors |
 |---|---|---|---|---|---|
-| Direct | 252µs | 387µs | 495µs | 14847.3 q/s | 0 |
-| Through proxy | 339µs | 490µs | 625µs | 11174.9 q/s | 0 |
+| Direct | 239µs | 765µs | 1.059ms | 13716.3 q/s | 0 |
+| Through proxy | 73µs | 1.177ms | 1.746ms | 12686.9 q/s | 0 |
 
-**Added latency through proxy** — p50 87µs · p99 130µs
+**Added latency through proxy** — p50 -166µs · p99 687µs
 
 ---
 
@@ -50,24 +51,24 @@ Generated 2026-05-07T21:10:13Z · seed=42 · runtime=darwin/arm64
 | Concurrency | 4 |
 | Postgres | PostgreSQL 16.13 (Debian 16.13-1.pgdg13+1) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit |
 | Hardware | arm64/darwin |
-| Wall time | 11.158s |
+| Wall time | 10.732s |
 
 **Volume & dedup**
 
 | | |
 |---|---|
-| Total queries issued | 51405 |
-| Queries hitting upstream | 51405 |
-| Dedup rate | 0.00% |
+| Total queries issued | 58238 |
+| Queries hitting upstream | 567 |
+| Dedup rate | 99.03% |
 
 **Latency**
 
 | Arm | p50 | p95 | p99 | Throughput | Errors |
 |---|---|---|---|---|---|
-| Direct | 270µs | 433µs | 529µs | 13735.9 q/s | 0 |
-| Through proxy | 364µs | 559µs | 707µs | 10280.9 q/s | 0 |
+| Direct | 260µs | 644µs | 1.126ms | 12547.1 q/s | 0 |
+| Through proxy | 75µs | 1.177ms | 1.903ms | 11647.5 q/s | 0 |
 
-**Added latency through proxy** — p50 94µs · p99 178µs
+**Added latency through proxy** — p50 -185µs · p99 777µs
 
 ---
 
@@ -82,21 +83,21 @@ Generated 2026-05-07T21:10:13Z · seed=42 · runtime=darwin/arm64
 | Concurrency | 4 |
 | Postgres | PostgreSQL 16.13 (Debian 16.13-1.pgdg13+1) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit |
 | Hardware | arm64/darwin |
-| Wall time | 11.028s |
+| Wall time | 10.734s |
 
 **Volume & dedup**
 
 | | |
 |---|---|
-| Total queries issued | 62880 |
-| Queries hitting upstream | 62880 |
-| Dedup rate | 0.00% |
+| Total queries issued | 15189 |
+| Queries hitting upstream | 13353 |
+| Dedup rate | 12.09% |
 
 **Latency**
 
 | Arm | p50 | p95 | p99 | Throughput | Errors |
 |---|---|---|---|---|---|
-| Direct | 242µs | 335µs | 398µs | 16101.2 q/s | 0 |
-| Through proxy | 312µs | 411µs | 470µs | 12575.8 q/s | 0 |
+| Direct | 247µs | 378µs | 494µs | 15388.3 q/s | 0 |
+| Through proxy | 1.168ms | 2.774ms | 3.648ms | 3037.6 q/s | 0 |
 
-**Added latency through proxy** — p50 70µs · p99 72µs
+**Added latency through proxy** — p50 921µs · p99 3.154ms

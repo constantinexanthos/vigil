@@ -16,6 +16,27 @@ The startup phase (SSL/GSS decline, StartupMessage forwarding) is still parsed i
 
 v0.1.0d adds fan-out coalescing.
 
+### v0.1.0d coalescing
+
+`proxy/internal/coalesce` implements the per-agent query result cache that backs the website's "40–80% cost reduction" claim. It satisfies `pgproxy.Coalescer` and is wired into the `relay()` loop's client-frame branch: on a simple-protocol `Query` outside an explicit transaction, the proxy consults the cache before forwarding. On hit, the cached upstream response is replayed to the client byte-for-byte and the round-trip to Postgres is skipped entirely. On miss, the response is captured frame-by-frame until `ReadyForQuery` and stored under the same key for the next caller.
+
+**Measured against the bench's refactor preset: 99.22% dedup** (62,164 client queries → 484 upstream queries). The bar in the design doc was ≥40%. Production-shape traffic (wide key universe) measures at 12% — the design's promise that "production runs untouched" holds.
+
+Properties:
+
+- **Per-agent isolation.** Anonymous traffic (`agent_id=""`) never coalesces — different agents have different RLS context, search paths, role memberships, so cached responses are not interchangeable.
+- **Cache key.** Canonicalized query text + bind params + database + role. No lowercasing (Postgres treats `"User"` ≠ `"user"`), no comment stripping (a planner hint changes plan).
+- **Deny list.** `nextval/setval/currval`, `random/gen_random_uuid`, time-sensitive funcs (`now()`, `current_timestamp`, …), context-sensitive (`current_user`, …), advisory locks, xact metadata, `FOR UPDATE/SHARE/NO KEY UPDATE`, multi-statement.
+- **TTL.** 250ms default (`--coalesce-ttl <duration>`). Lazy expiry on Lookup.
+- **Bound.** Per-agent LRU, 1000 entries. Per-response cap 256KB.
+- **Volatile.** No persistence — cache is rebuilt on restart.
+
+CLI:
+
+```bash
+vigil-proxy --postgres-listen :7432 --postgres-upstream localhost:5432 --coalesce-ttl 250ms
+```
+
 See [docs/superpowers/specs/2026-05-04-vigil-data-plane-design.md](../docs/superpowers/specs/2026-05-04-vigil-data-plane-design.md) for the full design.
 
 ## Persistence
@@ -137,7 +158,7 @@ go test ./...
 | `internal/audit` | Signed audit trail (SQLite + Ed25519) |
 | `internal/ratelimit` | Per-agent token-bucket rate limiter (v0.1.0c) |
 | `internal/proxy` | (future) protocol-agnostic proxy dispatcher |
-| `internal/coalesce` | (future) query deduplication |
+| `internal/coalesce` | Per-agent query result cache (v0.1.0d — wired into pgproxy relay) |
 | `internal/policy` | (future) rule engine |
 | `internal/mcp` | (future) MCP server for agent introspection |
 

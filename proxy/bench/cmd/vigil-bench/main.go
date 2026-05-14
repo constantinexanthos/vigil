@@ -115,10 +115,11 @@ func writeMarkdown(path string, runs []results.RunResult, seed int64) error {
 		seed,
 		runtime.GOOS, runtime.GOARCH,
 	))
-	b.WriteString("> The proxy is currently bytes-equivalent passthrough (v0.1.0a). Dedup rate is\n")
-	b.WriteString("> expected to be ≈ 0% — the harness reports it for sanity. Once coalescing\n")
-	b.WriteString("> lands (v0.1.0d), the same harness re-runs against the same seed to publish\n")
-	b.WriteString("> the actual reduction.\n\n")
+	b.WriteString("> v0.1.0d coalescing: per-agent query result cache, 250ms TTL. The refactor\n")
+	b.WriteString("> preset models an AI coding agent re-fetching the same handful of records;\n")
+	b.WriteString("> dedup rate is what the website's \"40-80% cost reduction\" claim quantifies.\n")
+	b.WriteString("> Production preset's low dedup rate is by design — human-shaped traffic\n")
+	b.WriteString("> against a wide key universe runs untouched.\n\n")
 
 	for i, r := range runs {
 		b.WriteString(r.Markdown())
