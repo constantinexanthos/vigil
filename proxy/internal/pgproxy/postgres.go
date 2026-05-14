@@ -238,6 +238,18 @@ type connState struct {
 	database string
 	user     string
 
+	// Coalesce response-capture state machine (v0.1.0d). When a client
+	// 'Q' frame missed the cache and we forwarded it upstream, we mark
+	// capture=true and accumulate every server frame (header+body) into
+	// coalesceBuf until we see ReadyForQuery — at which point we hand
+	// the bytes to Coalescer.Store under coalesceKey and reset.
+	//
+	// Bounded by Coalescer's per-entry size cap (it drops on Store), so
+	// no need to cap here. We use a bytes.Buffer for amortized growth.
+	coalesceCapture bool
+	coalesceKey     CacheKey
+	coalesceBuf     bytes.Buffer
+
 	now    func() time.Time
 	writer audit.Writer
 }
@@ -390,12 +402,47 @@ func (s *Server) relay(ctx context.Context, client, upstream net.Conn, state *co
 				decision = d
 			}
 
-			// TODO(v0.1.0d / Agent 2): coalescer hook goes here.
-			// On a Lookup hit, write cached bytes to client, audit with
-			// DecisionCoalesced, and `continue` to skip forwarding. The
-			// Coalescer interface, CacheKey, txDepth, database, and user
-			// state are all set up; Agent 2 fills in the call site +
-			// response capture/replay state machine.
+			// Coalescer hook (v0.1.0d). Simple-protocol 'Q' frames outside
+			// any transaction are candidates. On a Lookup hit we replay
+			// the cached upstream response bytes to the client and skip
+			// the upstream forward entirely — that's the cost reduction.
+			//
+			// Extended-protocol (Parse/Bind/Execute) is not yet wired;
+			// pgx workloads that bind params via 'B' won't coalesce until
+			// a follow-up adds the multi-frame capture state machine. The
+			// bench's refactor preset is invoked with simple-protocol mode
+			// so this codepath is exercised end-to-end.
+			if s.Coalescer != nil &&
+				fr.hdr[0] == 'Q' &&
+				state.txDepth == 0 &&
+				state.agentID != "" {
+
+				queryText := parseSimpleQueryText(fr.body)
+				if isCoalescableSimpleQuery(queryText) {
+					key := CacheKey{
+						QueryText: queryText,
+						Database:  state.database,
+						User:      state.user,
+					}
+					if cached, hit := s.Coalescer.Lookup(state.agentID, key); hit {
+						if _, err := client.Write(cached); err != nil {
+							if !isExpectedClose(err) {
+								s.Logger.Printf("pgproxy: coalesce replay write: %v", err)
+							}
+							cancel()
+							continue
+						}
+						s.auditClientFrame(state, fr.hdr[0], fr.body, fr.bytes, DecisionCoalesced)
+						continue
+					}
+					// Miss — arm the capture state machine so the next
+					// upstream frames get tee'd into coalesceBuf until
+					// ReadyForQuery, then handed to Coalescer.Store.
+					state.coalesceCapture = true
+					state.coalesceKey = key
+					state.coalesceBuf.Reset()
+				}
+			}
 
 			if err := writeFrame(upstream, fr.hdr, fr.body); err != nil {
 				if !isExpectedClose(err) {
@@ -428,8 +475,45 @@ func (s *Server) relay(ctx context.Context, client, upstream net.Conn, state *co
 				continue
 			}
 			s.auditServerFrame(state, fr.hdr[0], fr.body, fr.bytes)
+
+			// Coalesce response capture (v0.1.0d). If the previous client
+			// frame was a coalescable Query that missed the cache, tee
+			// every server frame into coalesceBuf. On ReadyForQuery the
+			// response is complete — hand the accumulated bytes to
+			// Coalescer.Store for replay on the next Lookup hit. Coalescer
+			// enforces its own per-response size cap; nothing to bound here.
+			if state.coalesceCapture {
+				state.coalesceBuf.Write(fr.hdr[:])
+				state.coalesceBuf.Write(fr.body)
+				if fr.hdr[0] == 'Z' { // ReadyForQuery — response complete
+					if s.Coalescer != nil {
+						captured := make([]byte, state.coalesceBuf.Len())
+						copy(captured, state.coalesceBuf.Bytes())
+						s.Coalescer.Store(state.agentID, state.coalesceKey, captured)
+					}
+					state.coalesceCapture = false
+					state.coalesceBuf.Reset()
+				}
+			}
 		}
 	}
+}
+
+// isCoalescableSimpleQuery reports whether a simple-protocol Query
+// payload is a candidate for the Coalescer. We pre-filter here so the
+// pump avoids consulting the cache for INSERT/UPDATE/DELETE/DDL/BEGIN —
+// queries that can never coalesce anyway. Case-insensitive prefix match
+// on the trimmed query text.
+func isCoalescableSimpleQuery(q string) bool {
+	trimmed := strings.TrimLeft(q, " \t\r\n")
+	if len(trimmed) < 6 {
+		return false
+	}
+	up := strings.ToUpper(trimmed[:min(8, len(trimmed))])
+	return strings.HasPrefix(up, "SELECT ") ||
+		strings.HasPrefix(up, "SELECT\t") ||
+		strings.HasPrefix(up, "WITH ") ||
+		strings.HasPrefix(up, "WITH\t")
 }
 
 // writeFrame writes the 5-byte header and body to w in a single Write,

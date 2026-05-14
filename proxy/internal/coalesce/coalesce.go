@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"sync"
 	"time"
+
+	"github.com/costaxanthos/vigil/proxy/internal/pgproxy"
 )
 
 // Default settings — match the values stated in the v0.1.0d spec.
@@ -14,22 +16,11 @@ const (
 	DefaultMaxResponseBytes = 256 * 1024 // 256KB — past this, the cache becomes a memory leak.
 )
 
-// CacheKey is the lookup key. Same shape as the pgproxy.Coalescer
-// interface will declare once prep lands. Defined here for now so the
-// package is self-contained and unit-testable.
-//
-// Params carries bind parameter values for the extended-protocol path.
-// Format codes (text vs binary) MUST be folded into the param bytes by
-// the caller — different format codes for the same logical value
-// produce different upstream responses and therefore must be different
-// keys. The simplest fold: prefix each param's bytes with a single
-// 0/1 byte indicating format code.
-type CacheKey struct {
-	QueryText string
-	Params    [][]byte
-	Database  string
-	User      string
-}
+// CacheKey is re-exported from pgproxy so callers within this package
+// don't have to know where the canonical definition lives. The Cache
+// methods take pgproxy.CacheKey directly — that's the contract
+// pgproxy.Coalescer demands.
+type CacheKey = pgproxy.CacheKey
 
 // Options configures a Cache. Zero values fall back to defaults.
 type Options struct {
@@ -86,7 +77,7 @@ func New(opts Options) *Cache {
 //   - expired entries (TTL exceeded since Store)
 //   - keys that were rejected by the deny list at Store time (those
 //     entries never made it in)
-func (c *Cache) Lookup(agentID string, key CacheKey) ([]byte, bool) {
+func (c *Cache) Lookup(agentID string, key pgproxy.CacheKey) ([]byte, bool) {
 	if agentID == "" {
 		// Anonymous traffic NEVER coalesces — no safe shared cache key.
 		return nil, false
@@ -115,7 +106,7 @@ func (c *Cache) Lookup(agentID string, key CacheKey) ([]byte, bool) {
 //
 // The TTL is applied at Store time; the entry expires `TTL` after this
 // call regardless of how often it's looked up.
-func (c *Cache) Store(agentID string, key CacheKey, response []byte) {
+func (c *Cache) Store(agentID string, key pgproxy.CacheKey, response []byte) {
 	if agentID == "" {
 		return
 	}
@@ -158,7 +149,7 @@ func (c *Cache) Store(agentID string, key CacheKey, response []byte) {
 // force callers to pre-canonicalize Params (lossy). The hash collapses
 // it to a single string at the cost of one SHA-256 per Lookup, which
 // is well below network RTT.
-func hashKey(k CacheKey) string {
+func hashKey(k pgproxy.CacheKey) string {
 	// Normalize query text before hashing so two callers that pass
 	// "SELECT 1" and "SELECT  1" land on the same hash. The Store path
 	// also normalizes, which is the contract; here we do it for the

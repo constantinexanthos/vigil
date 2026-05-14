@@ -125,12 +125,9 @@ func run() error {
 	}
 
 	// Instantiate the fan-out coalescing cache unconditionally — its
-	// existence is cheap. The pgproxy.Server's Coalescer field is added
-	// in the lead-agent prep PR; once that lands, wire it with
-	//   pgSrv.Coalescer = coalesceCache
-	// (one line, no other changes required here).
+	// existence is cheap. Wired into pgproxy.Server below; the relay
+	// loop calls Lookup/Store on read-only frames outside transactions.
 	coalesceCache := coalesce.New(coalesce.Options{TTL: cfg.CoalesceTTL})
-	_ = coalesceCache // referenced once pgproxy exposes the Coalescer hook
 
 	if cfg.PostgresProxyEnabled() {
 		pgSrv := &pgproxy.Server{
@@ -139,6 +136,7 @@ func run() error {
 			Logger:           log.Default(),
 			AuditWriter:      auditWriter,
 			IdentityVerifier: iss,
+			Coalescer:        coalesceCache,
 		}
 		log.Printf("coalesce: per-agent cache armed with %s TTL", cfg.CoalesceTTL)
 		wg.Add(1)

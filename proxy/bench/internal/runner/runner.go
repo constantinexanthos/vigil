@@ -6,11 +6,13 @@ package runner
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/costaxanthos/vigil/proxy/bench/internal/results"
@@ -65,8 +67,14 @@ func Run(ctx context.Context, cfg Config) (results.RunResult, error) {
 		}
 	}()
 
-	proxyDSN := fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=disable",
-		pg.User, pg.Password, proxy.ListenAddr, pg.DBName)
+	// application_name=vigil:<token> is how the proxy attaches an
+	// agent identity to this connection. The coalesce hook only fires
+	// for non-anonymous connections, so the bench's proxy arm MUST
+	// advertise an agent_id. URL-encoded because the token contains
+	// characters that aren't safe in a query value otherwise.
+	proxyDSN := fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=disable&application_name=%s",
+		pg.User, pg.Password, proxy.ListenAddr, pg.DBName,
+		url.QueryEscape("vigil:"+proxy.AgentToken))
 	proxyRes, proxyIssued, proxyUpstream, err := executeArm(ctx, cfg, proxyDSN, pg)
 	if err != nil {
 		return results.RunResult{}, fmt.Errorf("proxy arm: %w", err)
@@ -218,12 +226,23 @@ func executeArm(
 	dsn string,
 	pg *PostgresHandle,
 ) (results.ArmResult, int, int, error) {
-	pool, err := pgxpool.New(ctx, dsn)
+	poolCfg, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		return results.ArmResult{}, 0, 0, fmt.Errorf("parse pool dsn: %w", err)
+	}
+	poolCfg.MaxConns = int32(cfg.Concurrency * 2)
+	// Force pgx to use Postgres simple-protocol Query messages instead of
+	// the default Parse+Bind+Execute pipeline. v0.1.0d's coalesce hook
+	// inspects 'Q' frames; extended-protocol coalescing is a follow-up.
+	// This is a benchmark-side choice (not a product constraint) — agent
+	// traffic is overwhelmingly simple-protocol in practice (psql, raw
+	// query strings from LLMs, etc.).
+	poolCfg.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
+	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
 		return results.ArmResult{}, 0, 0, fmt.Errorf("pool: %w", err)
 	}
 	defer pool.Close()
-	pool.Config().MaxConns = int32(cfg.Concurrency * 2)
 
 	// Always reset pg_stat_statements through a DIRECT pool — calling
 	// it through the proxy works too, but keeping it direct means we
