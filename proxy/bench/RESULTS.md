@@ -1,6 +1,6 @@
 # Vigil bench — RESULTS
 
-Generated 2026-05-14T23:07:13Z · seed=42 · runtime=darwin/arm64
+Generated 2026-05-15T01:04:08Z · seed=42 · runtime=darwin/arm64
 
 > v0.1.0d coalescing: per-agent query result cache, 250ms TTL. The refactor
 > preset models an AI coding agent re-fetching the same handful of records;
@@ -19,24 +19,24 @@ Generated 2026-05-14T23:07:13Z · seed=42 · runtime=darwin/arm64
 | Concurrency | 4 |
 | Postgres | PostgreSQL 16.13 (Debian 16.13-1.pgdg13+1) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit |
 | Hardware | arm64/darwin |
-| Wall time | 10.819s |
+| Wall time | 11.256s |
 
 **Volume & dedup**
 
 | | |
 |---|---|
-| Total queries issued | 63435 |
-| Queries hitting upstream | 484 |
-| Dedup rate | 99.24% |
+| Total queries issued | 3489 |
+| Queries hitting upstream | 226 |
+| Dedup rate | 93.52% |
 
 **Latency**
 
 | Arm | p50 | p95 | p99 | Throughput | Errors |
 |---|---|---|---|---|---|
-| Direct | 239µs | 765µs | 1.059ms | 13716.3 q/s | 0 |
-| Through proxy | 73µs | 1.177ms | 1.746ms | 12686.9 q/s | 0 |
+| Direct | 247µs | 887µs | 1.221ms | 12710.5 q/s | 0 |
+| Through proxy | 2.643ms | 24.434ms | 42.059ms | 697.6 q/s | 0 |
 
-**Added latency through proxy** — p50 -166µs · p99 687µs
+**Added latency through proxy** — p50 2.396ms · p99 40.838ms
 
 ---
 
@@ -51,24 +51,24 @@ Generated 2026-05-14T23:07:13Z · seed=42 · runtime=darwin/arm64
 | Concurrency | 4 |
 | Postgres | PostgreSQL 16.13 (Debian 16.13-1.pgdg13+1) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit |
 | Hardware | arm64/darwin |
-| Wall time | 10.732s |
+| Wall time | 12.167s |
 
 **Volume & dedup**
 
 | | |
 |---|---|
-| Total queries issued | 58238 |
-| Queries hitting upstream | 567 |
-| Dedup rate | 99.03% |
+| Total queries issued | 3489 |
+| Queries hitting upstream | 296 |
+| Dedup rate | 91.52% |
 
 **Latency**
 
 | Arm | p50 | p95 | p99 | Throughput | Errors |
 |---|---|---|---|---|---|
-| Direct | 260µs | 644µs | 1.126ms | 12547.1 q/s | 0 |
-| Through proxy | 75µs | 1.177ms | 1.903ms | 11647.5 q/s | 0 |
+| Direct | 250µs | 841µs | 1.273ms | 12174.1 q/s | 0 |
+| Through proxy | 2.751ms | 21.965ms | 39.996ms | 697.8 q/s | 0 |
 
-**Added latency through proxy** — p50 -185µs · p99 777µs
+**Added latency through proxy** — p50 2.501ms · p99 38.723ms
 
 ---
 
@@ -83,21 +83,21 @@ Generated 2026-05-14T23:07:13Z · seed=42 · runtime=darwin/arm64
 | Concurrency | 4 |
 | Postgres | PostgreSQL 16.13 (Debian 16.13-1.pgdg13+1) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit |
 | Hardware | arm64/darwin |
-| Wall time | 10.734s |
+| Wall time | 10.749s |
 
 **Volume & dedup**
 
 | | |
 |---|---|
-| Total queries issued | 15189 |
-| Queries hitting upstream | 13353 |
-| Dedup rate | 12.09% |
+| Total queries issued | 3487 |
+| Queries hitting upstream | 3372 |
+| Dedup rate | 3.30% |
 
 **Latency**
 
 | Arm | p50 | p95 | p99 | Throughput | Errors |
 |---|---|---|---|---|---|
-| Direct | 247µs | 378µs | 494µs | 15388.3 q/s | 0 |
-| Through proxy | 1.168ms | 2.774ms | 3.648ms | 3037.6 q/s | 0 |
+| Direct | 247µs | 368µs | 510µs | 15358.9 q/s | 0 |
+| Through proxy | 3.757ms | 18.091ms | 32.387ms | 697.3 q/s | 0 |
 
-**Added latency through proxy** — p50 921µs · p99 3.154ms
+**Added latency through proxy** — p50 3.509ms · p99 31.877ms

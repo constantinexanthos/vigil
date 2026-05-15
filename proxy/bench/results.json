@@ -6,24 +6,24 @@
     "concurrency": 4,
     "postgres_version": "PostgreSQL 16.13 (Debian 16.13-1.pgdg13+1) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit",
     "hardware": "arm64/darwin",
-    "total_issued": 63435,
-    "total_upstream": 484,
+    "total_issued": 3489,
+    "total_upstream": 226,
     "direct": {
-      "p50_ns": 239250,
-      "p95_ns": 764667,
-      "p99_ns": 1058917,
-      "throughput_qps": 13716.318672431675,
+      "p50_ns": 246875,
+      "p95_ns": 886792,
+      "p99_ns": 1221459,
+      "throughput_qps": 12710.512000134897,
       "errors": 0
     },
     "proxy": {
-      "p50_ns": 72875,
-      "p95_ns": 1176583,
-      "p99_ns": 1746083,
-      "throughput_qps": 12686.858858695197,
+      "p50_ns": 2642791,
+      "p95_ns": 24433583,
+      "p99_ns": 42059250,
+      "throughput_qps": 697.6161898539254,
       "errors": 0
     },
-    "wall_time_ns": 10818828667,
-    "dedup_rate": 0.9923701426657208
+    "wall_time_ns": 11255753458,
+    "dedup_rate": 0.9352249928346231
   },
   {
     "preset": "mixed",
@@ -32,24 +32,24 @@
     "concurrency": 4,
     "postgres_version": "PostgreSQL 16.13 (Debian 16.13-1.pgdg13+1) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit",
     "hardware": "arm64/darwin",
-    "total_issued": 58238,
-    "total_upstream": 567,
+    "total_issued": 3489,
+    "total_upstream": 296,
     "direct": {
-      "p50_ns": 259708,
-      "p95_ns": 643875,
-      "p99_ns": 1125750,
-      "throughput_qps": 12547.124717251698,
+      "p50_ns": 249542,
+      "p95_ns": 841458,
+      "p99_ns": 1273208,
+      "throughput_qps": 12174.10224337251,
       "errors": 0
     },
     "proxy": {
-      "p50_ns": 75041,
-      "p95_ns": 1176541,
-      "p99_ns": 1902875,
-      "throughput_qps": 11647.509731799579,
+      "p50_ns": 2750958,
+      "p95_ns": 21965333,
+      "p99_ns": 39996416,
+      "throughput_qps": 697.750948108348,
       "errors": 0
     },
-    "wall_time_ns": 10731752750,
-    "dedup_rate": 0.9902640887393112
+    "wall_time_ns": 12166771541,
+    "dedup_rate": 0.9151619375179134
   },
   {
     "preset": "production",
@@ -58,23 +58,23 @@
     "concurrency": 4,
     "postgres_version": "PostgreSQL 16.13 (Debian 16.13-1.pgdg13+1) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit",
     "hardware": "arm64/darwin",
-    "total_issued": 15189,
-    "total_upstream": 13353,
+    "total_issued": 3487,
+    "total_upstream": 3372,
     "direct": {
-      "p50_ns": 247166,
-      "p95_ns": 378333,
-      "p99_ns": 494333,
-      "throughput_qps": 15388.253426886109,
+      "p50_ns": 247292,
+      "p95_ns": 367750,
+      "p99_ns": 509792,
+      "throughput_qps": 15358.92674011901,
       "errors": 0
     },
     "proxy": {
-      "p50_ns": 1168292,
-      "p95_ns": 2773792,
-      "p99_ns": 3647834,
-      "throughput_qps": 3037.6028850886223,
+      "p50_ns": 3756583,
+      "p95_ns": 18090542,
+      "p99_ns": 32386542,
+      "throughput_qps": 697.3356359208045,
       "errors": 0
     },
-    "wall_time_ns": 10733644875,
-    "dedup_rate": 0.12087695042464941
+    "wall_time_ns": 10749480083,
+    "dedup_rate": 0.03297963865787212
   }
 ]
