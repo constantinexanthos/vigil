@@ -152,8 +152,9 @@ export const quickstart: {
   {
     step: "Run the proxy",
     description:
-      "Clone the repo and start the daemon. Listens on :7878 by default and persists state under ~/.vigil/.",
-    command: "cd proxy\ngo run ./cmd/vigil-proxy",
+      "Install the binary and start the proxy. Listens on :7432 for Postgres clients (configurable) and :7878 for the identity HTTP API. State persists under ~/.vigil/.",
+    command:
+      "brew install constantinexanthos/vigil/vigil\nvigil-proxy --postgres-listen :7432 --postgres-upstream localhost:5432",
     language: "bash",
   },
   {

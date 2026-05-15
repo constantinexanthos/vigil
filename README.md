@@ -7,10 +7,9 @@ brew install constantinexanthos/vigil/vigil
 vigil-proxy --postgres-listen :7432 --postgres-upstream localhost:5432
 ```
 
-That's the full install. Single binary, no runtime dependencies. Now every Postgres query from your agents is identified, rate-limited per-agent, deduplicated, and audited.
+That's the full install. Single binary, no runtime dependencies. Every Postgres query from your agents is identified, rate-limited per-agent, deduplicated, and audited.
 
 [![Proxy CI](https://github.com/constantinexanthos/vigil/actions/workflows/proxy-ci.yml/badge.svg)](https://github.com/constantinexanthos/vigil/actions/workflows/proxy-ci.yml)
-[![Daemon CI](https://github.com/constantinexanthos/vigil/actions/workflows/daemon-ci.yml/badge.svg)](https://github.com/constantinexanthos/vigil/actions/workflows/daemon-ci.yml)
 [![Site CI](https://github.com/constantinexanthos/vigil/actions/workflows/site-ci.yml/badge.svg)](https://github.com/constantinexanthos/vigil/actions/workflows/site-ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Languages](https://img.shields.io/badge/languages-Go%20%C2%B7%20Rust%20%C2%B7%20TypeScript-informational)
@@ -19,27 +18,32 @@ Vigil is the data plane between AI agents and the systems they touch. The databa
 
 ## What's in this repo
 
-- **`proxy/`** — Go data plane. The middleware that sits between agents and the systems they touch. Issues identities, applies policy, attaches the agent ID to every request. MIT-licensed. *Lands with v0.0.1.*
-- **`daemon/`** — Rust background process. Watches agent activity on the local machine: filesystem events, git activity, JSONL transcripts from Claude Code / Cursor / Codex, cost and token usage. Feeds the operator UI.
-- **`app/`** — Tauri desktop app. The operator UI: live agent grid, file hotspots, cross-agent collisions, per-session detail.
+- **`proxy/`** — Go data plane. The middleware that sits between agents and Postgres. Issues identities, applies rate-limit and coalescing policy, signs audit rows. Ships as `vigil-proxy` via Homebrew. MIT-licensed. **The product.**
+- **`app/`** — Tauri desktop operator UI. Reads `~/.vigil/proxy.db` and surfaces per-agent activity, audit feed, and decision counters. Optional — `vigil-proxy` runs fine headless.
 - **`site/`** — Next.js marketing site for [bevigil.ai](https://bevigil.ai).
+- **`docs/`** — Product specs, launch artifacts, and QA reports under `docs/superpowers/`, `docs/launch/`, and `docs/qa/`.
 
 ## Status
 
-**v0.0.1** ships the proxy as an identity issuer — every agent gets a stable ID, every request through the proxy is signed and tagged. The full v0 build sequence is sequenced over twelve weeks; data-plane features (rate shaping, fan-out coalescing, policy, audit replay) ship incrementally. Per-feature specs land in `docs/superpowers/specs/`.
-
-Today the daemon and operator app are usable on their own as a local "what are my agents doing right now" surface. The proxy lands first, then the data-plane features behind it.
+**v0.1.0d** ships the five primitives the website talks about: per-agent identity (Ed25519), per-agent rate limiting (3 pools), fan-out coalescing (per-agent LRU, 250ms TTL), signed audit trail (SQLite, decision column), and an MCP stdio server for agent introspection. Policy / blast-radius control is the next milestone (v0.1.0e). The full design lives in `docs/superpowers/specs/2026-05-04-vigil-data-plane-design.md`; what's deferred is listed there in the "Out of scope for v0.1.0d" section.
 
 ## Getting started
 
-The `curl` quickstart for issuing an identity ships with `proxy/` in v0.0.1. Until then, the daemon runs standalone:
+The two-line install at the top of this README is the full path. After running it, point any Postgres client at `localhost:7432` and the proxy forwards to whatever `--postgres-upstream` points at:
 
 ```bash
-cd daemon
-cargo run -- watch ~/projects
+PGPASSWORD=… psql -h localhost -p 7432 -U postgres
 ```
 
-That gets you the activity feed. The Tauri app in `app/` reads from the same local SQLite store.
+For identified-agent traffic, mint an identity via the proxy's HTTP API and pass the token in `application_name=vigil:<token>`:
+
+```bash
+curl -X POST http://localhost:7878/identities \
+  -H 'content-type: application/json' \
+  -d '{"agent_name":"claude-code","principal":"you@example.com","scopes":["read","write"]}'
+```
+
+See `proxy/README.md` for the full operator guide, MCP server setup, and bench harness.
 
 ## License
 
