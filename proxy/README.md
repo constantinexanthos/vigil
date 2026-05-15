@@ -4,6 +4,25 @@ The agent-aware data plane for Vigil. A Go-based proxy that sits between AI agen
 
 Part of [bevigil.ai](https://bevigil.ai).
 
+## Install
+
+```bash
+brew install constantinexanthos/vigil/vigil
+vigil-proxy --postgres-listen :7432 --postgres-upstream localhost:5432
+```
+
+That's the full install. A single ~10 MB binary, no runtime dependencies, identity store + audit DB land in `~/.vigil/` on first run.
+
+### From source
+
+```bash
+go install github.com/constantinexanthos/vigil/proxy/cmd/vigil-proxy@latest
+```
+
+### Linux (without Homebrew)
+
+Download the binary for your architecture from the [GitHub Releases](https://github.com/constantinexanthos/vigil/releases) page, `chmod +x`, drop it on PATH.
+
 ## Status
 
 **v0.1.0c** — Per-agent token-bucket rate limiting. The proxy now classifies each client-originated Postgres frame into one of three pools (`production` / `agents` / `unauth`) and consumes a token before forwarding it upstream. When the bucket is empty the call blocks until refill, then forwards anyway — back-pressure, not rejection. The decision (`allowed` vs `rate_limited`) is written on every audit row so the dashboard can distinguish straight-through traffic from throttled traffic. See `internal/ratelimit/` for the implementation; `--ratelimit-config <path>` accepts a YAML to tune pools and add per-agent overrides.
@@ -104,20 +123,22 @@ Three pools ship by default. Without `--ratelimit-config`, every identified agen
 | Pool | Burst | Refill (tokens/sec) | Purpose |
 |---|---|---|---|
 | `production` | 1000 | 500 | Real human/web traffic. Insulated from agent abuse via explicit per-agent mapping. |
-| `agents` | 100 | 50 | Identified agents. Generous for normal work; throttles run-away loops. |
+| `agents` | 1000 | 500 | Identified agents. Generous enough that ordinary refactor flows never feel a throttle; the bucket is here to stop a runaway loop, not to police normal use. |
 | `unauth` | 10 | 5 | Anonymous traffic. Defense against rogue clients. |
+
+The agents default matches production for v0.1.0d (was 100/50 in v0.1.0c). Most coding agents fan out enough query traffic that the lower bucket was throttling ordinary work; operators who want the v0.1.0c shape back can keep it explicit in `--ratelimit-config`.
 
 Override or extend via `--ratelimit-config`:
 
 ```yaml
 pools:
   production: { burst: 1000, refill: 500 }
-  agents:     { burst: 100,  refill: 50 }
+  agents:     { burst: 1000, refill: 500 }
   unauth:     { burst: 10,   refill: 5 }
 
 agents:
   ag_3J9XX: { pool: production }            # promote this agent into the production pool
-  ag_AB2YY: { burst: 200, refill: 100 }     # custom bucket for this agent specifically
+  ag_AB2YY: { burst: 2000, refill: 1000 }   # custom bucket for this agent specifically
 ```
 
 Acquire returns one of two outcomes (recorded on the audit row):

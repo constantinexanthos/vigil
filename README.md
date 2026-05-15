@@ -1,6 +1,13 @@
 # Vigil
 
-**The seatbelt for your agent fleet.**
+**The seatbelt for your agent fleet.** Part of [bevigil.ai](https://bevigil.ai).
+
+```bash
+brew install constantinexanthos/vigil/vigil
+vigil-proxy --postgres-listen :7432 --postgres-upstream localhost:5432
+```
+
+That's the full install. Single binary, no runtime dependencies. Now every Postgres query from your agents is identified, rate-limited per-agent, deduplicated, and audited.
 
 [![Proxy CI](https://github.com/constantinexanthos/vigil/actions/workflows/proxy-ci.yml/badge.svg)](https://github.com/constantinexanthos/vigil/actions/workflows/proxy-ci.yml)
 [![Daemon CI](https://github.com/constantinexanthos/vigil/actions/workflows/daemon-ci.yml/badge.svg)](https://github.com/constantinexanthos/vigil/actions/workflows/daemon-ci.yml)
