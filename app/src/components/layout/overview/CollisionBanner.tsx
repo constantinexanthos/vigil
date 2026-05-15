@@ -2,10 +2,11 @@ import { agentDisplayName } from "../../../types";
 import { displayPath } from "../../../lib/path";
 import type { Collision } from "../../../types";
 
-interface Props {
-  collisions: Collision[];
-}
-
+// Toned-down conflict banner: rose-500 fill was loud. Linear-style errors
+// are a single-pixel left border + accent text on the existing surface,
+// not a filled bar. Brief calls this out explicitly. Accent here is the
+// `bad` semantic color (one of the two allowed exceptions to the vigil-*
+// spine), used at minimal weight — text + 2px left border, no background.
 export function CollisionBanner({ collisions }: Props) {
   if (collisions.length === 0) return null;
   const first = collisions[0];
@@ -14,19 +15,26 @@ export function CollisionBanner({ collisions }: Props) {
     <div
       role="alert"
       aria-live="polite"
-      className="bg-rose-500/10 border-b border-rose-400/20 px-4 py-1.5 flex items-center gap-2 text-[11px] text-rose-200"
+      className="px-4 h-7 flex items-center gap-2 text-[11px] border-l-2 border-bad border-b border-vigil-rule text-vigil-ink"
     >
-      <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse-alive flex-shrink-0" />
-      <span className="font-medium">Conflict</span>
-      <span className="font-mono text-rose-200/75 truncate">
+      <span className="text-bad font-medium uppercase tracking-[0.10em] text-[10px]">
+        Conflict
+      </span>
+      <span className="font-mono text-vigil-mute truncate">
         {displayPath(first.file_path, null)}
       </span>
-      <span className="text-rose-200/55 ml-auto flex-shrink-0">
+      <span className="text-vigil-mute ml-auto flex-shrink-0 truncate">
         {first.agents.map(agentDisplayName).join(" · ")}
       </span>
       {collisions.length > 1 && (
-        <span className="text-rose-200/55 flex-shrink-0">+{collisions.length - 1} more</span>
+        <span className="text-vigil-mute flex-shrink-0 tabular-nums">
+          +{collisions.length - 1} more
+        </span>
       )}
     </div>
   );
+}
+
+interface Props {
+  collisions: Collision[];
 }

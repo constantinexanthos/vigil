@@ -1,4 +1,3 @@
-import { agentColor } from "../../../types";
 import type { HourBucket } from "../../../types";
 
 interface Props {
@@ -7,10 +6,9 @@ interface Props {
 }
 
 const HOURS = 24;
-const CHART_HEIGHT = 84;
-const MIN_SEGMENT_PX = 2;
+const CHART_HEIGHT = 64;
+const MIN_BAR_PX = 1;
 
-/** Floor a Date to the start of its hour (mutating-safe — returns a new Date). */
 function floorHour(d: Date): Date {
   const x = new Date(d);
   x.setMinutes(0, 0, 0);
@@ -25,10 +23,6 @@ function hourIso(d: Date): string {
   return `${yyyy}-${mm}-${dd}T${hh}:00:00Z`;
 }
 
-/**
- * Densify API output to 24 contiguous hourly buckets ending at `now`.
- * Empty hours get `by_agent: []`.
- */
 export function densifyBuckets(api: HourBucket[], now: Date): HourBucket[] {
   const map = new Map<string, HourBucket>();
   for (const b of api) map.set(b.hour_iso, b);
@@ -45,6 +39,11 @@ export function densifyBuckets(api: HourBucket[], now: Date): HourBucket[] {
   return result;
 }
 
+// HourlyChart shows the last 24 hours of activity as a single-accent bar
+// chart — Honeycomb-style restraint. Pre-polish version stacked per-agent
+// segments in distinct hues; that visual could read 5+ colors at a glance.
+// The polish pass drops the per-agent split (still surfaced via tooltip +
+// the sr-only table); the chart now reads as one quiet trend line.
 export function HourlyChart({ buckets, now }: Props) {
   const dense = densifyBuckets(buckets, now);
   const totalEvents = dense.reduce(
@@ -54,68 +53,65 @@ export function HourlyChart({ buckets, now }: Props) {
 
   if (totalEvents === 0) {
     return (
-      <div className="px-5 py-6 text-center">
-        <div className="h-px bg-white/10 mb-3" />
-        <p className="text-[12px] text-white/45">
-          Activity will populate as your agents work.
-        </p>
+      <div className="px-4 py-4 text-[12px] text-vigil-mute">
+        Activity will populate as your agents work.
       </div>
     );
   }
 
-  const maxBucketTotal = Math.max(
-    1,
-    ...dense.map((b) => b.by_agent.reduce((s, a) => s + a.count, 0)),
-  );
-
+  const totals = dense.map((b) => b.by_agent.reduce((s, a) => s + a.count, 0));
+  const max = Math.max(1, ...totals);
   const tickLabels = ["00:00", "06:00", "12:00", "18:00", "now"];
 
   return (
-    <div className="px-5 py-3">
+    <div className="px-4 py-2">
       <svg
         role="img"
         aria-label="24-hour activity chart"
         viewBox={`0 0 ${HOURS * 10} ${CHART_HEIGHT + 10}`}
         preserveAspectRatio="none"
-        className="w-full"
-        style={{ height: CHART_HEIGHT + 24 }}
+        className="w-full text-vigil-accent"
+        style={{ height: CHART_HEIGHT + 16 }}
       >
         {dense.map((bucket, i) => {
-          const total = bucket.by_agent.reduce((s, a) => s + a.count, 0);
+          const count = totals[i];
+          const barH =
+            count === 0
+              ? 0
+              : Math.max(MIN_BAR_PX, (count / max) * CHART_HEIGHT);
           const x = i * 10;
-          let yCursor = CHART_HEIGHT;
+          const y = CHART_HEIGHT - barH;
+          const agentBreakdown = bucket.by_agent
+            .map((a) => `${a.agent}: ${a.count}`)
+            .join(", ");
           return (
             <g key={bucket.hour_iso} transform={`translate(${x}, 0)`}>
-              {bucket.by_agent.map((seg) => {
-                const proportional = (seg.count / maxBucketTotal) * CHART_HEIGHT;
-                const segH = total > 0 ? Math.max(MIN_SEGMENT_PX, proportional) : 0;
-                yCursor -= segH;
-                return (
-                  <rect
-                    key={seg.agent}
-                    x={1}
-                    y={yCursor}
-                    width={8}
-                    height={segH}
-                    fill={agentColor(seg.agent)}
-                  >
-                    <title>{`${bucket.hour_iso} — ${seg.agent}: ${seg.count}`}</title>
-                  </rect>
-                );
-              })}
+              <rect
+                x={1}
+                y={y}
+                width={8}
+                height={barH}
+                fill="currentColor"
+                fillOpacity={count === 0 ? 0 : 0.7}
+              >
+                <title>{`${bucket.hour_iso} — ${count} event${count === 1 ? "" : "s"}${agentBreakdown ? ` (${agentBreakdown})` : ""}`}</title>
+              </rect>
             </g>
           );
         })}
       </svg>
-      <div className="flex justify-between text-[9px] text-white/35 mt-1 px-1 tabular-nums">
+      <div className="flex justify-between text-[10px] text-vigil-mute mt-1 px-1 tabular-nums">
         {tickLabels.map((t) => (
           <span key={t}>{t}</span>
         ))}
       </div>
-      {/* Hidden table mirror for screen readers */}
       <table className="sr-only">
         <thead>
-          <tr><th>Hour (UTC)</th><th>Agent</th><th>Events</th></tr>
+          <tr>
+            <th>Hour (UTC)</th>
+            <th>Agent</th>
+            <th>Events</th>
+          </tr>
         </thead>
         <tbody>
           {dense.flatMap((b) =>
