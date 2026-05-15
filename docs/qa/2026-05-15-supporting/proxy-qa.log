@@ -1,0 +1,304 @@
+2026/05/14 22:45:18 vigil-proxy v0.1.0d — http=:7878 postgres=:7432 → upstream=localhost:5432 (db=/tmp/vigil-qa-home/.vigil/proxy.db key=/tmp/vigil-qa-home/.vigil/proxy.key pubkey=wPOYHwCcA5d01YHz3pkiKEtujG/67Pq4CJU2ztDrOJA)
+2026/05/14 22:45:18 coalesce: per-agent cache armed with 250ms TTL
+2026/05/14 22:45:18 pgproxy: listening on [::]:7432, upstream=localhost:5432
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60053 (conn=IN9VAc6fTATemLEs)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60054 (conn=havTKJ1eBGVeaC4X)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60056 (conn=Lxr8t6uDLWKjE4HU)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60055 (conn=Rwc6qYI-H6w_dFlP)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60057 (conn=DVAJIgQaNOlkWZr5)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60058 (conn=KfUWWsZaFczYDBFO)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60059 (conn=gmpboj_H-kPZWPQI)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60060 (conn=GGZ22fdOliCXC75j)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=Rwc6qYI-H6w_dFlP
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=Lxr8t6uDLWKjE4HU
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=GGZ22fdOliCXC75j
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=DVAJIgQaNOlkWZr5
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=IN9VAc6fTATemLEs
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=havTKJ1eBGVeaC4X
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=KfUWWsZaFczYDBFO
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=gmpboj_H-kPZWPQI
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60069 (conn=BQcxgI_veXus-QwK)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=BQcxgI_veXus-QwK
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60071 (conn=7IkgoCTET4bJ7ROB)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=7IkgoCTET4bJ7ROB
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60073 (conn=HCAqfGPIwL-JHaRs)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60074 (conn=NuuJkXK8nveSKsmw)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=NuuJkXK8nveSKsmw
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=HCAqfGPIwL-JHaRs
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60077 (conn=4fDp2gIDjZhLGZhE)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=4fDp2gIDjZhLGZhE
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60079 (conn=TxYvHwBJDm-MWd3u)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=TxYvHwBJDm-MWd3u
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60081 (conn=I7FOPvhSZCsfS0WV)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60082 (conn=UkW6WH_v9kumL48f)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=UkW6WH_v9kumL48f
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=I7FOPvhSZCsfS0WV
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60086 (conn=6KrUc7DsS86hEHLB)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60085 (conn=GE2tPQopKJSAFnJQ)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=GE2tPQopKJSAFnJQ
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=6KrUc7DsS86hEHLB
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60089 (conn=HTQyRQNwUVyGCvx7)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=HTQyRQNwUVyGCvx7
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60092 (conn=4V7MWgalBusWiHb9)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60091 (conn=zHvCYZDPr29-MtHa)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60093 (conn=36kx6GB15g7s6CNx)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60097 (conn=o_CnNJXa9lG1JDdc)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=zHvCYZDPr29-MtHa
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=4V7MWgalBusWiHb9
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=36kx6GB15g7s6CNx
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=o_CnNJXa9lG1JDdc
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60100 (conn=jaFYg12IG8we9MJb)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60099 (conn=1ZlVfin4k2HoO6se)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60101 (conn=wDc-setkM7wqnrRf)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60102 (conn=LzHMhWuieX7KdpOB)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60103 (conn=T9ZS2wMy6y6vAVDq)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60106 (conn=A8prl_RoFNzOVIN6)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60105 (conn=72sGlMqWDC9QldyQ)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=wDc-setkM7wqnrRf
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=LzHMhWuieX7KdpOB
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=1ZlVfin4k2HoO6se
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=jaFYg12IG8we9MJb
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60110 (conn=jwZstEENx4vekyY6)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=A8prl_RoFNzOVIN6
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=72sGlMqWDC9QldyQ
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=jwZstEENx4vekyY6
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=T9ZS2wMy6y6vAVDq
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60115 (conn=rWrwa5rWpF9KK1J3)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=rWrwa5rWpF9KK1J3
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60117 (conn=R5eI5bBemIK0hWEW)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=R5eI5bBemIK0hWEW
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60119 (conn=Wck1ZBYIWPCWNsWA)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=Wck1ZBYIWPCWNsWA
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60121 (conn=WLgUMWbK6-HNFr6p)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60122 (conn=J6G7M5KR3X7eUQX_)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=J6G7M5KR3X7eUQX_
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60125 (conn=JYuh493Vr-vTRQah)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=WLgUMWbK6-HNFr6p
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=JYuh493Vr-vTRQah
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60127 (conn=Aqz0jPm4H5zQI_0j)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60129 (conn=t2KX7A2pvG3gXh_U)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60128 (conn=gboK6BjQj9g_lGmt)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=Aqz0jPm4H5zQI_0j
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=gboK6BjQj9g_lGmt
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=t2KX7A2pvG3gXh_U
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60133 (conn=FmnS4-Ox0ffnjYl-)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60135 (conn=A7reI8ZuX5CQphum)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=FmnS4-Ox0ffnjYl-
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=A7reI8ZuX5CQphum
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60137 (conn=NhVAWfjQajD93sWo)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60138 (conn=7oaK2nM3FZ69T6_K)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=7oaK2nM3FZ69T6_K
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=NhVAWfjQajD93sWo
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60141 (conn=-3uLrkZgNoZ5wibx)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=-3uLrkZgNoZ5wibx
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60143 (conn=H6tP-tZAGQAQknei)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=H6tP-tZAGQAQknei
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60145 (conn=pjJ2BId7MyVqf_X8)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60146 (conn=-cJKgtQSumI_dyC0)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60148 (conn=b17UC2V3v6MRs0uf)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60150 (conn=GLsDs89ybAONOD1R)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60149 (conn=TiaK3INh7ilRzWXb)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=pjJ2BId7MyVqf_X8
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60153 (conn=aSrBpYaiutvXZBJ7)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60151 (conn=OgsoQST5R-MTTIt_)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60152 (conn=QVFZXtkDIysb1aOG)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=GLsDs89ybAONOD1R
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=b17UC2V3v6MRs0uf
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=TiaK3INh7ilRzWXb
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=-cJKgtQSumI_dyC0
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=QVFZXtkDIysb1aOG
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=aSrBpYaiutvXZBJ7
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=OgsoQST5R-MTTIt_
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60161 (conn=Yv9zCk-I1xudzzU5)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=Yv9zCk-I1xudzzU5
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60165 (conn=eWevXZOcvSavkERv)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60163 (conn=P-B1DghvCFV2Rai4)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60164 (conn=VB5iLq104gCunhxs)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60166 (conn=VeaToY5jiNNp-zc8)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60167 (conn=nBKZ4cKHziM10e8y)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60169 (conn=1oB3EZ_WM1tPozUP)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=P-B1DghvCFV2Rai4
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=VeaToY5jiNNp-zc8
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=eWevXZOcvSavkERv
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=nBKZ4cKHziM10e8y
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=VB5iLq104gCunhxs
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=1oB3EZ_WM1tPozUP
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60175 (conn=XsQx-w8FbMHGzPyK)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=XsQx-w8FbMHGzPyK
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60177 (conn=7Sn9sp1tQaEInK5y)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=7Sn9sp1tQaEInK5y
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60179 (conn=_4QBrL0E765NpP9c)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=_4QBrL0E765NpP9c
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60181 (conn=dQdyFv2NG6qZPkmP)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60182 (conn=zTiZdNYdrBkBVuwF)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=zTiZdNYdrBkBVuwF
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=dQdyFv2NG6qZPkmP
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60185 (conn=HiQF-xMQYgUUdFSJ)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60187 (conn=6gmQKpIXdNcSfxT4)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=HiQF-xMQYgUUdFSJ
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=6gmQKpIXdNcSfxT4
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60189 (conn=tLNskL3UFA52lAwE)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60190 (conn=onQvuYhoAZwDhOWq)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60192 (conn=I5IOuiCMqdZGu4Lv)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=tLNskL3UFA52lAwE
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=I5IOuiCMqdZGu4Lv
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=onQvuYhoAZwDhOWq
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60195 (conn=STEj4QAV4tB7YNim)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60196 (conn=q90z5asft6-I9gaB)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=STEj4QAV4tB7YNim
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=q90z5asft6-I9gaB
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60199 (conn=HhDVHvf95edmVP7d)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=HhDVHvf95edmVP7d
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60201 (conn=3dAl0qGVR-TQcofS)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=3dAl0qGVR-TQcofS
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60203 (conn=TPdnA6nQ3GVA2Y2m)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=TPdnA6nQ3GVA2Y2m
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60205 (conn=Qp0tyRrydTElh68m)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=Qp0tyRrydTElh68m
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60207 (conn=ZCJOjFx7CUaGSFlv)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=ZCJOjFx7CUaGSFlv
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60209 (conn=VNhNRvHIIjYr5-9Z)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60210 (conn=JTDu3lRQI8eHYC0R)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=VNhNRvHIIjYr5-9Z
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60213 (conn=GKKtxRpbBRGTowRn)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=JTDu3lRQI8eHYC0R
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60214 (conn=aOfLSoNM-01WWTof)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=aOfLSoNM-01WWTof
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=GKKtxRpbBRGTowRn
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60217 (conn=C6RuihddFd16Lrc6)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=C6RuihddFd16Lrc6
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60219 (conn=2T_GGZEqaiV2eGzv)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=2T_GGZEqaiV2eGzv
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60221 (conn=5yH4X3mCDDd_fbzp)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=5yH4X3mCDDd_fbzp
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60224 (conn=3ETJPgYqgLXxUZMC)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60223 (conn=Njw7-8xrkPnM8alT)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60225 (conn=Ev9m0rVFCDo_JUAO)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=Ev9m0rVFCDo_JUAO
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60229 (conn=t6k8zFAmOzIYk4Hx)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60231 (conn=moBylLO0nFZ0XMiZ)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=Njw7-8xrkPnM8alT
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=t6k8zFAmOzIYk4Hx
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=3ETJPgYqgLXxUZMC
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=moBylLO0nFZ0XMiZ
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60233 (conn=RL_FmBhwIhOzHG_p)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=RL_FmBhwIhOzHG_p
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60235 (conn=eDbQWr-aw1OcyUIz)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=eDbQWr-aw1OcyUIz
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60237 (conn=d8LUGP6u8cg_WaUj)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=d8LUGP6u8cg_WaUj
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60239 (conn=3MKbMFSpCQlaPMyL)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=3MKbMFSpCQlaPMyL
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60241 (conn=mV9ufKifIFBkaRJX)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=mV9ufKifIFBkaRJX
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60243 (conn=7YhfMhEJ3V3A-fcv)
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60244 (conn=NVdQzO_CH41_ax5q)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=7YhfMhEJ3V3A-fcv
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60246 (conn=47C1YV7FKq6oE3Ci)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=NVdQzO_CH41_ax5q
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60248 (conn=6-d3wNViALUj-h0X)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=6-d3wNViALUj-h0X
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=47C1YV7FKq6oE3Ci
+2026/05/14 22:45:30 pgproxy: client connected: [::1]:60251 (conn=PoLqlotPE9xxt-4G)
+2026/05/14 22:45:30 pgproxy: startup forwarded: db="postgres" user="postgres" proto=0x00030000 app="psql" conn=PoLqlotPE9xxt-4G
+2026/05/14 22:45:33 pgproxy: client disconnected: [::1]:60056 (conn=Lxr8t6uDLWKjE4HU)
+2026/05/14 22:45:36 pgproxy: client disconnected: [::1]:60055 (conn=Rwc6qYI-H6w_dFlP)
+2026/05/14 22:45:42 pgproxy: client disconnected: [::1]:60175 (conn=XsQx-w8FbMHGzPyK)
+2026/05/14 22:45:43 pgproxy: client disconnected: [::1]:60073 (conn=HCAqfGPIwL-JHaRs)
+2026/05/14 22:45:47 pgproxy: client disconnected: [::1]:60082 (conn=UkW6WH_v9kumL48f)
+2026/05/14 22:45:50 pgproxy: client disconnected: [::1]:60161 (conn=Yv9zCk-I1xudzzU5)
+2026/05/14 22:45:51 pgproxy: client disconnected: [::1]:60209 (conn=VNhNRvHIIjYr5-9Z)
+2026/05/14 22:45:51 pgproxy: client disconnected: [::1]:60100 (conn=jaFYg12IG8we9MJb)
+2026/05/14 22:45:53 pgproxy: client disconnected: [::1]:60054 (conn=havTKJ1eBGVeaC4X)
+2026/05/14 22:45:54 pgproxy: client disconnected: [::1]:60059 (conn=gmpboj_H-kPZWPQI)
+2026/05/14 22:45:55 pgproxy: client disconnected: [::1]:60081 (conn=I7FOPvhSZCsfS0WV)
+2026/05/14 22:45:55 pgproxy: client disconnected: [::1]:60189 (conn=tLNskL3UFA52lAwE)
+2026/05/14 22:45:56 pgproxy: client disconnected: [::1]:60181 (conn=dQdyFv2NG6qZPkmP)
+2026/05/14 22:45:58 pgproxy: client disconnected: [::1]:60053 (conn=IN9VAc6fTATemLEs)
+2026/05/14 22:45:58 pgproxy: client disconnected: [::1]:60219 (conn=2T_GGZEqaiV2eGzv)
+2026/05/14 22:46:00 pgproxy: client disconnected: [::1]:60069 (conn=BQcxgI_veXus-QwK)
+2026/05/14 22:46:00 pgproxy: client disconnected: [::1]:60091 (conn=zHvCYZDPr29-MtHa)
+2026/05/14 22:46:01 pgproxy: client disconnected: [::1]:60093 (conn=36kx6GB15g7s6CNx)
+2026/05/14 22:46:02 pgproxy: client disconnected: [::1]:60058 (conn=KfUWWsZaFczYDBFO)
+2026/05/14 22:46:04 pgproxy: client disconnected: [::1]:60150 (conn=GLsDs89ybAONOD1R)
+2026/05/14 22:46:06 pgproxy: client disconnected: [::1]:60225 (conn=Ev9m0rVFCDo_JUAO)
+2026/05/14 22:46:07 pgproxy: client disconnected: [::1]:60129 (conn=t2KX7A2pvG3gXh_U)
+2026/05/14 22:46:09 pgproxy: client disconnected: [::1]:60233 (conn=RL_FmBhwIhOzHG_p)
+2026/05/14 22:46:11 pgproxy: client disconnected: [::1]:60141 (conn=-3uLrkZgNoZ5wibx)
+2026/05/14 22:46:11 pgproxy: client disconnected: [::1]:60190 (conn=onQvuYhoAZwDhOWq)
+2026/05/14 22:46:12 pgproxy: client disconnected: [::1]:60110 (conn=jwZstEENx4vekyY6)
+2026/05/14 22:46:12 pgproxy: client disconnected: [::1]:60143 (conn=H6tP-tZAGQAQknei)
+2026/05/14 22:46:13 pgproxy: client disconnected: [::1]:60199 (conn=HhDVHvf95edmVP7d)
+2026/05/14 22:46:13 pgproxy: client disconnected: [::1]:60246 (conn=47C1YV7FKq6oE3Ci)
+2026/05/14 22:46:13 pgproxy: client disconnected: [::1]:60151 (conn=OgsoQST5R-MTTIt_)
+2026/05/14 22:46:14 pgproxy: client disconnected: [::1]:60119 (conn=Wck1ZBYIWPCWNsWA)
+2026/05/14 22:46:14 pgproxy: client disconnected: [::1]:60223 (conn=Njw7-8xrkPnM8alT)
+2026/05/14 22:46:15 pgproxy: client disconnected: [::1]:60106 (conn=A8prl_RoFNzOVIN6)
+2026/05/14 22:46:16 pgproxy: client disconnected: [::1]:60239 (conn=3MKbMFSpCQlaPMyL)
+2026/05/14 22:46:17 pgproxy: client disconnected: [::1]:60097 (conn=o_CnNJXa9lG1JDdc)
+2026/05/14 22:46:17 pgproxy: client disconnected: [::1]:60251 (conn=PoLqlotPE9xxt-4G)
+2026/05/14 22:46:18 pgproxy: client disconnected: [::1]:60213 (conn=GKKtxRpbBRGTowRn)
+2026/05/14 22:46:18 pgproxy: client disconnected: [::1]:60077 (conn=4fDp2gIDjZhLGZhE)
+2026/05/14 22:46:19 pgproxy: client disconnected: [::1]:60164 (conn=VB5iLq104gCunhxs)
+2026/05/14 22:46:20 pgproxy: client disconnected: [::1]:60182 (conn=zTiZdNYdrBkBVuwF)
+2026/05/14 22:46:21 pgproxy: client disconnected: [::1]:60127 (conn=Aqz0jPm4H5zQI_0j)
+2026/05/14 22:46:22 pgproxy: client disconnected: [::1]:60217 (conn=C6RuihddFd16Lrc6)
+2026/05/14 22:46:23 pgproxy: client disconnected: [::1]:60192 (conn=I5IOuiCMqdZGu4Lv)
+2026/05/14 22:46:24 pgproxy: client disconnected: [::1]:60085 (conn=GE2tPQopKJSAFnJQ)
+2026/05/14 22:46:25 pgproxy: client disconnected: [::1]:60086 (conn=6KrUc7DsS86hEHLB)
+2026/05/14 22:46:26 pgproxy: client disconnected: [::1]:60122 (conn=J6G7M5KR3X7eUQX_)
+2026/05/14 22:46:27 pgproxy: client disconnected: [::1]:60115 (conn=rWrwa5rWpF9KK1J3)
+2026/05/14 22:46:28 pgproxy: client disconnected: [::1]:60221 (conn=5yH4X3mCDDd_fbzp)
+2026/05/14 22:46:28 pgproxy: client disconnected: [::1]:60135 (conn=A7reI8ZuX5CQphum)
+2026/05/14 22:46:28 pgproxy: client disconnected: [::1]:60101 (conn=wDc-setkM7wqnrRf)
+2026/05/14 22:46:28 pgproxy: client disconnected: [::1]:60148 (conn=b17UC2V3v6MRs0uf)
+2026/05/14 22:46:29 pgproxy: client disconnected: [::1]:60071 (conn=7IkgoCTET4bJ7ROB)
+2026/05/14 22:46:29 pgproxy: client disconnected: [::1]:60214 (conn=aOfLSoNM-01WWTof)
+2026/05/14 22:46:30 pgproxy: client disconnected: [::1]:60166 (conn=VeaToY5jiNNp-zc8)
+2026/05/14 22:46:30 pgproxy: client disconnected: [::1]:60057 (conn=DVAJIgQaNOlkWZr5)
+2026/05/14 22:46:30 pgproxy: client disconnected: [::1]:60179 (conn=_4QBrL0E765NpP9c)
+2026/05/14 22:46:31 pgproxy: client disconnected: [::1]:60167 (conn=nBKZ4cKHziM10e8y)
+2026/05/14 22:46:31 pgproxy: client disconnected: [::1]:60079 (conn=TxYvHwBJDm-MWd3u)
+2026/05/14 22:46:31 pgproxy: client disconnected: [::1]:60187 (conn=6gmQKpIXdNcSfxT4)
+2026/05/14 22:46:32 pgproxy: client disconnected: [::1]:60103 (conn=T9ZS2wMy6y6vAVDq)
+2026/05/14 22:46:32 pgproxy: client disconnected: [::1]:60201 (conn=3dAl0qGVR-TQcofS)
+2026/05/14 22:46:32 pgproxy: client disconnected: [::1]:60207 (conn=ZCJOjFx7CUaGSFlv)
+2026/05/14 22:46:32 pgproxy: client disconnected: [::1]:60137 (conn=NhVAWfjQajD93sWo)
+2026/05/14 22:46:32 pgproxy: client disconnected: [::1]:60145 (conn=pjJ2BId7MyVqf_X8)
+2026/05/14 22:46:33 pgproxy: client disconnected: [::1]:60169 (conn=1oB3EZ_WM1tPozUP)
+2026/05/14 22:46:33 pgproxy: client disconnected: [::1]:60128 (conn=gboK6BjQj9g_lGmt)
+2026/05/14 22:46:33 pgproxy: client disconnected: [::1]:60138 (conn=7oaK2nM3FZ69T6_K)
+2026/05/14 22:46:33 pgproxy: client disconnected: [::1]:60243 (conn=7YhfMhEJ3V3A-fcv)
+2026/05/14 22:46:33 pgproxy: client disconnected: [::1]:60165 (conn=eWevXZOcvSavkERv)
+2026/05/14 22:46:34 pgproxy: client disconnected: [::1]:60152 (conn=QVFZXtkDIysb1aOG)
+2026/05/14 22:46:34 pgproxy: client disconnected: [::1]:60224 (conn=3ETJPgYqgLXxUZMC)
+2026/05/14 22:46:35 pgproxy: client disconnected: [::1]:60060 (conn=GGZ22fdOliCXC75j)
+2026/05/14 22:46:35 pgproxy: client disconnected: [::1]:60195 (conn=STEj4QAV4tB7YNim)
+2026/05/14 22:46:35 pgproxy: client disconnected: [::1]:60210 (conn=JTDu3lRQI8eHYC0R)
+2026/05/14 22:46:36 pgproxy: client disconnected: [::1]:60163 (conn=P-B1DghvCFV2Rai4)
+2026/05/14 22:46:36 pgproxy: client disconnected: [::1]:60149 (conn=TiaK3INh7ilRzWXb)
+2026/05/14 22:46:36 pgproxy: client disconnected: [::1]:60203 (conn=TPdnA6nQ3GVA2Y2m)
+2026/05/14 22:46:37 pgproxy: client disconnected: [::1]:60102 (conn=LzHMhWuieX7KdpOB)
+2026/05/14 22:46:37 pgproxy: client disconnected: [::1]:60146 (conn=-cJKgtQSumI_dyC0)
+2026/05/14 22:46:37 pgproxy: client disconnected: [::1]:60237 (conn=d8LUGP6u8cg_WaUj)
+2026/05/14 22:46:38 pgproxy: client disconnected: [::1]:60196 (conn=q90z5asft6-I9gaB)
+2026/05/14 22:46:38 pgproxy: client disconnected: [::1]:60105 (conn=72sGlMqWDC9QldyQ)
+2026/05/14 22:46:38 pgproxy: client disconnected: [::1]:60092 (conn=4V7MWgalBusWiHb9)
+2026/05/14 22:46:39 pgproxy: client disconnected: [::1]:60133 (conn=FmnS4-Ox0ffnjYl-)
+2026/05/14 22:46:39 pgproxy: client disconnected: [::1]:60231 (conn=moBylLO0nFZ0XMiZ)
+2026/05/14 22:46:39 pgproxy: client disconnected: [::1]:60229 (conn=t6k8zFAmOzIYk4Hx)
+2026/05/14 22:46:40 pgproxy: client disconnected: [::1]:60205 (conn=Qp0tyRrydTElh68m)
+2026/05/14 22:46:40 pgproxy: client disconnected: [::1]:60248 (conn=6-d3wNViALUj-h0X)
+2026/05/14 22:46:40 pgproxy: client disconnected: [::1]:60099 (conn=1ZlVfin4k2HoO6se)
+2026/05/14 22:46:40 pgproxy: client disconnected: [::1]:60177 (conn=7Sn9sp1tQaEInK5y)
+2026/05/14 22:46:40 pgproxy: client disconnected: [::1]:60125 (conn=JYuh493Vr-vTRQah)
+2026/05/14 22:46:41 pgproxy: client disconnected: [::1]:60244 (conn=NVdQzO_CH41_ax5q)
+2026/05/14 22:46:41 pgproxy: client disconnected: [::1]:60121 (conn=WLgUMWbK6-HNFr6p)
+2026/05/14 22:46:41 pgproxy: client disconnected: [::1]:60089 (conn=HTQyRQNwUVyGCvx7)
+2026/05/14 22:46:42 pgproxy: client disconnected: [::1]:60185 (conn=HiQF-xMQYgUUdFSJ)
+2026/05/14 22:46:42 pgproxy: client disconnected: [::1]:60074 (conn=NuuJkXK8nveSKsmw)
+2026/05/14 22:46:42 pgproxy: client disconnected: [::1]:60153 (conn=aSrBpYaiutvXZBJ7)
+2026/05/14 22:46:42 pgproxy: client disconnected: [::1]:60235 (conn=eDbQWr-aw1OcyUIz)
+2026/05/14 22:46:43 pgproxy: client disconnected: [::1]:60117 (conn=R5eI5bBemIK0hWEW)
+2026/05/14 22:46:43 pgproxy: client disconnected: [::1]:60241 (conn=mV9ufKifIFBkaRJX)
+2026/05/14 22:46:57 shutting down
