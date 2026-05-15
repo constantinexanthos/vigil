@@ -13,24 +13,26 @@ interface Props {
 }
 
 export function HostGroup({ hostKind, sessions, selectedId, onSelect }: Props) {
-  const { label } = groupToken(hostKind, sessions);
+  const header = groupHeader(hostKind, sessions);
   const liveCount = sessions.filter((s) => s.isLive).length;
   const glyph = chooseGlyph(hostKind, sessions);
 
   return (
     <div className="px-1.5 mb-2.5">
-      <div className="flex items-center gap-2 py-1 px-1.5">
-        <span
-          className={`inline-flex items-center justify-center ${liveCount > 0 ? "animate-pulse-alive" : "opacity-60"}`}
-          style={{ width: 16, height: 16 }}
-          aria-hidden
-        >
-          {glyph}
-        </span>
-        <span className="text-sm text-white/75 font-semibold">{label}</span>
-        <span className="text-stat text-white/35 ml-auto">{sessions.length}</span>
-      </div>
-      <div className="ml-3.5 mt-1 space-y-[3px]">
+      {header && (
+        <div className="flex items-center gap-2 py-1 px-1.5">
+          <span
+            className={`inline-flex items-center justify-center ${liveCount > 0 ? "animate-pulse-alive" : "opacity-60"}`}
+            style={{ width: 16, height: 16 }}
+            aria-hidden
+          >
+            {glyph}
+          </span>
+          <span className="text-sm text-white/75 font-semibold">{header.label}</span>
+          <span className="text-stat text-white/35 ml-auto">{sessions.length}</span>
+        </div>
+      )}
+      <div className={`${header ? "ml-3.5 mt-1" : ""} space-y-[3px]`}>
         {sessions.map((s) => (
           <SessionRow
             key={s.id}
@@ -46,11 +48,16 @@ export function HostGroup({ hostKind, sessions, selectedId, onSelect }: Props) {
 
 /**
  * For known hosts (ghostty / iterm2 / etc.) use the host token's label.
- * For "unknown" hosts where we collapse onto the agent identity, return
- * the agent display name + color so the rail reads "Claude Code · 3"
- * instead of "Other · 3".
+ * For "unknown" hosts that collapse onto a single agent, use the agent's
+ * display name + color so the rail reads "Claude Code · 3" instead of
+ * generic "Other · 3".
+ *
+ * For "unknown" hosts with multiple distinct agents we used to fall
+ * through to "Other · N" — but the per-row glyphs already convey the
+ * agent identity, so the header becomes noise. Return null and the
+ * group renders headerless.
  */
-function groupToken(hostKind: HostKind, sessions: SessionGroup[]): { label: string; color: string } {
+function groupHeader(hostKind: HostKind, sessions: SessionGroup[]): { label: string; color: string } | null {
   if (hostKind !== "unknown") {
     const token = hostToken(hostKind);
     return { label: token.label, color: token.color };
@@ -60,8 +67,7 @@ function groupToken(hostKind: HostKind, sessions: SessionGroup[]): { label: stri
     const agent = [...agents][0];
     return { label: agentDisplayName(agent), color: agentColor(agent) };
   }
-  const token = hostToken(hostKind);
-  return { label: token.label, color: token.color };
+  return null;
 }
 
 /**
