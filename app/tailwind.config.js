@@ -19,6 +19,18 @@ export default {
         info: "#60a5fa",
         claudefam: "#a78bfa",
         gptfam: "#f472b6",
+        // Proxy-tab palette — six tokens, restraint-first (Linear-tier pass).
+        // Every proxy/ component pulls from `vigil.*` so the color audit is a
+        // single namespace grep. The accent is the ONLY hue; everything else
+        // is a neutral.
+        vigil: {
+          bg:      "#0d0d0f",
+          surface: "#17171c",
+          ink:     "#ECECF1",
+          mute:    "#8A8A93",
+          rule:    "rgba(255,255,255,0.06)",
+          accent:  "#5B8DEF",
+        },
       },
       fontFamily: {
         sans: ["-apple-system", "BlinkMacSystemFont", '"SF Pro Text"', "Inter", "system-ui", "sans-serif"],

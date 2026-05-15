@@ -67,7 +67,7 @@ describe("Decision filter — acceptance #2", () => {
   it("passes filter.decision into read_proxy_db when Coalesced is selected", async () => {
     render(<ProxyPane />);
     await waitFor(() =>
-      expect(screen.getByText(/Counters · last 24h/i)).toBeInTheDocument(),
+      expect(screen.getByText(/Per agent · last 24h/i)).toBeInTheDocument(),
     );
     const selects = screen.getAllByRole("combobox");
     const decisionSelect = selects[3];
@@ -88,7 +88,7 @@ describe("Decision filter — acceptance #2", () => {
 
   it("clears filter.decision when 'All' is selected", async () => {
     render(<ProxyPane />);
-    await waitFor(() => screen.getByText(/Counters · last 24h/i));
+    await waitFor(() => screen.getByText(/Per agent · last 24h/i));
     const selects = screen.getAllByRole("combobox");
     const decisionSelect = selects[3];
 
