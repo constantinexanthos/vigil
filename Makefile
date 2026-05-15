@@ -4,7 +4,7 @@
 # already has its own build / test commands; the Makefile is the
 # zero-friction entry point for cross-cutting tasks.
 
-.PHONY: bench bench-help release release-all release-clean
+.PHONY: bench bench-help release release-all release-clean build-vigil-run
 
 # Version source of truth: the latest git tag. Fall back to v0.0.0-dev
 # for working trees without a tag so local builds always succeed.
@@ -49,6 +49,7 @@ bench-help:
 
 # Build a stripped release binary for the host platform. Output:
 #   dist/vigil-proxy-$(VERSION)-$(HOST_OS)-$(HOST_ARCH)
+#   dist/vigil-run-$(VERSION)-$(HOST_OS)-$(HOST_ARCH)
 #
 # CGO_ENABLED=0 is set explicitly because proxy/ uses modernc.org/sqlite
 # (pure Go) — any future dependency that quietly drags CGO back in would
@@ -56,22 +57,29 @@ bench-help:
 # rather than in the GitHub Actions release workflow.
 release:
 	@mkdir -p dist
-	@$(MAKE) --no-print-directory build-one OS=$(HOST_OS) ARCH=$(HOST_ARCH)
+	@$(MAKE) --no-print-directory build-one    OS=$(HOST_OS) ARCH=$(HOST_ARCH)
+	@$(MAKE) --no-print-directory build-vigil-run-one OS=$(HOST_OS) ARCH=$(HOST_ARCH)
 
-# Build all four release binaries. Each is asserted ≤MAX_SIZE_BYTES and
-# its SHA256 printed for copy-paste into the Homebrew formula bump.
+# Build all release binaries (proxy + vigil-run) across four targets.
+# Each binary is asserted ≤MAX_SIZE_BYTES and its SHA256 printed for
+# copy-paste into the Homebrew formula bump.
 release-all:
 	@mkdir -p dist
 	@$(MAKE) --no-print-directory build-one OS=darwin ARCH=arm64
 	@$(MAKE) --no-print-directory build-one OS=darwin ARCH=amd64
 	@$(MAKE) --no-print-directory build-one OS=linux  ARCH=arm64
 	@$(MAKE) --no-print-directory build-one OS=linux  ARCH=amd64
+	@$(MAKE) --no-print-directory build-vigil-run-one OS=darwin ARCH=arm64
+	@$(MAKE) --no-print-directory build-vigil-run-one OS=darwin ARCH=amd64
+	@$(MAKE) --no-print-directory build-vigil-run-one OS=linux  ARCH=arm64
+	@$(MAKE) --no-print-directory build-vigil-run-one OS=linux  ARCH=amd64
 	@echo ""
 	@echo "==> Release binaries:"
-	@ls -lh dist/vigil-proxy-$(VERSION)-*
+	@ls -lh dist/vigil-proxy-$(VERSION)-* dist/vigil-run-$(VERSION)-*
 
-# Internal target: build one (OS,ARCH) combination and assert size.
-# Called by `release` and `release-all`; not meant for direct use.
+# Internal target: build one vigil-proxy (OS,ARCH) combination and
+# assert size. Called by `release` and `release-all`; not meant for
+# direct use.
 .PHONY: build-one
 build-one:
 	@if [ -z "$(OS)" ] || [ -z "$(ARCH)" ]; then \
@@ -86,6 +94,37 @@ build-one:
 	size=$$(wc -c < "$$out" | tr -d ' '); \
 	if [ "$$size" -gt $(MAX_SIZE_BYTES) ]; then \
 		echo "FAIL: dist/vigil-proxy-$(VERSION)-$(OS)-$(ARCH) is $$size bytes (> $(MAX_SIZE_BYTES) byte ceiling)"; \
+		exit 1; \
+	fi; \
+	sha=$$(shasum -a 256 "$$out" | awk '{print $$1}'); \
+	echo "    size: $$size bytes"; \
+	echo "    sha256: $$sha"
+
+# Build vigil-run for the host platform. Useful for local dev — the
+# release flow calls this via build-vigil-run-one (which adds the
+# size assertion + per-target wiring used by release-all).
+build-vigil-run:
+	@mkdir -p dist
+	@$(MAKE) --no-print-directory build-vigil-run-one OS=$(HOST_OS) ARCH=$(HOST_ARCH)
+
+# Internal: build one vigil-run (OS,ARCH) combination. vigil-run has
+# no SQLite dependency so it's tiny — the size ceiling is a sanity
+# guard rather than a real risk surface.
+.PHONY: build-vigil-run-one
+build-vigil-run-one:
+	@if [ -z "$(OS)" ] || [ -z "$(ARCH)" ]; then \
+		echo "build-vigil-run-one: OS and ARCH must be set"; exit 1; \
+	fi
+	@repo_root=$$(pwd); \
+	out=$$repo_root/dist/vigil-run-$(VERSION)-$(OS)-$(ARCH); \
+	mkdir -p "$$(dirname $$out)"; \
+	echo "==> Building dist/vigil-run-$(VERSION)-$(OS)-$(ARCH) (version=$(VERSION))"; \
+	cd $$repo_root/proxy && CGO_ENABLED=0 GOOS=$(OS) GOARCH=$(ARCH) \
+		go build -trimpath -ldflags='-s -w -X main.Version=$(VERSION)' \
+		-o "$$out" ./cmd/vigil-run; \
+	size=$$(wc -c < "$$out" | tr -d ' '); \
+	if [ "$$size" -gt $(MAX_SIZE_BYTES) ]; then \
+		echo "FAIL: dist/vigil-run-$(VERSION)-$(OS)-$(ARCH) is $$size bytes (> $(MAX_SIZE_BYTES) byte ceiling)"; \
 		exit 1; \
 	fi; \
 	sha=$$(shasum -a 256 "$$out" | awk '{print $$1}'); \

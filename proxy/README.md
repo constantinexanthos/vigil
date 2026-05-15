@@ -11,17 +11,52 @@ brew install constantinexanthos/vigil/vigil
 vigil-proxy --postgres-listen :7432 --postgres-upstream localhost:5432
 ```
 
-That's the full install. A single ~10 MB binary, no runtime dependencies, identity store + audit DB land in `~/.vigil/` on first run.
+`brew install` lands two binaries on PATH:
+
+| Binary       | Role                                                          |
+| ------------ | ------------------------------------------------------------- |
+| `vigil-proxy` | The data plane. Listens for Postgres clients, forwards upstream. |
+| `vigil-run`  | Subprocess wrapper. Mints + injects identity for any agent.    |
+
+Both are single static binaries, no runtime dependencies. State (identity store + audit DB) lands in `~/.vigil/` on first run.
 
 ### From source
 
 ```bash
 go install github.com/constantinexanthos/vigil/proxy/cmd/vigil-proxy@latest
+go install github.com/constantinexanthos/vigil/proxy/cmd/vigil-run@latest
 ```
 
 ### Linux (without Homebrew)
 
-Download the binary for your architecture from the [GitHub Releases](https://github.com/constantinexanthos/vigil/releases) page, `chmod +x`, drop it on PATH.
+Download both binaries for your architecture from the [GitHub Releases](https://github.com/constantinexanthos/vigil/releases) page, `chmod +x`, drop them on PATH.
+
+## Identity
+
+Vigil ships a three-tier identity model. Pick the one that matches how much setup you can tolerate:
+
+| Tier | What you do | What you get |
+| --- | --- | --- |
+| **Tier 1** — inferred (v0.1.0e+) | Nothing. Point your agent at port 7432. | Per-harness rate-limit pools + audit-row tagging from process introspection. |
+| **Tier 2** — declared via wrapper | `vigil-run claude` (or any command) | Signed Ed25519 identity, cached in OS keychain, injected as `VIGIL_TOKEN` env var. Audit rows + rate limits attributed to your specific `principal`+`agent_name`. |
+| **Tier 3** — declared via library | Import `vigil.WrapPgxConfig` / `wrap_psycopg` / `wrapPg` in your code | Same as Tier 2, attached inline. Useful when wrapping the parent binary isn't an option (Cursor extensions, custom bots). |
+
+Per-harness instructions live in `proxy/docs/harnesses/`:
+
+- [Claude Code](docs/harnesses/claude-code.md)
+- [OpenAI Codex CLI](docs/harnesses/codex.md)
+- [Cursor](docs/harnesses/cursor.md)
+- [VS Code](docs/harnesses/vscode.md)
+- [Conductor](docs/harnesses/conductor.md)
+- [Custom agents](docs/harnesses/custom.md)
+
+Helper packages (in-tree, not yet on package registries):
+
+- Go: `proxy/clients/go/vigil/`
+- Python (PyPI: `vigil-client`): `proxy/clients/python/vigil/`
+- Node (npm: `@vigil/client`): `proxy/clients/node/vigil/`
+
+> **Note on Tier 1**: process introspection ships in v0.1.0e (Sub-project B). Until that lands, point your agent at the proxy and traffic shows up as anonymous in the audit feed — Tier 2 / Tier 3 are the paths to per-agent attribution today.
 
 ## Status
 

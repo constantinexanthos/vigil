@@ -1,0 +1,17 @@
+{
+  "name": "@vigil/client",
+  "version": "0.1.0",
+  "description": "Vigil identity helper for node-postgres (pg) and bare DSN editing",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "license": "MIT",
+  "keywords": ["vigil", "postgres", "agent", "identity", "pg"],
+  "author": "Constantine Xanthos",
+  "scripts": {
+    "test": "node --test tests/"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": ["index.js", "index.d.ts", "README.md", "CHANGELOG.md", "LICENSE"]
+}

@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vigil-client"
+version = "0.1.0"
+description = "Vigil identity helper for psycopg / SQLAlchemy / asyncpg"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Constantine Xanthos" }]
+requires-python = ">=3.9"
+keywords = ["vigil", "postgres", "agent", "identity", "psycopg"]
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Topic :: Database",
+]
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[tool.setuptools.packages.find]
+include = ["vigil*"]

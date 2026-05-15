@@ -18,6 +18,12 @@ bin/
 *.test
 coverage.out
 
+# Python (vigil-client helper)
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+
 # Editors / OS noise
 .vscode/
 .idea/
