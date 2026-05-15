@@ -119,7 +119,7 @@ export default function App() {
                 onSelect={onAgentSelect}
               />
             }
-            right={<RightRail session={selected} reviewSignals={data.reviewSignals} />}
+            right={selected ? <RightRail session={selected} reviewSignals={data.reviewSignals} /> : null}
           />
         )}
       </div>
