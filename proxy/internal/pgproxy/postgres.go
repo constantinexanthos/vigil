@@ -385,33 +385,17 @@ func (s *Server) relay(ctx context.Context, client, upstream net.Conn, state *co
 			// before any coalescer consultation can read it.
 			updateTxDepth(state, fr.hdr[0], fr.body)
 
-			// Rate limiter hook (v0.1.0c). Nil-default: no limiting.
-			// Acquire may block until a token is available; the returned
-			// Decision threads into the audit row so the dashboard can
-			// distinguish allowed vs throttled traffic.
-			decision := DecisionAllowed
-			if s.RateLimiter != nil {
-				d, err := s.RateLimiter.Acquire(ctx, state.agentID, classifyRoute(fr.hdr[0]))
-				if err != nil {
-					if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
-						s.Logger.Printf("pgproxy: rate-limit acquire: %v", err)
-					}
-					cancel()
-					continue
-				}
-				decision = d
-			}
-
-			// Coalescer hook (v0.1.0d). Simple-protocol 'Q' frames outside
-			// any transaction are candidates. On a Lookup hit we replay
-			// the cached upstream response bytes to the client and skip
-			// the upstream forward entirely — that's the cost reduction.
+			// Coalescer hook (v0.1.0d) — consulted FIRST. Cache hits never
+			// reach upstream and therefore must never consume a rate-limit
+			// token (rate limiting exists to protect upstream; if we don't
+			// touch upstream, we don't need to throttle). Order matters:
+			// putting Acquire before Lookup made the bench's 93%-cache-hit
+			// workload pay tokens for queries that never left the proxy.
 			//
-			// Extended-protocol (Parse/Bind/Execute) is not yet wired;
-			// pgx workloads that bind params via 'B' won't coalesce until
-			// a follow-up adds the multi-frame capture state machine. The
-			// bench's refactor preset is invoked with simple-protocol mode
-			// so this codepath is exercised end-to-end.
+			// Simple-protocol 'Q' frames outside any transaction are
+			// candidates. Extended-protocol (Parse/Bind/Execute) is not yet
+			// wired — pgx workloads that bind params via 'B' won't coalesce
+			// until a follow-up adds the multi-frame capture state machine.
 			if s.Coalescer != nil &&
 				fr.hdr[0] == 'Q' &&
 				state.txDepth == 0 &&
@@ -442,6 +426,24 @@ func (s *Server) relay(ctx context.Context, client, upstream net.Conn, state *co
 					state.coalesceKey = key
 					state.coalesceBuf.Reset()
 				}
+			}
+
+			// Rate limiter hook (v0.1.0c) — only reached on cache miss
+			// (or for traffic that's not coalesce-eligible). Acquire may
+			// block until a token is available; the returned Decision
+			// threads into the audit row so the dashboard can distinguish
+			// allowed vs throttled traffic.
+			decision := DecisionAllowed
+			if s.RateLimiter != nil {
+				d, err := s.RateLimiter.Acquire(ctx, state.agentID, classifyRoute(fr.hdr[0]))
+				if err != nil {
+					if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+						s.Logger.Printf("pgproxy: rate-limit acquire: %v", err)
+					}
+					cancel()
+					continue
+				}
+				decision = d
 			}
 
 			if err := writeFrame(upstream, fr.hdr, fr.body); err != nil {

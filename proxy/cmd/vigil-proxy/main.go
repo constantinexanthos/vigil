@@ -77,9 +77,10 @@ func run() error {
 	idSvc := identity.NewService(iss, store)
 
 	mux := http.NewServeMux()
+	healthzBody := []byte(fmt.Sprintf(`{"ok":true,"version":%q}`, config.Version))
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("content-type", "application/json")
-		w.Write([]byte(`{"ok":true,"version":"v0.1.0c"}`))
+		w.Write(healthzBody)
 	})
 	idSvc.Routes(mux)
 
@@ -95,14 +96,14 @@ func run() error {
 	// Compose startup log line so HTTP and Postgres lines stay together.
 	if cfg.PostgresProxyEnabled() {
 		log.Printf(
-			"vigil-proxy v0.1.0c — http=%s postgres=%s → upstream=%s (db=%s key=%s pubkey=%s)",
-			cfg.Addr, cfg.PostgresListen, cfg.PostgresUpstream,
+			"vigil-proxy %s — http=%s postgres=%s → upstream=%s (db=%s key=%s pubkey=%s)",
+			config.Version, cfg.Addr, cfg.PostgresListen, cfg.PostgresUpstream,
 			cfg.DBPath, cfg.KeyPath, iss.PublicKeyB64(),
 		)
 	} else {
 		log.Printf(
-			"vigil-proxy v0.1.0c — http=%s postgres=disabled (db=%s key=%s pubkey=%s)",
-			cfg.Addr, cfg.DBPath, cfg.KeyPath, iss.PublicKeyB64(),
+			"vigil-proxy %s — http=%s postgres=disabled (db=%s key=%s pubkey=%s)",
+			config.Version, cfg.Addr, cfg.DBPath, cfg.KeyPath, iss.PublicKeyB64(),
 		)
 	}
 
@@ -218,8 +219,8 @@ func runMCPStdio(cfg *config.Config, iss *identity.Issuer) error {
 		EnvTokenLookup: func() string { return os.Getenv("VIGIL_TOKEN") },
 		Logger:         log.Default(),
 	})
-	log.Printf("vigil-proxy v0.1.0d — mcp-stdio mode (db=%s key=%s pubkey=%s)",
-		cfg.DBPath, cfg.KeyPath, iss.PublicKeyB64())
+	log.Printf("vigil-proxy %s — mcp-stdio mode (db=%s key=%s pubkey=%s)",
+		config.Version, cfg.DBPath, cfg.KeyPath, iss.PublicKeyB64())
 	return srv.Run(ctx, os.Stdin, os.Stdout)
 }
 

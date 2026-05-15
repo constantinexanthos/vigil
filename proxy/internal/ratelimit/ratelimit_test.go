@@ -283,8 +283,8 @@ func TestLoadConfigGoodAndMalformed(t *testing.T) {
 	if cfg.Pools[PoolProduction].Burst != 1000 {
 		t.Errorf("good.yaml production burst: want 1000, got %v", cfg.Pools[PoolProduction].Burst)
 	}
-	if cfg.Pools[PoolAgents].RefillPerSec != 50 {
-		t.Errorf("good.yaml agents refill: want 50, got %v", cfg.Pools[PoolAgents].RefillPerSec)
+	if cfg.Pools[PoolAgents].RefillPerSec != 500 {
+		t.Errorf("good.yaml agents refill: want 500, got %v", cfg.Pools[PoolAgents].RefillPerSec)
 	}
 	if cfg.Agents["ag_promote_to_prod"].Pool != PoolProduction {
 		t.Errorf("good.yaml ag_promote_to_prod: want pool=production, got %q", cfg.Agents["ag_promote_to_prod"].Pool)
@@ -479,6 +479,36 @@ func TestPerAgentBurstOverride(t *testing.T) {
 		}
 		if d != pgproxy.DecisionAllowed {
 			t.Fatalf("ag_special #%d: want allowed, got %v", i, d)
+		}
+	}
+}
+
+// TestDefaultConfigShape pins the shipped defaults so a future refactor
+// can't change them silently. The numbers here are the ones quoted in
+// proxy/README.md's rate-limit table and on bevigil.ai's docs — they're
+// effectively a public contract.
+func TestDefaultConfigShape(t *testing.T) {
+	cfg := DefaultConfig()
+
+	for _, tc := range []struct {
+		pool   string
+		burst  float64
+		refill float64
+	}{
+		{PoolProduction, 1000, 500},
+		{PoolAgents, 1000, 500},
+		{PoolUnauth, 10, 5},
+	} {
+		pc, ok := cfg.Pools[tc.pool]
+		if !ok {
+			t.Errorf("DefaultConfig missing pool %q", tc.pool)
+			continue
+		}
+		if pc.Burst != tc.burst {
+			t.Errorf("DefaultConfig %s burst: want %v, got %v", tc.pool, tc.burst, pc.Burst)
+		}
+		if pc.RefillPerSec != tc.refill {
+			t.Errorf("DefaultConfig %s refill: want %v, got %v", tc.pool, tc.refill, pc.RefillPerSec)
 		}
 	}
 }
