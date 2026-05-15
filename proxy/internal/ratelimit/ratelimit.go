@@ -77,16 +77,28 @@ type Config struct {
 }
 
 // DefaultConfig returns the shipped defaults: three pools with
-// values that match the v0.1.0c spec.
+// values tuned for v0.1.0d.
 //
 //	production: burst=1000, refill=500 — real human/web tier
-//	agents:     burst=100,  refill=50  — identified agents
+//	agents:     burst=1000, refill=500 — identified agents
 //	unauth:     burst=10,   refill=5   — anonymous traffic
+//
+// agents matches production at 1000/500 because the bucket exists to
+// catch a runaway agent, not to throttle ordinary development. The
+// older v0.1.0c default of 100/50 was set when "an agent" meant "a CI
+// worker hammering a handful of queries"; in practice today an
+// interactive coding agent fans out enough queries that the lower
+// bucket would rate-limit ordinary refactor workflows. Operators who
+// want the old shape can keep it explicit in --ratelimit-config.
+//
+// unauth stays tight (10/5). Anonymous traffic should never sustain
+// real volume — if it does, that's a misconfigured client or an
+// active attacker, and the spec is explicit that those get throttled.
 func DefaultConfig() Config {
 	return Config{
 		Pools: map[string]PoolConfig{
 			PoolProduction: {Burst: 1000, RefillPerSec: 500},
-			PoolAgents:     {Burst: 100, RefillPerSec: 50},
+			PoolAgents:     {Burst: 1000, RefillPerSec: 500},
 			PoolUnauth:     {Burst: 10, RefillPerSec: 5},
 		},
 		Agents: map[string]AgentOverride{},

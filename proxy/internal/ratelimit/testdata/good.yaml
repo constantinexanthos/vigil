@@ -6,8 +6,8 @@ pools:
     burst: 1000
     refill: 500
   agents:
-    burst: 100
-    refill: 50
+    burst: 1000
+    refill: 500
   unauth:
     burst: 10
     refill: 5
