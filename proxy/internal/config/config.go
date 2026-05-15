@@ -31,6 +31,13 @@ type Config struct {
 	// Coalesce settings (v0.1.0d). TTL is the per-entry lifetime in the
 	// per-agent query cache. Default 250ms; tuned in the design doc.
 	CoalesceTTL time.Duration
+
+	// MCPStdio enables the MCP server on stdio (for ~/.claude/mcp.json
+	// installs). When set, the binary runs as an MCP stdio server and
+	// SKIPS the HTTP and Postgres listeners — the MCP host expects
+	// JSON-RPC on stdout, so any stray HTTP log line would corrupt the
+	// wire format. The two modes are mutually exclusive by design.
+	MCPStdio bool
 }
 
 func Load() (*Config, error) {
@@ -52,6 +59,8 @@ func Load() (*Config, error) {
 	rlConfig := flag.String("ratelimit-config", envOr("VIGIL_RATELIMIT_CONFIG", ""), "Path to a YAML rate-limit config (overrides built-in defaults). Empty uses defaults.")
 	coalesceTTL := flag.Duration("coalesce-ttl", envDuration("VIGIL_COALESCE_TTL", 250*time.Millisecond), "Per-entry TTL for the fan-out coalescing cache. Default 250ms.")
 
+	mcpStdio := flag.Bool("mcp-stdio", envBool("VIGIL_MCP_STDIO", false), "Run as an MCP stdio server (skips HTTP/Postgres listeners; logs go to stderr).")
+
 	version := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
 
@@ -68,6 +77,7 @@ func Load() (*Config, error) {
 	c.PostgresDisabled = *pgDisabled
 	c.RateLimitConfigPath = *rlConfig
 	c.CoalesceTTL = *coalesceTTL
+	c.MCPStdio = *mcpStdio
 	return c, nil
 }
 

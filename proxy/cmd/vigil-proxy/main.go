@@ -28,6 +28,7 @@ import (
 	"github.com/costaxanthos/vigil/proxy/internal/coalesce"
 	"github.com/costaxanthos/vigil/proxy/internal/config"
 	"github.com/costaxanthos/vigil/proxy/internal/identity"
+	"github.com/costaxanthos/vigil/proxy/internal/mcpserver"
 	"github.com/costaxanthos/vigil/proxy/internal/pgproxy"
 	"github.com/costaxanthos/vigil/proxy/internal/ratelimit"
 )
@@ -58,6 +59,14 @@ func run() error {
 	iss, err := identity.LoadOrCreateIssuer(cfg.KeyPath)
 	if err != nil {
 		return err
+	}
+
+	// MCP stdio mode short-circuits the rest of run(): the MCP host owns
+	// the process lifecycle, stdout is reserved for JSON-RPC frames, and
+	// the HTTP/Postgres listeners stay off. Anything on stdout other than
+	// a Content-Length-framed message would corrupt the wire format.
+	if cfg.MCPStdio {
+		return runMCPStdio(cfg, iss)
 	}
 	store, err := identity.OpenSQLiteStore(cfg.DBPath)
 	if err != nil {
@@ -183,6 +192,35 @@ func run() error {
 		log.Println("shutdown timeout — proceeding")
 	}
 	return httpErr
+}
+
+// runMCPStdio runs the MCP JSON-RPC server on stdin/stdout. Logs go to
+// stderr because the MCP host parses Content-Length frames off stdout —
+// any stray log line there would desync the wire format. We also
+// pre-open audit.Open to ensure the schema exists; that lets a fresh
+// install (where pgproxy has never run) get empty results from
+// activity.query instead of a "no such table" error.
+func runMCPStdio(cfg *config.Config, iss *identity.Issuer) error {
+	log.SetOutput(os.Stderr)
+
+	auditWriter, err := audit.Open(cfg.DBPath, iss)
+	if err != nil {
+		return fmt.Errorf("init audit schema: %w", err)
+	}
+	auditWriter.Close()
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	srv := mcpserver.New(mcpserver.Options{
+		Verifier:       iss,
+		AuditDBPath:    cfg.DBPath,
+		EnvTokenLookup: func() string { return os.Getenv("VIGIL_TOKEN") },
+		Logger:         log.Default(),
+	})
+	log.Printf("vigil-proxy v0.1.0d — mcp-stdio mode (db=%s key=%s pubkey=%s)",
+		cfg.DBPath, cfg.KeyPath, iss.PublicKeyB64())
+	return srv.Run(ctx, os.Stdin, os.Stdout)
 }
 
 // ensureParentDir creates the parent directory of `path` only if it's the

@@ -14,7 +14,7 @@ Identity attachment is observability-only — invalid tokens fall back to `agent
 
 The startup phase (SSL/GSS decline, StartupMessage forwarding) is still parsed in-band so we can negotiate plaintext. See the package doc on `internal/pgproxy/postgres.go` for the message-pump rationale and the SCRAM trap.
 
-v0.1.0d adds fan-out coalescing.
+v0.1.0d adds fan-out coalescing and an MCP server for agent self-introspection.
 
 ### v0.1.0d coalescing
 
@@ -39,6 +39,39 @@ vigil-proxy --postgres-listen :7432 --postgres-upstream localhost:5432 --coalesc
 
 See [docs/superpowers/specs/2026-05-04-vigil-data-plane-design.md](../docs/superpowers/specs/2026-05-04-vigil-data-plane-design.md) for the full design.
 
+### v0.1.0d MCP server
+
+`proxy/internal/mcpserver` exposes Vigil's identity + audit primitives as JSON-RPC 2.0 tools over stdio, so coding agents (Claude Code, Cursor, Codex) can introspect themselves through their existing MCP host. Same binary, different mode: `vigil-proxy --mcp-stdio` skips the HTTP and Postgres listeners and speaks Content-Length-framed JSON-RPC on stdin/stdout. Logs redirect to stderr because stdout is reserved for the wire format.
+
+Two tools ship in v0.1.0d:
+
+| Tool | Purpose |
+|---|---|
+| `vigil.identity.whoami` | Returns the calling agent's identity, principal, scopes, and expiration. `agent_id: null` if the caller is anonymous (no token configured yet) — the discovery flow stays usable before auth is wired. |
+| `vigil.activity.query` | Reads the calling agent's audit rows, scoped to `agent_id`. Anonymous callers see an empty result, never another agent's traffic. Supports `since` (RFC3339), `limit` (default 50, max 1000), and `msg_type` filters. |
+
+Auth model (per the May 7 three-agent design):
+
+1. `clientInfo.vigil_token` in the `initialize` params — primary, MCP host passes it through.
+2. `VIGIL_TOKEN` env var — fallback for hosts that don't propagate clientInfo extras.
+3. Neither — anonymous; whoami still returns 200 with `agent_id: null`.
+
+Install in `~/.claude/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "vigil": {
+      "command": "/path/to/vigil-proxy",
+      "args": ["--mcp-stdio"],
+      "env": { "VIGIL_TOKEN": "<token-from-POST-/identities>" }
+    }
+  }
+}
+```
+
+The MCP host spawns one subprocess per session; the server exits cleanly on stdin EOF.
+
 ## Persistence
 
 State lives in `~/.vigil/` next to the daemon's `vigil.db` so a single backup covers everything Vigil-related:
@@ -59,6 +92,8 @@ Override with flags or env vars:
 | `--postgres-upstream <addr>` | `VIGIL_POSTGRES_UPSTREAM` | _(empty, disabled)_ | Real Postgres address to forward to (e.g. `localhost:5432`) |
 | `--postgres-disabled` | `VIGIL_POSTGRES_DISABLED` | `false` | Convenience flag to disable the Postgres proxy without unsetting listen/upstream |
 | `--ratelimit-config <path>` | `VIGIL_RATELIMIT_CONFIG` | _(empty, use defaults)_ | Path to a YAML rate-limit config. Bad YAML is fatal — startup exits 1 rather than silently falling back. |
+| `--coalesce-ttl <duration>` | `VIGIL_COALESCE_TTL` | `250ms` | Per-entry TTL for the fan-out coalescing cache. |
+| `--mcp-stdio` | `VIGIL_MCP_STDIO` | `false` | Run as an MCP stdio server (skips HTTP/Postgres listeners; logs redirect to stderr). Mutually exclusive with the HTTP and Postgres modes. |
 
 The Postgres proxy starts only when both `--postgres-listen` and `--postgres-upstream` are set and `--postgres-disabled` is not.
 
@@ -159,8 +194,8 @@ go test ./...
 | `internal/ratelimit` | Per-agent token-bucket rate limiter (v0.1.0c) |
 | `internal/proxy` | (future) protocol-agnostic proxy dispatcher |
 | `internal/coalesce` | Per-agent query result cache (v0.1.0d — wired into pgproxy relay) |
+| `internal/mcpserver` | MCP stdio server: `vigil.identity.whoami` + `vigil.activity.query` (v0.1.0d) |
 | `internal/policy` | (future) rule engine |
-| `internal/mcp` | (future) MCP server for agent introspection |
 
 ## License
 
