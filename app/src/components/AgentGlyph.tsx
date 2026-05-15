@@ -1,12 +1,15 @@
 /**
- * Inline SVG monogram for an agent. Distinct brand-evocative shapes for
- * known agents (Claude / Cursor / Conductor / Codex), letter monograms for
- * the long tail (Aider / Cline / etc.), and a colored-dot fallback for
- * everything else.
+ * Per-agent glyph: real brand SVG (claude, cursor, openai, copilot, windsurf)
+ * for the major agents, letter monogram for smaller projects (aider, cline,
+ * conductor), colored-dot fallback for unknown agents.
  *
- * Mirrors the modelFamilyColor pattern from `lib/model-tokens.ts` —
- * call-site looks up the visual treatment, the component just renders.
+ * Logos are sourced from simple-icons (CC0) — see lib/agent-logos.ts. We
+ * render them in each agent's accent color (defined here) rather than the
+ * brand's native fill, so the dashboard's color palette stays disciplined
+ * while the silhouette stays accurate.
  */
+
+import { LOGO_PATHS, type LogoKey } from "../lib/agent-logos";
 
 interface AgentGlyphProps {
   agent: string;
@@ -16,25 +19,32 @@ interface AgentGlyphProps {
   ariaLabel?: string;
 }
 
-interface AgentTreatment {
+interface LogoTreatment {
+  kind: "logo";
   color: string;
-  /** Render kind. "shape" maps to the bespoke per-agent path; "letter" to a monogram. */
-  kind: "shape" | "letter" | "fallback";
-  /** Human label used for aria-label. */
   label: string;
-  /** For "letter" kind, the single character to print. */
-  letter?: string;
+  logo: LogoKey;
 }
 
+interface LetterTreatment {
+  kind: "letter";
+  color: string;
+  label: string;
+  letter: string;
+}
+
+type AgentTreatment = LogoTreatment | LetterTreatment;
+
 const AGENTS: Record<string, AgentTreatment> = {
-  "claude-code": { color: "#d97757", kind: "shape", label: "Claude Code" },
-  cursor:        { color: "#00d9ff", kind: "shape", label: "Cursor" },
-  conductor:     { color: "#a78bfa", kind: "shape", label: "Conductor" },
-  codex:         { color: "#f472b6", kind: "shape", label: "Codex" },
-  aider:         { color: "#ffb800", kind: "letter", label: "Aider", letter: "A" },
-  cline:         { color: "#34d399", kind: "letter", label: "Cline", letter: "C" },
-  chatgpt:       { color: "#10a37f", kind: "letter", label: "ChatGPT", letter: "G" },
-  windsurf:      { color: "#f59e0b", kind: "letter", label: "Windsurf", letter: "W" },
+  "claude-code": { kind: "logo",   color: "#d97757", label: "Claude Code",    logo: "claude" },
+  cursor:        { kind: "logo",   color: "#00d9ff", label: "Cursor",         logo: "cursor" },
+  codex:         { kind: "logo",   color: "#f472b6", label: "Codex",          logo: "openai" },
+  chatgpt:       { kind: "logo",   color: "#10a37f", label: "ChatGPT",        logo: "openai" },
+  copilot:       { kind: "logo",   color: "#06b6d4", label: "GitHub Copilot", logo: "githubcopilot" },
+  windsurf:      { kind: "logo",   color: "#f59e0b", label: "Windsurf",       logo: "windsurf" },
+  conductor:     { kind: "letter", color: "#a78bfa", label: "Conductor",      letter: "C" },
+  aider:         { kind: "letter", color: "#ffb800", label: "Aider",          letter: "A" },
+  cline:         { kind: "letter", color: "#34d399", label: "Cline",          letter: "C" },
 };
 
 const FALLBACK_COLOR = "#6b7084";
@@ -43,8 +53,6 @@ export function AgentGlyph({ agent, size = 16, ariaLabel }: AgentGlyphProps) {
   const t = AGENTS[agent];
 
   if (!t) {
-    // Fallback: small colored dot inside the same 24-unit viewBox so the
-    // call-site can size it interchangeably with the branded shapes.
     return (
       <svg
         width={size}
@@ -90,58 +98,17 @@ export function AgentGlyph({ agent, size = 16, ariaLabel }: AgentGlyphProps) {
     );
   }
 
-  // Branded shapes — kind === "shape"
-  if (agent === "claude-code") {
-    return (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-label={aria} role="img">
-        <g stroke={t.color} strokeWidth="2.4" strokeLinecap="round">
-          <line x1="12" y1="3"  x2="12" y2="21"/>
-          <line x1="4.2" y1="7.5"  x2="19.8" y2="16.5"/>
-          <line x1="4.2" y1="16.5" x2="19.8" y2="7.5"/>
-        </g>
-        <circle cx="12" cy="12" r="2.2" fill={t.color}/>
-      </svg>
-    );
-  }
-
-  if (agent === "cursor") {
-    return (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-label={aria} role="img">
-        <rect x="6.5" y="6.5" width="11" height="11" rx="1.6"
-              transform="rotate(45 12 12)"
-              stroke={t.color} strokeWidth="2.2"/>
-        <rect x="9.8" y="9.8" width="4.4" height="4.4" rx="0.8"
-              transform="rotate(45 12 12)"
-              fill={t.color}/>
-      </svg>
-    );
-  }
-
-  if (agent === "conductor") {
-    return (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-label={aria} role="img">
-        <path d="M19.5 7.5 A8 8 0 1 0 19.5 16.5"
-              stroke={t.color} strokeWidth="2.6" strokeLinecap="round" fill="none"/>
-        <circle cx="19.5" cy="7.5" r="1.4" fill={t.color}/>
-        <circle cx="19.5" cy="16.5" r="1.4" fill={t.color}/>
-      </svg>
-    );
-  }
-
-  if (agent === "codex") {
-    return (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-label={aria} role="img">
-        <circle cx="12" cy="12" r="8" stroke={t.color} strokeWidth="2.2" fill="none"/>
-        <line x1="6.5" y1="17.5" x2="17.5" y2="6.5"
-              stroke={t.color} strokeWidth="2.6" strokeLinecap="round"/>
-      </svg>
-    );
-  }
-
-  // Defensive: shape-kind agent without a matching branch falls back to dot.
+  // Real brand logo, recolored to the per-agent accent.
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" aria-label={aria} role="img">
-      <circle cx="12" cy="12" r="4" fill={t.color} />
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill={t.color}
+      aria-label={aria}
+      role="img"
+    >
+      <path d={LOGO_PATHS[t.logo]} />
     </svg>
   );
 }
