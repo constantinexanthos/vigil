@@ -1,6 +1,38 @@
 package pgproxy
 
-import "context"
+import (
+	"context"
+	"net"
+
+	"github.com/costaxanthos/vigil/proxy/internal/processdetect"
+)
+
+// AgentSource records how the identity attached to a connection was
+// resolved. Threaded onto every audit row written during the
+// connection. The three legal values are documented on the audit.Event
+// field of the same name; we re-export them here as untyped constants
+// so the pgproxy code can avoid an audit-package import for the
+// constant strings.
+const (
+	AgentSourceDeclared  = "declared"
+	AgentSourceInferred  = "inferred"
+	AgentSourceAnonymous = "anonymous"
+)
+
+// ProcessDetector is the surface pgproxy consults to attach Tier-1
+// inferred identity to a connection that did NOT declare via
+// application_name=vigil:<token>. Implementation lives in
+// proxy/internal/processdetect; nil-by-default on Server so a unit
+// test can run pgproxy without any detection wiring.
+//
+// The returned processdetect.DetectedIdentity has fields {AgentName,
+// HarnessName, Confidence, ProcessChain}. pgproxy treats Empty()=true
+// as "fall through to anonymous"; any non-empty AgentName is recorded
+// on the audit row with agent_source='inferred', and used as the per-
+// agent bucket key for rate limiting.
+type ProcessDetector interface {
+	DetectFromConn(conn net.Conn) (processdetect.DetectedIdentity, error)
+}
 
 // Decision is the outcome of message-level proxy logic for a single
 // client-originated frame. Recorded on the audit row so the dashboard
