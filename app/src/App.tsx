@@ -78,17 +78,20 @@ export default function App() {
   }
 
   return (
-    <div className="h-screen w-screen flex flex-col text-white">
+    <div className="h-screen w-screen flex flex-col text-vigil-ink">
       {!data.connected && (
-        <div className="bg-rose-500/10 border-b border-rose-400/20 px-3.5 py-1 text-[11px] text-rose-200 flex items-center gap-2">
-          <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse-alive" />
-          <span>Daemon not reachable · last seen {data.error ?? "never"}</span>
+        <div className="h-6 px-4 text-[11px] text-vigil-ink flex items-center gap-2 border-l-2 border-bad border-b border-vigil-rule">
+          <span className="w-1 h-1 rounded-full bg-bad animate-pulse-alive" />
+          <span>
+            Daemon not reachable · last seen{" "}
+            <span className="text-vigil-mute">{data.error ?? "never"}</span>
+          </span>
           <button
             type="button"
-            className="ml-auto underline decoration-rose-200/40 underline-offset-2 hover:decoration-rose-200 transition-colors duration-fast"
+            className="ml-auto text-vigil-mute hover:text-vigil-ink transition-colors duration-fast"
             onClick={() => window.location.reload()}
           >
-            Retry now
+            Retry
           </button>
         </div>
       )}

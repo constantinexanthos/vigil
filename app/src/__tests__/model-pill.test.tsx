@@ -3,6 +3,9 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { ModelPill } from "../components/ModelPill";
 
+// The polish pass dropped per-family color tints from small primitives.
+// Family is now surfaced via data-model-family; rgb-hex assertions retired.
+
 describe("ModelPill", () => {
   it("renders pretty long-form name", () => {
     render(<ModelPill model="claude-opus-4-7-20260501" />);
@@ -12,10 +15,9 @@ describe("ModelPill", () => {
     const { container } = render(<ModelPill model={null} />);
     expect(container.firstChild).toBeNull();
   });
-  it("paints background with family color at low opacity", () => {
+  it("flags the openai family via data-model-family", () => {
     const { container } = render(<ModelPill model="gpt-5" />);
     const pill = container.firstChild as HTMLElement;
-    // jsdom normalizes hex to rgb when serializing inline styles
-    expect(pill.getAttribute("style")).toMatch(/rgb\(244,\s*114,\s*182\)/);
+    expect(pill.getAttribute("data-model-family")).toBe("openai");
   });
 });

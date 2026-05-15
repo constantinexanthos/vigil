@@ -7,6 +7,10 @@ interface Props {
   onSelect: (sessionId: string) => void;
 }
 
+// AgentGrid is the Active Agents pane. Was a grid of card-style tiles;
+// the polish pass collapses it into a vertical list of row-style entries
+// matching the LeftRail / IdentitiesPane density. At 1440×900 a wide
+// 240×900px sidebar fit 4 of the old cards; the new row pattern fits 8+.
 export function AgentGrid({ liveSessions, onSelect }: Props) {
   const byAgent = useMemo(() => {
     const map = new Map<string, LiveSessionRow[]>();
@@ -21,19 +25,18 @@ export function AgentGrid({ liveSessions, onSelect }: Props) {
 
   if (byAgent.size === 0) {
     return (
-      <div className="px-5 py-3">
-        <p className="text-[12px] text-white/45">No active agents.</p>
+      <div className="px-4 py-2 text-[12px] text-vigil-mute">
+        No active agents.
       </div>
     );
   }
 
   return (
-    <div
-      className="px-5 py-3 grid gap-2"
-      style={{ gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))" }}
-    >
+    <div role="list">
       {[...byAgent.entries()].map(([agent, sessions]) => (
-        <AgentCard key={agent} agent={agent} sessions={sessions} onSelect={onSelect} />
+        <div role="listitem" key={agent}>
+          <AgentCard agent={agent} sessions={sessions} onSelect={onSelect} />
+        </div>
       ))}
     </div>
   );

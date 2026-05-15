@@ -12,27 +12,37 @@ interface Props {
   onSelect: (id: string) => void;
 }
 
+// HostGroup is the section-header + row-list inside LeftRail. The header
+// uses the same uppercase-tracking treatment as the section headers in the
+// proxy tab — same hierarchy across surfaces. Row spacing collapsed (was
+// 3px between rows + 10px between groups) so 1440×900 fits 2× more rows.
 export function HostGroup({ hostKind, sessions, selectedId, onSelect }: Props) {
   const header = groupHeader(hostKind, sessions);
   const liveCount = sessions.filter((s) => s.isLive).length;
   const glyph = chooseGlyph(hostKind, sessions);
 
   return (
-    <div className="px-1.5 mb-2.5">
+    <div className="mb-1">
       {header && (
-        <div className="flex items-center gap-2 py-1 px-1.5">
+        <div className="flex items-center gap-2 px-3 h-6">
           <span
-            className={`inline-flex items-center justify-center ${liveCount > 0 ? "animate-pulse-alive" : "opacity-60"}`}
-            style={{ width: 16, height: 16 }}
+            className={`inline-flex items-center justify-center ${
+              liveCount > 0 ? "animate-pulse-alive" : "opacity-50"
+            }`}
+            style={{ width: 12, height: 12 }}
             aria-hidden
           >
             {glyph}
           </span>
-          <span className="text-sm text-white/75 font-semibold">{header.label}</span>
-          <span className="text-stat text-white/35 ml-auto">{sessions.length}</span>
+          <span className="text-[10px] uppercase tracking-[0.10em] text-vigil-mute truncate">
+            {header.label}
+          </span>
+          <span className="text-[10px] text-vigil-mute/70 ml-auto tabular-nums">
+            {sessions.length}
+          </span>
         </div>
       )}
-      <div className={`${header ? "ml-3.5 mt-1" : ""} space-y-[3px]`}>
+      <div>
         {sessions.map((s) => (
           <SessionRow
             key={s.id}
@@ -46,18 +56,10 @@ export function HostGroup({ hostKind, sessions, selectedId, onSelect }: Props) {
   );
 }
 
-/**
- * For known hosts (ghostty / iterm2 / etc.) use the host token's label.
- * For "unknown" hosts that collapse onto a single agent, use the agent's
- * display name + color so the rail reads "Claude Code · 3" instead of
- * generic "Other · 3".
- *
- * For "unknown" hosts with multiple distinct agents we used to fall
- * through to "Other · N" — but the per-row glyphs already convey the
- * agent identity, so the header becomes noise. Return null and the
- * group renders headerless.
- */
-function groupHeader(hostKind: HostKind, sessions: SessionGroup[]): { label: string; color: string } | null {
+function groupHeader(
+  hostKind: HostKind,
+  sessions: SessionGroup[],
+): { label: string; color: string } | null {
   if (hostKind !== "unknown") {
     const token = hostToken(hostKind);
     return { label: token.label, color: token.color };
@@ -70,18 +72,12 @@ function groupHeader(hostKind: HostKind, sessions: SessionGroup[]): { label: str
   return null;
 }
 
-/**
- * Pick the glyph that matches the row's identity. For "unknown" hosts that
- * have collapsed onto a single agent (the common case where Vigil knows the
- * agent but not the terminal), show the *agent* glyph so Claude Code
- * sessions read as Claude Code, not as a generic "Other" dot.
- */
 function chooseGlyph(hostKind: HostKind, sessions: SessionGroup[]) {
   if (hostKind === "unknown") {
     const agents = new Set(sessions.map((s) => s.agent));
     if (agents.size === 1) {
-      return <AgentGlyph agent={[...agents][0]} size={14} />;
+      return <AgentGlyph agent={[...agents][0]} size={12} />;
     }
   }
-  return <HostGlyph hostKind={hostKind} size={14} />;
+  return <HostGlyph hostKind={hostKind} size={12} />;
 }

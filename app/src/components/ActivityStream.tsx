@@ -1,5 +1,4 @@
 import { useEffect, useRef } from "react";
-import { motion } from "framer-motion";
 import type { SessionGroup, SessionFile } from "../types";
 import { displayPath } from "../lib/path";
 
@@ -11,14 +10,20 @@ interface Row {
   id: string;
   timestamp: string;
   glyph: string;
-  glyphColor: string;
   text: React.ReactNode;
   added?: number;
   removed?: number;
 }
 
+// ActivityStream is the timeline of file ops inside a session. Polished
+// to match the AuditFeed row pattern in the proxy tab: 24px rows, tabular
+// timestamps, single-line, hover-tint. The per-op color coding (add was
+// emerald, modify was blue, delete was red) collapses to neutral glyphs
+// + a single accent strip on the add/remove count, so the eye reads
+// activity density from text shape, not hue. Removes framer-motion since
+// per-row animation overhead doesn't earn its weight in a flowing stream.
 export function ActivityStream({ session }: Props) {
-  const rows: Row[] = fileRows(session.files, session.repoPath);
+  const rows = fileRows(session.files, session.repoPath);
   const ref = useRef<HTMLDivElement>(null);
   const lockedToBottom = useRef(true);
 
@@ -34,49 +39,54 @@ export function ActivityStream({ session }: Props) {
   }
 
   return (
-    <div ref={ref} onScroll={onScroll} className="flex-1 overflow-y-auto px-5 py-3 font-mono text-sm">
+    <div
+      ref={ref}
+      onScroll={onScroll}
+      className="flex-1 overflow-y-auto font-mono"
+      data-testid="activity-stream"
+    >
       {rows.length === 0 && (
-        <div className="text-white/45 text-sm">No activity yet.</div>
+        <div className="px-4 py-2 text-[12px] text-vigil-mute font-sans">
+          No activity yet.
+        </div>
       )}
       {rows.map((r) => (
-        <motion.div
+        <div
           key={r.id}
-          initial={{ opacity: 0, y: 4 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.18 }}
-          className="flex gap-2.5 py-1.5 text-white/55"
+          className="grid grid-cols-[70px_14px_1fr_auto] gap-2 items-center px-4 h-6 text-[11.5px] text-vigil-ink hover:bg-vigil-surface transition-colors duration-fast"
         >
-          <span className="text-white/30 min-w-[44px]">{shortTime(r.timestamp)}</span>
-          <span style={{ color: r.glyphColor }} className="min-w-[14px]">{r.glyph}</span>
-          <span className="flex-1 truncate">{r.text}</span>
+          <span className="text-vigil-mute tabular-nums">
+            {shortTime(r.timestamp)}
+          </span>
+          <span className="text-vigil-mute text-center">{r.glyph}</span>
+          <span className="truncate">{r.text}</span>
           {typeof r.added === "number" && (
-            <span className="ml-auto text-white/30">+{r.added} -{r.removed}</span>
+            <span className="text-[10px] text-vigil-mute tabular-nums shrink-0">
+              +{r.added} −{r.removed}
+            </span>
           )}
-        </motion.div>
+        </div>
       ))}
     </div>
   );
 }
 
-function fileRows(files: SessionFile[], repoPath: string | null | undefined): Row[] {
+function fileRows(
+  files: SessionFile[],
+  repoPath: string | null | undefined,
+): Row[] {
   return files
     .filter((f) => !isNoise(f.path))
-    .map((f, i) => {
-      const glyph = f.kind === "file_create" ? "+" : f.kind === "file_delete" ? "×" : "~";
-      const color = f.kind === "file_create" ? "#4ade80" : f.kind === "file_delete" ? "#f87171" : "#60a5fa";
-      return {
-        id: `${i}-${f.path}`,
-        timestamp: new Date().toISOString(),
-        glyph,
-        glyphColor: color,
-        text: <span className="text-white/85">{displayPath(f.path, repoPath)}</span>,
-        added: f.added,
-        removed: f.removed,
-      };
-    });
+    .map((f, i) => ({
+      id: `${i}-${f.path}`,
+      timestamp: new Date().toISOString(),
+      glyph: f.kind === "file_create" ? "+" : f.kind === "file_delete" ? "×" : "~",
+      text: displayPath(f.path, repoPath),
+      added: f.added,
+      removed: f.removed,
+    }));
 }
 
-/** Vite HMR / atomic-writer temp files. Pure noise in the activity feed. */
 function isNoise(path: string): boolean {
   if (!path) return false;
   const name = path.split("/").pop() ?? "";
@@ -91,4 +101,6 @@ function shortTime(iso: string): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-function pad(n: number): string { return String(n).padStart(2, "0"); }
+function pad(n: number): string {
+  return String(n).padStart(2, "0");
+}

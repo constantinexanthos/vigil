@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import { agentColor } from "../../../types";
 import { displayPath } from "../../../lib/path";
 import type { FileHeat, Collision } from "../../../types";
 
@@ -9,6 +8,12 @@ interface Props {
   repoPath: string | null;
 }
 
+// HotspotsPanel = "Most edited (last hour)". Was a table with per-agent
+// color dots + progress bar; the polish pass strips agent color (multi-hue
+// dots violate the restraint budget) and replaces the progress bar with a
+// right-aligned tabular count. Conflict files keep the bad-accent left
+// border so they stay scannable. Path is the row's primary content, in
+// mono — Linear's file-rows pattern.
 export function HotspotsPanel({ files, collisions, repoPath }: Props) {
   const collisionPaths = useMemo(
     () => new Set(collisions.map((c) => c.file_path)),
@@ -17,68 +22,39 @@ export function HotspotsPanel({ files, collisions, repoPath }: Props) {
 
   if (files.length === 0) {
     return (
-      <div className="px-5 py-3">
-        <p className="text-[12px] text-white/45">Quiet — no file activity in the last hour.</p>
+      <div className="px-4 py-2 text-[12px] text-vigil-mute">
+        Quiet — no file activity in the last hour.
       </div>
     );
   }
 
-  const maxCount = files[0]?.edit_count ?? 1;
-
   return (
-    <div className="px-5 py-3">
-      <table className="w-full">
-        <thead className="sr-only">
-          <tr><th>File</th><th>Edit count</th><th>Agents</th></tr>
-        </thead>
-        <tbody>
-          {files.map((f) => {
-            const widthPct = Math.round((f.edit_count / maxCount) * 100);
-            const isCollision = collisionPaths.has(f.path);
-            const visibleAgents = f.agents.slice(0, 3);
-            const overflow = f.agents.length - visibleAgents.length;
-            return (
-              <tr key={f.path} className="border-t border-white/5">
-                <td className="py-1.5 pr-3 text-[11.5px] text-white/85 font-mono overflow-hidden">
-                  <span dir="rtl" className="block truncate">
-                    <bdi>{displayPath(f.path, repoPath)}</bdi>
-                  </span>
-                </td>
-                <td className="py-1.5 pr-3 w-[80px]">
-                  <div
-                    role="progressbar"
-                    aria-valuenow={f.edit_count}
-                    aria-valuemin={0}
-                    aria-valuemax={maxCount}
-                    className="h-[4px] bg-white/10 rounded-sm overflow-hidden"
-                  >
-                    <div
-                      className="h-full bg-info"
-                      style={{ width: `${widthPct}%` }}
-                    />
-                  </div>
-                </td>
-                <td className="py-1.5 w-[80px] text-right">
-                  <span className="inline-flex items-center gap-1">
-                    {isCollision && <span className="text-warn text-[9px]">▲</span>}
-                    {visibleAgents.map((a) => (
-                      <span
-                        key={a}
-                        className="inline-block w-[6px] h-[6px] rounded-full"
-                        style={{ backgroundColor: agentColor(a) }}
-                        title={a}
-                      />
-                    ))}
-                    {overflow > 0 && (
-                      <span className="text-[9px] text-white/45">+{overflow}</span>
-                    )}
-                  </span>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <div>
+      {files.map((f) => {
+        const isCollision = collisionPaths.has(f.path);
+        return (
+          <div
+            key={f.path}
+            className={`grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 h-6 border-l-2 transition-colors duration-fast hover:bg-vigil-surface ${
+              isCollision ? "border-bad" : "border-transparent"
+            }`}
+          >
+            <span
+              dir="rtl"
+              className="block truncate text-[11.5px] font-mono text-vigil-ink"
+              title={f.path}
+            >
+              <bdi>{displayPath(f.path, repoPath)}</bdi>
+            </span>
+            <span className="text-[10px] text-vigil-mute tabular-nums">
+              {f.agents.length} {f.agents.length === 1 ? "agent" : "agents"}
+            </span>
+            <span className="text-[11px] text-vigil-ink tabular-nums w-12 text-right">
+              {f.edit_count}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -25,6 +25,7 @@ export function OverviewPane(props: Props) {
         activeAgents={props.activeAgents}
         totalAgents={props.totalAgents}
         filesToday={props.filesToday}
+        hourlyActivity={props.hourlyActivity}
       />
       <CollisionBanner collisions={props.collisions} />
       <SectionHeader>Active agents</SectionHeader>
@@ -42,8 +43,11 @@ export function OverviewPane(props: Props) {
 }
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
+  // Same treatment as proxy tab section headers — vigil-mute ink, 10px
+  // uppercase, 0.10em tracking. Vertical rhythm: 12px top padding (one row
+  // height) so sections breathe but don't waste space.
   return (
-    <h3 className="px-5 pt-3 pb-1 text-[9px] uppercase tracking-[0.08em] text-white/35">
+    <h3 className="px-4 pt-4 pb-1.5 text-[10px] uppercase tracking-[0.10em] text-vigil-mute">
       {children}
     </h3>
   );

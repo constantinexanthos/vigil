@@ -15,10 +15,14 @@ export function LeftRail({ sessions }: Props) {
   const { groups } = useMemo(() => partitionSessionsByHost(sessions), [sessions]);
 
   return (
-    <aside className="h-full flex flex-col overflow-y-auto pt-3.5 pb-3">
+    <aside
+      aria-label="Sessions"
+      className="h-full flex flex-col overflow-y-auto py-2 border-r border-vigil-rule"
+    >
       {groups.length === 0 && (
-        <div className="px-4 py-6 text-sm text-white/45">
-          No agent activity yet. Start a session in a supported host to see it appear here.
+        <div className="px-3 py-3 text-[12px] text-vigil-mute leading-snug">
+          No agent activity yet. Start a session in a supported host to see
+          it appear here.
         </div>
       )}
 
@@ -31,8 +35,6 @@ export function LeftRail({ sessions }: Props) {
           onSelect={setSelected}
         />
       ))}
-
     </aside>
   );
 }
-

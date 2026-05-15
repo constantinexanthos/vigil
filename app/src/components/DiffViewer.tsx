@@ -25,9 +25,7 @@ function parseUnifiedDiff(raw: string): ParsedLine[] {
 
   for (const line of lines) {
     const kind = classifyLine(line);
-
     if (kind === "hunk") {
-      // Extract starting line number from @@ -a,b +c,d @@
       const match = line.match(/@@ -\d+(?:,\d+)? \+(\d+)/);
       currentLine = match ? parseInt(match[1], 10) : currentLine;
       parsed.push({ content: line, kind, lineNo: null });
@@ -47,38 +45,19 @@ function parseUnifiedDiff(raw: string): ParsedLine[] {
   return parsed;
 }
 
-const STYLES: Record<LineKind, { color: string; bg: string; borderLeft: string }> = {
-  add: {
-    color: "#4ade80",
-    bg: "rgba(74, 222, 128, 0.08)",
-    borderLeft: "2px solid #4ade80",
-  },
-  remove: {
-    color: "#ef4444",
-    bg: "rgba(239, 68, 68, 0.08)",
-    borderLeft: "2px solid #ef4444",
-  },
-  hunk: {
-    color: "#71717a",
-    bg: "rgba(59, 130, 246, 0.08)",
-    borderLeft: "2px solid transparent",
-  },
-  context: {
-    color: "#a1a1aa",
-    bg: "transparent",
-    borderLeft: "2px solid transparent",
-  },
-  header: {
-    color: "#52525b",
-    bg: "transparent",
-    borderLeft: "2px solid transparent",
-  },
-};
-
+// DiffViewer is the only surface in the app that genuinely needs two
+// distinct accent colors — additions and deletions must be perceptually
+// separable. Reuses the existing `ok` (green, #4ade80) and `bad` (red,
+// #ef4444) tokens from the v2a palette — these double as the diff hues and
+// the live-status / conflict accents elsewhere, so the total app-wide
+// color count stays at 8 (6 vigil-* + ok + bad).
+//
+// Context and hunk lines are now vigil-mute — no third hue. Background tint
+// stays on add/remove lines so the eye can scan blocks at a distance.
 export default function DiffViewer({ diff }: DiffViewerProps) {
   if (!diff || diff.trim() === "" || diff === "(no changes)") {
     return (
-      <div className="flex items-center justify-center py-6 text-sm text-text-muted">
+      <div className="flex items-center justify-center py-6 text-[12px] text-vigil-mute">
         Diff not available
       </div>
     );
@@ -87,38 +66,19 @@ export default function DiffViewer({ diff }: DiffViewerProps) {
   const parsed = parseUnifiedDiff(diff);
 
   return (
-    <div
-      className="max-h-[400px] overflow-y-auto overflow-x-auto my-2"
-      style={{ borderRadius: "6px", border: "1px solid #1e1e21" }}
-    >
+    <div className="max-h-[400px] overflow-y-auto overflow-x-auto my-2 rounded border border-vigil-rule">
       <pre
-        className="font-mono"
-        style={{ fontSize: "12px", lineHeight: "20px", margin: 0 }}
+        className="font-mono text-[12px] leading-5"
+        style={{ margin: 0 }}
       >
         {parsed.map((line, i) => {
-          const style = STYLES[line.kind];
+          const cls = lineClass(line.kind);
           return (
-            <div
-              key={i}
-              className="flex"
-              style={{
-                background: style.bg,
-                borderLeft: style.borderLeft,
-              }}
-            >
-              {/* Line number gutter */}
-              <span
-                className="select-none text-right flex-shrink-0 px-2"
-                style={{
-                  width: "40px",
-                  color: "#52525b",
-                  borderRight: "1px solid #1e1e21",
-                }}
-              >
+            <div key={i} className={`flex ${cls}`}>
+              <span className="select-none text-right shrink-0 px-2 w-[40px] text-vigil-mute border-r border-vigil-rule">
                 {line.lineNo ?? ""}
               </span>
-              {/* Code content */}
-              <span className="pl-3 pr-4" style={{ color: style.color }}>
+              <span className="pl-3 pr-4">
                 {line.content || " "}
               </span>
             </div>
@@ -127,4 +87,20 @@ export default function DiffViewer({ diff }: DiffViewerProps) {
       </pre>
     </div>
   );
+}
+
+function lineClass(kind: LineKind): string {
+  switch (kind) {
+    case "add":
+      return "text-ok bg-ok/[0.08] border-l-2 border-ok";
+    case "remove":
+      return "text-bad bg-bad/[0.08] border-l-2 border-bad";
+    case "hunk":
+      return "text-vigil-mute border-l-2 border-transparent";
+    case "header":
+      return "text-vigil-mute/60 border-l-2 border-transparent";
+    case "context":
+    default:
+      return "text-vigil-ink border-l-2 border-transparent";
+  }
 }

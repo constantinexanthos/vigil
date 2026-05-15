@@ -1,8 +1,6 @@
-import { motion } from "framer-motion";
-import { hostToken } from "../lib/host-tokens";
-import { repoName } from "../lib/formatters";
-import { ModelChip } from "./ModelChip";
 import { AgentGlyph } from "./AgentGlyph";
+import { ModelChip } from "./ModelChip";
+import { repoName } from "../lib/formatters";
 import type { SessionGroup } from "../types";
 
 interface Props {
@@ -11,48 +9,48 @@ interface Props {
   onSelect: () => void;
 }
 
+// SessionRow is the densest piece of the left rail. Single 28px row that
+// reads agent · project on the left and +/-N on the right; the description
+// flows into the available space if it fits. No motion-on-mount (was
+// framer-motion); the rail can render dozens of rows on first paint and
+// the animation overhead wasn't earning its weight. Selected state uses
+// the same left-accent-border pattern as IdentitiesPane in the proxy tab.
 export function SessionRow({ session, selected, onSelect }: Props) {
-  const token = hostToken(session.hostKind);
   const addedRemoved = tallyFiles(session);
-
   return (
-    <motion.button
+    <button
       type="button"
       onClick={onSelect}
-      layout
-      initial={{ opacity: 0, x: -6 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ type: "spring", stiffness: 400, damping: 30 }}
-      className="w-full text-left px-2.5 py-2 rounded-md transition-colors duration-fast hover:bg-white/5 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1 focus-visible:outline-white/40"
-      style={{
-        background: selected ? `${token.color}1A` : "transparent",
-        borderLeft: `2px solid ${selected ? token.color : "transparent"}`,
-        boxShadow: selected ? `inset 0 0 0 1px ${token.color}26` : undefined,
-      }}
+      aria-pressed={selected}
+      className={`w-full text-left px-3 h-7 grid grid-cols-[12px_1fr_auto_auto] items-center gap-2 transition-colors duration-fast border-l-2 ${
+        selected
+          ? "bg-vigil-surface border-vigil-accent text-vigil-ink"
+          : "border-transparent hover:bg-vigil-surface text-vigil-ink"
+      }`}
     >
-      <div className="flex items-baseline justify-between gap-2">
-        <div className="flex items-center gap-1.5 min-w-0 flex-1">
-          <AgentGlyph agent={session.agent} size={12} />
-          <span className={`text-sm truncate ${selected ? "text-white font-semibold" : "text-white/80"}`}>
-            {session.description || "(no description)"}
-          </span>
-        </div>
-        <ModelChip model={session.model} />
-      </div>
-      <div className="text-xs text-white/50 flex justify-between gap-2 mt-0.5 pl-[18px]">
-        <span className="truncate">{session.agent} · {repoName(session.repoPath)}</span>
-        <span className="font-mono shrink-0">
-          <span className="text-emerald-400">+{addedRemoved.added}</span>{" "}
-          <span className="text-rose-400">-{addedRemoved.removed}</span>
+      <AgentGlyph agent={session.agent} size={12} />
+      <div className="min-w-0 flex items-baseline gap-2 truncate">
+        <span className="text-[12px] truncate">
+          {session.description || session.agent}
+        </span>
+        <span className="text-[11px] text-vigil-mute truncate">
+          {repoName(session.repoPath)}
         </span>
       </div>
-    </motion.button>
+      <span className="text-[10px] font-mono text-vigil-mute tabular-nums shrink-0">
+        +{addedRemoved.added} −{addedRemoved.removed}
+      </span>
+      <ModelChip model={session.model} />
+    </button>
   );
 }
 
 function tallyFiles(s: SessionGroup) {
   return s.files.reduce(
-    (acc, f) => ({ added: acc.added + (f.added || 0), removed: acc.removed + (f.removed || 0) }),
+    (acc, f) => ({
+      added: acc.added + (f.added || 0),
+      removed: acc.removed + (f.removed || 0),
+    }),
     { added: 0, removed: 0 },
   );
 }

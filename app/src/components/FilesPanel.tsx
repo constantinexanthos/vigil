@@ -6,15 +6,22 @@ interface Props {
   files: SessionFile[];
 }
 
+// FilesPanel is the files list under the Files tab. Same row pattern as
+// IdentitiesPane in the proxy tab — single 24px line with hover-tint and
+// border-l accent on the open file. The +/- counts collapse to a single
+// monochrome tabular cluster rather than the old green/red pair; readers
+// who care about the direction see the leading kindLetter.
 export function FilesPanel({ files }: Props) {
   const [open, setOpen] = useState<string | null>(null);
   const selected = files.find((f) => f.path === open) ?? null;
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      <div className="flex-1 overflow-y-auto font-mono text-xs">
+      <div className="flex-1 overflow-y-auto font-mono" data-testid="files-list">
         {files.length === 0 && (
-          <div className="px-4 py-5 text-white/45">No files touched yet.</div>
+          <div className="px-4 py-2 text-[12px] text-vigil-mute font-sans">
+            No files touched yet.
+          </div>
         )}
         {files.map((f) => {
           const isOpen = open === f.path;
@@ -23,19 +30,25 @@ export function FilesPanel({ files }: Props) {
               key={f.path}
               type="button"
               onClick={() => setOpen(isOpen ? null : f.path)}
-              className={`w-full flex items-center justify-between px-4 py-1.5 text-left hover:bg-white/4 transition-colors duration-fast ${isOpen ? "bg-white/5 text-white" : "text-white/75"}`}
+              className={`w-full grid grid-cols-[1fr_auto] gap-2 items-center px-4 h-6 text-[11.5px] text-left transition-colors duration-fast border-l-2 ${
+                isOpen
+                  ? "bg-vigil-surface border-vigil-accent text-vigil-ink"
+                  : "border-transparent hover:bg-vigil-surface text-vigil-ink"
+              }`}
             >
               <span className="truncate">{f.path}</span>
-              <span className="text-white/35 shrink-0 ml-2">
-                {kindLetter(f.kind)} <span className="text-emerald-400">+{f.added}</span> <span className="text-rose-400">-{f.removed}</span>
+              <span className="text-vigil-mute shrink-0 tabular-nums">
+                {kindLetter(f.kind)} +{f.added} −{f.removed}
               </span>
             </button>
           );
         })}
       </div>
       {selected?.diff && (
-        <div className="border-t border-white/5 max-h-[45%] overflow-auto">
-          <div className="px-4 py-2 text-xs text-white/55 font-mono">{selected.path}</div>
+        <div className="border-t border-vigil-rule max-h-[45%] overflow-auto">
+          <div className="px-4 h-6 flex items-center text-[10px] uppercase tracking-[0.10em] text-vigil-mute font-mono">
+            {selected.path}
+          </div>
           <DiffViewer diff={selected.diff} />
         </div>
       )}

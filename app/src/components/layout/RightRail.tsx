@@ -13,6 +13,11 @@ const TABS: { id: RightTab; label: string }[] = [
   { id: "review", label: "Review" },
 ];
 
+// RightRail's tab strip mirrors the TopBar pattern — monospace, underline
+// on active, vigil-mute on inactive — so the two horizontal navs feel like
+// the same idiom at different scales. Counts are tabular numerals; the
+// review badge no longer uses a filled red pill (was rose-bad colored),
+// just the count in mute with a bad-accent dot when non-zero.
 export function RightRail({ session, reviewSignals }: Props) {
   const tab = useSelection((s) => s.rightTab);
   const setTab = useSelection((s) => s.setRightTab);
@@ -21,11 +26,11 @@ export function RightRail({ session, reviewSignals }: Props) {
   const reviewSignalCount = reviewSignals?.collisions.length ?? 0;
 
   return (
-    <aside className="h-full flex flex-col">
+    <aside aria-label="Session details" className="h-full flex flex-col border-l border-vigil-rule">
       <nav
         role="tablist"
         aria-label="Session details"
-        className="px-5 py-3.5 flex gap-5 text-sm"
+        className="h-9 px-3 flex items-center gap-3 border-b border-vigil-rule font-mono text-[11px]"
       >
         {TABS.map((t) => (
           <TabButton
@@ -35,31 +40,45 @@ export function RightRail({ session, reviewSignals }: Props) {
             onClick={() => setTab(t.id)}
           >
             {t.label}
-            {t.id === "changes" && fileCount > 0 ? (
-              <span className="ml-1.5 text-white/35 tabular-nums">{fileCount}</span>
-            ) : null}
-            {t.id === "review" && reviewSignalCount > 0 ? (
-              <span className="ml-1.5 inline-flex items-center justify-center bg-bad text-white text-label rounded-full min-w-[14px] h-[14px] px-1 tabular-nums">
+            {t.id === "changes" && fileCount > 0 && (
+              <span className="ml-1.5 text-vigil-mute tabular-nums">
+                {fileCount}
+              </span>
+            )}
+            {t.id === "review" && reviewSignalCount > 0 && (
+              <span className="ml-1.5 inline-flex items-center gap-1 text-bad tabular-nums">
+                <span
+                  aria-hidden
+                  className="w-1 h-1 rounded-full bg-bad"
+                />
                 {reviewSignalCount}
               </span>
-            ) : null}
+            )}
           </TabButton>
         ))}
       </nav>
 
       {!session && (
-        <div className="px-5 py-4 text-sm text-white/45">
+        <div className="px-4 py-3 text-[12px] text-vigil-mute">
           Pick a session to see its files and review signals.
         </div>
       )}
 
       {session && tab === "changes" && (
-        <div role="tabpanel" id="right-rail-panel-changes" className="flex-1 flex flex-col overflow-hidden">
+        <div
+          role="tabpanel"
+          id="right-rail-panel-changes"
+          className="flex-1 flex flex-col overflow-hidden"
+        >
           <FilesPanel files={session.files} />
         </div>
       )}
       {session && tab === "review" && (
-        <div role="tabpanel" id="right-rail-panel-review" className="flex-1 flex flex-col overflow-hidden">
+        <div
+          role="tabpanel"
+          id="right-rail-panel-review"
+          className="flex-1 flex flex-col overflow-hidden"
+        >
           <ReviewPanel signals={reviewSignals} />
         </div>
       )}
@@ -85,7 +104,11 @@ function TabButton({
       aria-selected={active}
       aria-controls={controls}
       onClick={onClick}
-      className={`pb-1 transition-colors duration-fast focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1 focus-visible:outline-white/40 ${active ? "text-white border-b border-white" : "text-white/45 hover:text-white/75"}`}
+      className={`pb-0.5 transition-colors duration-fast ${
+        active
+          ? "text-vigil-ink border-b border-vigil-accent"
+          : "text-vigil-mute hover:text-vigil-ink"
+      }`}
     >
       {children}
     </button>
