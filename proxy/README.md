@@ -93,7 +93,7 @@ The MCP host spawns one subprocess per session; the server exits cleanly on stdi
 
 ## Persistence
 
-State lives in `~/.vigil/` next to the daemon's `vigil.db` so a single backup covers everything Vigil-related:
+State lives in `~/.vigil/` so a single backup covers everything Vigil-related:
 
 | File | Purpose |
 |---|---|

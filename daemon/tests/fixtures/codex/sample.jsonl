@@ -1,4 +1,0 @@
-{"role":"user","content":"add a dark mode toggle","timestamp":"2026-04-22T11:00:00Z"}
-{"role":"assistant","content":"I'll add a toggle in the settings menu.","timestamp":"2026-04-22T11:00:03Z","tool_calls":[{"name":"edit_file","arguments":{"path":"src/settings.tsx"}}]}
-{"role":"tool","content":"edit succeeded","timestamp":"2026-04-22T11:00:04Z","tool_name":"edit_file"}
-{"role":"assistant","content":"Done. Try it — the toggle is in the top-right corner of Settings.","timestamp":"2026-04-22T11:00:07Z"}
