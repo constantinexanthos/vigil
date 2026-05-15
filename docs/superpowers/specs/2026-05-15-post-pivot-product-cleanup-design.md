@@ -189,7 +189,27 @@ Three sub-projects, ordered by urgency.
 - B merges → tag `v0.1.0e-detect` (the detection feature itself)
 - C merges → no new tag (additive, no behavior change)
 
-The next "venture-grade demo number" is: **with process detection on, what % of typical real-world agent traffic gets correctly identified?** Stretch goal: 95%+ of localhost agent connections detected as their actual harness without any user setup.
+The next "venture-grade demo number" is: **with process detection on, what % of typical real-world agent traffic gets correctly identified?**
+
+- **95% — aspirational target / marketing number** — when we can quote 95%+, it goes on the homepage as the headline detection number
+- **88% — ship floor** — sub-project B doesn't get tagged as launch-ready below 88% on dogfood measurement
+- Below 88% means the pattern map is incomplete or there's a structural OS issue we need to fix before ship; we tune until we cross the floor
+
+## Decided open questions
+
+These were open in the original draft; now resolved:
+
+- **Delete `daemon/` entirely** — yes. Costa explicitly diverted this call to lead. The daemon is pre-pivot baggage; its FS-watcher purpose doesn't align with the post-pivot product; its presence creates the worst app-UX bugs (LLM gate, "daemon not reachable" banner). Git preserves the code if we ever want to recover any pieces.
+- **Detection bar** — see versioning above. 95% aspirational, 88% floor.
+
+## Smoothness P1s — address during the cleanup push
+
+Costa flagged the app as "having issues" — these need attention beyond the strategic Rip:
+
+- **MCP server crashes on malformed JSON-RPC frame** (QA-010 from PR #36 QA report). One bad client message kills the entire stdio session. Fix: catch parse errors, return JSON-RPC error response, keep session alive. Ship as part of the **P0 fix bundle** (separate small PR, not part of A or B).
+- **100 concurrent psql connections → 11 dropped** (from QA report). Above what `max_connections=100` alone would predict — possibly a race in Vigil's accept loop. Investigate as part of sub-project B's stability work; if it's a real race, fix; if it's actually Postgres `max_connections` being hit early due to Vigil holding upstream conns, document.
+- **Vite cold-start blank screen** (~5–10s on `npm run tauri dev`). Annoying but expected for any Tauri dev mode. Document in dev README; not a real fix item until we ship a production-built `.app` (separate post-launch task).
+- **Disk-write-failure path untested** (deferred from QA per process). 5-min follow-up needed in a clean fixture; assigned as part of sub-project A's testing scope (since A touches the audit init path lightly).
 
 ## What this push does NOT include
 
