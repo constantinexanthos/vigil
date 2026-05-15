@@ -18,17 +18,28 @@ export function ThreePaneGrid({ left, middle, right }: Props) {
   const onLeftDrag = useDividerDrag((deltaPx) => setLeft(leftWidth + deltaPx));
   const onRightDrag = useDividerDrag((deltaPx) => setRight(rightWidth - deltaPx));
 
+  // Collapse the right pane (and its divider) when there's no content to
+  // show — keeps the middle pane uncluttered when no session is selected.
+  const hasRight = right != null;
+  const gridTemplateColumns = hasRight
+    ? `${leftWidth}px 4px 1fr 4px ${rightWidth}px`
+    : `${leftWidth}px 4px 1fr`;
+
   return (
     <div
       ref={gridRef}
       className="h-full w-full grid"
-      style={{ gridTemplateColumns: `${leftWidth}px 4px 1fr 4px ${rightWidth}px` }}
+      style={{ gridTemplateColumns }}
     >
       <div className="overflow-hidden">{left}</div>
       <Divider onDrag={onLeftDrag} />
       <div className="overflow-hidden">{middle}</div>
-      <Divider onDrag={onRightDrag} />
-      <div className="overflow-hidden">{right}</div>
+      {hasRight && (
+        <>
+          <Divider onDrag={onRightDrag} />
+          <div className="overflow-hidden">{right}</div>
+        </>
+      )}
     </div>
   );
 }

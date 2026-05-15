@@ -1,4 +1,3 @@
-import logo from "/logo.png";
 import type { ViewMode } from "../store/selection";
 
 interface Props {
@@ -24,13 +23,11 @@ export function TopBar({
       style={{ paddingLeft: "82px" }}
       data-tauri-drag-region
     >
-      <div className="flex items-center gap-2">
-        <img src={logo} alt="Vigil" className="w-5 h-5" />
-        <span className="text-base text-white font-semibold">Vigil</span>
+      <div className="flex items-center">
         <span
           role="status"
           aria-label={connected ? "Daemon connected" : "Daemon disconnected"}
-          className={`w-1.5 h-1.5 rounded-full ml-1.5 ${connected ? "bg-emerald-400" : "bg-rose-400"}`}
+          className={`w-1.5 h-1.5 rounded-full ${connected ? "bg-emerald-400" : "bg-rose-400"}`}
           style={{ boxShadow: connected ? `0 0 6px ${hasNewEvents ? "#4ade80" : "#4ade80"}` : "none" }}
         />
       </div>
