@@ -39,22 +39,22 @@ class Vigil < Formula
   on_macos do
     on_arm do
       url Vigil.release_url("darwin", "arm64")
-      sha256 "0000000000000000000000000000000000000000000000000000000000000000"
+      sha256 "b165186d1b9b26aecdd38277de101108aa680c8649b9854e7df207eb960b8141"
     end
     on_intel do
       url Vigil.release_url("darwin", "amd64")
-      sha256 "0000000000000000000000000000000000000000000000000000000000000000"
+      sha256 "113a154263a47281d4787d673c7738b73bda0c4ed05a4993028c11d6ef4ee50a"
     end
   end
 
   on_linux do
     on_arm do
       url Vigil.release_url("linux", "arm64")
-      sha256 "0000000000000000000000000000000000000000000000000000000000000000"
+      sha256 "f89ef15e98caa22e989cdc1ff09a1463ad0e265f1e3c724be99551c9881ab95d"
     end
     on_intel do
       url Vigil.release_url("linux", "amd64")
-      sha256 "0000000000000000000000000000000000000000000000000000000000000000"
+      sha256 "0a3aec6931d2a4886b9c485a925ecaf91783f6b7980953433e7e0a9b641e92da"
     end
   end
 
