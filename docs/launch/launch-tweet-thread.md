@@ -80,6 +80,6 @@ Point psql at :7432 and you're through the proxy. Free for individuals.
 Show HN: <SHOW_HN_URL>
 Source: github.com/constantinexanthos/vigil
 
-Built by <@TWITTER_HANDLE>. MIT. Single binary. We're at v0.1.0d — identity, audit, rate-limit, coalesce shipped. Policy engine and MCP server next.
+Built by <@TWITTER_HANDLE>. MIT. Single binary. We're at v0.1.0d — identity, audit, rate-limit, coalesce, and an MCP server (Claude Code can ask Vigil what its scope is) all shipped. Policy engine next.
 
 (216/280)

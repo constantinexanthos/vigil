@@ -28,12 +28,26 @@ import (
 // stream (no bytes available), which the server's read loop uses to
 // detect client disconnect — wrapping it would obscure that signal.
 //
+// Tolerant to garbage / malformed lines BEFORE the Content-Length
+// header: we silently skip any line that doesn't look like a valid
+// header until we either find one or exhaust the byte budget. This
+// recovers from a corrupted stream after a previous bad message —
+// without recovery, one stray newline written into stdin would kill
+// the entire session (QA-010 from the 2026-05-15 QA report).
+//
 // Takes *bufio.Reader explicitly so pipelined messages survive across
 // successive calls. Wrapping a fresh bufio.Reader around the same
 // underlying io.Reader on every call would discard any data the
 // previous call buffered ahead.
+//
+// maxRecoveryBytes bounds how much garbage we'll skip before giving
+// up — prevents an infinite read loop on a stream of pure noise.
+const maxRecoveryBytes = 4096
+
 func readMessage(br *bufio.Reader) ([]byte, error) {
 	contentLength := -1
+	skipped := 0
+	foundFirstHeader := false
 	for {
 		line, err := br.ReadString('\n')
 		if err != nil {
@@ -44,21 +58,45 @@ func readMessage(br *bufio.Reader) ([]byte, error) {
 		}
 		line = strings.TrimRight(line, "\r\n")
 		if line == "" {
-			break // end of header block
+			if foundFirstHeader {
+				break // end of header block
+			}
+			// Blank line before any real header — could be leftover
+			// from a previous bad frame. Skip and keep looking.
+			skipped++
+			if skipped > maxRecoveryBytes {
+				return nil, errors.New("mcpserver: gave up after >4KB of pre-header garbage")
+			}
+			continue
 		}
 		name, value, ok := strings.Cut(line, ":")
 		if !ok {
-			return nil, fmt.Errorf("mcpserver: malformed header line: %q", line)
+			// Garbage line, not a valid `Name: value` header. Skip as
+			// part of stream recovery; bound by skipped budget.
+			skipped += len(line) + 1
+			if skipped > maxRecoveryBytes {
+				return nil, errors.New("mcpserver: gave up after >4KB of garbage looking for header")
+			}
+			continue
 		}
 		if strings.EqualFold(strings.TrimSpace(name), "Content-Length") {
 			n, err := strconv.Atoi(strings.TrimSpace(value))
 			if err != nil {
-				return nil, fmt.Errorf("mcpserver: bad Content-Length %q: %w", value, err)
+				// Malformed Content-Length value. Treat as garbage and
+				// keep scanning for the next valid header.
+				skipped += len(line) + 1
+				if skipped > maxRecoveryBytes {
+					return nil, fmt.Errorf("mcpserver: gave up after bad Content-Length and >4KB garbage: %w", err)
+				}
+				continue
 			}
 			contentLength = n
+			foundFirstHeader = true
+			continue
 		}
-		// Any other header (Content-Type, etc.) is silently tolerated
-		// per the MCP spec.
+		// Any other valid header (Content-Type, etc.) is silently
+		// tolerated per the MCP spec.
+		foundFirstHeader = true
 	}
 
 	if contentLength < 0 {

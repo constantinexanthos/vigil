@@ -74,9 +74,8 @@ export function HomeView() {
                   <p className="mt-7 max-w-[560px] text-[17px] leading-[1.55] text-stone-600 sm:text-[18px]">
                     Vigil is the agent-aware data plane that sits between your
                     AI agents and your databases, APIs, and services. Per-agent
-                    identity, smart rate limiting, fan-out coalescing,
-                    blast-radius control. Open source. Single binary. Free for
-                    individuals.
+                    identity, smart rate limiting, fan-out coalescing, signed
+                    audit. Open source. Single binary. Free for individuals.
                   </p>
 
                   <div className="mt-10 flex flex-col gap-7 sm:max-w-md">
@@ -309,12 +308,12 @@ export function HomeView() {
                   <span className="italic">ships.</span>
                 </h2>
                 <p className="mt-5 text-[16.5px] leading-relaxed text-stone-600">
-                  Vigil will ship as a single Go binary you drop between an
-                  agent and your data store. We&rsquo;re building toward a v1
-                  release that bundles identity, rate limiting, fan-out
-                  coalescing, blast-radius control, and a signed audit trail.
-                  Free for individuals; paid tiers when you need team policy
-                  + cloud retention.
+                  Vigil ships as a single Go binary you drop between an
+                  agent and your data store. v0.1.0d delivers identity,
+                  rate limiting, fan-out coalescing, and a signed audit
+                  trail; blast-radius policy enforcement is the next
+                  milestone. Free for individuals; paid tiers when you
+                  need team policy + cloud retention.
                 </p>
               </div>
               <div className="rounded-md border border-stone-200 bg-stone-50 p-7 sm:p-8">

@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"log"
 
@@ -73,7 +72,24 @@ func (s *Server) Run(ctx context.Context, r io.Reader, w io.Writer) error {
 			return nil
 		}
 		if err != nil {
-			return fmt.Errorf("mcpserver: read: %w", err)
+			// Pre-fix (QA-010): any read error bubbled up here and
+			// the server exited. One stray byte from a buggy MCP
+			// client took the whole session down.
+			//
+			// Now: log the malformed input, send a JSON-RPC parse
+			// error response with null id (we don't know the request
+			// id since we couldn't decode it), and continue the loop.
+			// readMessage's recovery logic skips garbage bytes so the
+			// next valid frame still parses.
+			s.logger.Printf("mcpserver: malformed input, recovered: %v", err)
+			parseErr := &rpcResponse{
+				JSONRPC: "2.0",
+				Error:   &rpcError{Code: codeParseError, Message: "malformed message; session continues"},
+			}
+			if respBytes, mErr := json.Marshal(parseErr); mErr == nil {
+				_ = writeMessage(w, respBytes)
+			}
+			continue
 		}
 
 		resp := s.dispatch(body)
