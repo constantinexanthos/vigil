@@ -291,15 +291,21 @@ func (l *Limiter) Acquire(ctx context.Context, agentID, route string) (pgproxy.D
 //     return those tunables under the agent's pool name (default
 //     "agents"/"unauth" if no Pool override is given).
 //  2. Per-agent override naming a pool: return that pool's tunables.
-//  3. Default mapping: identified → "agents", anonymous → "unauth".
+//  3. Default mapping:
+//     - "" (anonymous)                  → "unauth"
+//     - "human:..."  (Tier-1 human)     → "production"
+//     - "inferred:..." (Tier-1 agent)   → "agents"
+//     - anything else (Tier-2 declared) → "agents"
+//
+// The "human:" and "inferred:" prefixes are produced by pgproxy's
+// rateLimitBucketKey from connState. Anything else is assumed to
+// be a Tier-2 declared agent ID, which routes to the agents pool
+// by default and can be overridden per-agent in the YAML config.
 //
 // The returned pool name is the bucket key suffix; the returned
 // PoolConfig is what the bucket is constructed/updated with.
 func (l *Limiter) resolve(agentID string) (string, PoolConfig) {
-	defaultPool := PoolAgents
-	if agentID == "" {
-		defaultPool = PoolUnauth
-	}
+	defaultPool := classifyPool(agentID)
 
 	override, hasOverride := l.cfg.Agents[agentID]
 	if !hasOverride {
@@ -319,6 +325,25 @@ func (l *Limiter) resolve(agentID string) (string, PoolConfig) {
 		base.RefillPerSec = override.RefillPerSec
 	}
 	return pool, base
+}
+
+// classifyPool maps a bucket key (from pgproxy.rateLimitBucketKey) to
+// a default pool. Exposed as a free function so the test suite can
+// pin the routing rules without instantiating a Limiter.
+//
+// Prefixes documented above on resolve(); this is the single source
+// of truth for the mapping.
+func classifyPool(agentID string) string {
+	switch {
+	case agentID == "":
+		return PoolUnauth
+	case len(agentID) >= 6 && agentID[:6] == "human:":
+		return PoolProduction
+	case len(agentID) >= 9 && agentID[:9] == "inferred:":
+		return PoolAgents
+	default:
+		return PoolAgents
+	}
 }
 
 // poolConfig returns the named pool's tunables, falling back to the
