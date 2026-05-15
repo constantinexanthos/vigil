@@ -1,0 +1,54 @@
+=== Install flow QA — captured 2026-05-14 22:30-22:40 ===
+
+$ which brew docker psql go cargo
+/opt/homebrew/bin/brew
+/usr/local/bin/docker
+psql not found     [note: full psql lives at /opt/homebrew/opt/libpq/bin/psql]
+/opt/homebrew/bin/go
+/Users/costaxanthos/.cargo/bin/cargo
+
+$ docker info | head -3
+Client:
+ Version:    29.3.1
+ Context:    desktop-linux
+
+$ brew tap | grep vigil
+constantinexanthos/vigil
+
+$ brew install constantinexanthos/vigil/vigil    # tap already added
+Already installed (cached); reinstalled below.
+
+$ brew test vigil
+==> Testing constantinexanthos/vigil/vigil
+==> /opt/homebrew/Cellar/vigil/0.1.0d/bin/vigil-proxy --version
+(brew test passes — no assertion beyond "exit 0 and non-empty output")
+
+$ brew uninstall vigil
+Uninstalling /opt/homebrew/Cellar/vigil/0.1.0d... (4 files, 10.3MB)
+
+$ brew install constantinexanthos/vigil/vigil
+... caveats block (verbose, see proxy/dist/homebrew/vigil.rb) ...
+🍺  /opt/homebrew/Cellar/vigil/0.1.0d: 4 files, 10.3MB, built in 0 seconds
+
+$ vigil-proxy --version
+vigil-proxy v0.1.0d
+
+$ which vigil-proxy
+/opt/homebrew/bin/vigil-proxy
+
+$ ls -l /opt/homebrew/bin/vigil-proxy
+lrwxr-xr-x  ... -> ../Cellar/vigil/0.1.0d/bin/vigil-proxy
+
+$ file /opt/homebrew/bin/vigil-proxy
+/opt/homebrew/bin/vigil-proxy: Mach-O 64-bit executable arm64
+
+$ otool -L /opt/homebrew/bin/vigil-proxy
+/opt/homebrew/bin/vigil-proxy:
+	/usr/lib/libSystem.B.dylib (compatibility version 0.0.0, current version 0.0.0)
+	/usr/lib/libresolv.9.dylib (compatibility version 0.0.0, current version 0.0.0)
+	/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation (compatibility version 0.0.0, current version 0.0.0)
+	/System/Library/Frameworks/Security.framework/Versions/A/Security (compatibility version 0.0.0, current version 0.0.0)
+
+→ Pure macOS frameworks. No third-party dylibs. Pure-Go bin (CGO_ENABLED=0
+  build per Makefile). Round-trip from `brew uninstall` to `vigil-proxy
+  --version` was under 2 seconds.

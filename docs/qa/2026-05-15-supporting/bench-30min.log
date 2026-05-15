@@ -1,0 +1,3 @@
+2026/05/14 22:35:48 running preset "refactor" for 30m0s with concurrency=4 seed=42
+make: *** [bench] Terminated: 15
+2026/05/14 22:53:22 vigil-bench: preset "refactor": direct arm: read stats: context canceled
