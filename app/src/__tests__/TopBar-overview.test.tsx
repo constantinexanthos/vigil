@@ -20,9 +20,12 @@ describe("TopBar mode link row", () => {
   });
 
   it("Overview link is the active state when viewMode='overview'", () => {
+    // Active state used to assert text-white; the vigil-* palette migration
+    // switches to text-vigil-ink (the new ink token). The intent of the
+    // test — "active tab has ink-colored text" — is preserved.
     render(<TopBar {...baseProps} viewMode="overview" />);
     const overview = screen.getByText("Overview").closest("button");
-    expect(overview?.className).toContain("text-white");
+    expect(overview?.className).toContain("text-vigil-ink");
   });
 
   it("Session link is disabled when no session selected", () => {
