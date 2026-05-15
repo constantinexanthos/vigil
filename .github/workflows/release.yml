@@ -1,0 +1,148 @@
+# Release pipeline — builds the four release binaries on every
+# v*.*.* tag, attaches them to a GitHub Release, and prints SHA256s
+# so the Homebrew formula bump is copy-paste.
+#
+# This workflow does NOT touch the constantinexanthos/homebrew-vigil
+# tap repository — that step stays manual (Costa pushes after the
+# release notes are reviewed). See proxy/dist/homebrew/README.md.
+
+name: release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write # required for `gh release create`
+
+jobs:
+  # Build one binary per (os, arch) combination. Each job:
+  #   - builds with CGO_ENABLED=0 so the binary is statically linked
+  #     and works on any libc.
+  #   - injects the tag into main via -X
+  #     github.com/costaxanthos/vigil/proxy/internal/config.Version.
+  #   - asserts size ≤ 12 MB (the same ceiling `make release` checks).
+  #   - emits the SHA256 to the job log AND to a per-arch artifact
+  #     `<binary-name>.sha256` so the release job can stitch them
+  #     together for the Homebrew bump.
+  build:
+    name: build ${{ matrix.os }}-${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: darwin
+            arch: arm64
+          - os: darwin
+            arch: amd64
+          - os: linux
+            arch: arm64
+          - os: linux
+            arch: amd64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: proxy/go.mod
+          cache-dependency-path: proxy/go.sum
+
+      - name: Build
+        working-directory: proxy
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+          # Tags trigger this workflow; we read from env rather than
+          # interpolating ${{ github.ref_name }} directly into the run
+          # script so an unusual tag name can't shell-inject. The tag
+          # filter on this workflow further constrains the input to
+          # v*.*.* — belt-and-braces.
+          VIGIL_VERSION: ${{ github.ref_name }}
+        run: |
+          mkdir -p ../dist
+          out="../dist/vigil-proxy-${VIGIL_VERSION}-${GOOS}-${GOARCH}"
+          go build \
+            -trimpath \
+            -ldflags="-s -w -X github.com/costaxanthos/vigil/proxy/internal/config.Version=${VIGIL_VERSION}" \
+            -o "$out" ./cmd/vigil-proxy
+
+          size=$(wc -c < "$out" | tr -d ' ')
+          ceiling=12582912
+          echo "size: $size bytes (ceiling: $ceiling)"
+          if [ "$size" -gt "$ceiling" ]; then
+            echo "FAIL: binary exceeds ${ceiling}-byte size ceiling"
+            exit 1
+          fi
+
+          sha=$(sha256sum "$out" | awk '{print $1}')
+          echo "sha256: $sha"
+          echo "$sha  $(basename "$out")" > "$out.sha256"
+          # Pretty-print for the workflow log so the formula bumper
+          # can copy the line directly.
+          echo "::notice::vigil-proxy ${VIGIL_VERSION} ${GOOS}/${GOARCH} sha256=$sha size=$size"
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        env:
+          VIGIL_VERSION: ${{ github.ref_name }}
+        with:
+          name: vigil-proxy-${{ github.ref_name }}-${{ matrix.os }}-${{ matrix.arch }}
+          path: |
+            dist/vigil-proxy-${{ github.ref_name }}-${{ matrix.os }}-${{ matrix.arch }}
+            dist/vigil-proxy-${{ github.ref_name }}-${{ matrix.os }}-${{ matrix.arch }}.sha256
+          retention-days: 14
+
+  # Stitch the four matrix artifacts into one GitHub Release. The
+  # release notes are auto-generated from PRs since the previous tag
+  # (--generate-notes). We print all four SHAs prominently so the
+  # Homebrew bump is a straight copy from the log.
+  release:
+    name: github release
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Stage artifacts and print SHAs
+        run: |
+          mkdir -p release-assets
+          # Each matrix job uploaded a folder named after the artifact;
+          # flatten into release-assets/ and concatenate the .sha256
+          # files into one SHA256SUMS for convenience.
+          find artifacts -type f -name 'vigil-proxy-*' -not -name '*.sha256' \
+            -exec cp {} release-assets/ \;
+          # `find -exec cat ... >> file` is shellcheck SC2227 — redirection
+          # binds to the find, not per-exec. Use xargs so each cat append
+          # is its own process appending to release-assets/SHA256SUMS.
+          find artifacts -type f -name 'vigil-proxy-*.sha256' -print0 \
+            | xargs -0 cat >> release-assets/SHA256SUMS
+
+          echo "=== Release assets ==="
+          ls -la release-assets/
+          echo ""
+          echo "=== SHA256SUMS (copy into proxy/dist/homebrew/vigil.rb) ==="
+          cat release-assets/SHA256SUMS
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # github.ref_name is interpolated into the shell as $VIGIL_VERSION
+          # via env (rather than ${{ ... }} directly in `run:`) so an
+          # unusual tag name can't break out of the gh release create
+          # invocation. The workflow's tag filter (v*.*.*) further
+          # constrains the input.
+          VIGIL_VERSION: ${{ github.ref_name }}
+        run: |
+          gh release create "$VIGIL_VERSION" \
+            --title "$VIGIL_VERSION" \
+            --generate-notes \
+            release-assets/*
