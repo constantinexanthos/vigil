@@ -9,6 +9,12 @@ import (
 	"time"
 )
 
+// Version is overridden at build time via -ldflags="-X
+// github.com/costaxanthos/vigil/proxy/internal/config.Version=<value>".
+// Default value reflects the in-tree code release; the Makefile
+// release target replaces it with the tag from `git describe`.
+var Version = "v0.1.0c-dev"
+
 type Config struct {
 	Addr    string
 	DBPath  string
@@ -65,7 +71,7 @@ func Load() (*Config, error) {
 	flag.Parse()
 
 	if *version {
-		fmt.Println("vigil-proxy v0.1.0c")
+		fmt.Printf("vigil-proxy %s\n", Version)
 		os.Exit(0)
 	}
 
