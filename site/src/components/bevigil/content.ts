@@ -28,8 +28,8 @@ export const primitives: { title: string; body: string; iconKey: PrimitiveIconKe
     iconKey: "coalesce",
   },
   {
-    title: "Blast-radius control",
-    body: "“Agent X cannot DELETE from production. Agent Y cannot touch the migrations folder. Agent Z requires human approval before touching auth.” Policies enforced at the proxy, not in the agent’s prompt where it can be jailbroken out of.",
+    title: "Blast-radius control (coming next)",
+    body: "Coming in v0.1.0e. “Agent X cannot DELETE from production. Agent Y cannot touch the migrations folder. Agent Z requires human approval before touching auth.” Policies enforced at the proxy, not in the agent’s prompt where it can be jailbroken out of.",
     iconKey: "blast",
   },
   {
