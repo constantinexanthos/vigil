@@ -353,6 +353,222 @@ func TestDecisionMigrationFromV01b(t *testing.T) {
 	w2.Close()
 }
 
+// TestAgentSourceDefaultsToAnonymous verifies that rows written with
+// an empty Event.AgentSource land with agent_source='anonymous' in
+// SQLite.
+func TestAgentSourceDefaultsToAnonymous(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "proxy.db")
+	_, signer := newSigner(t)
+	w, err := Open(path, signer)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer w.Close()
+	ev := Event{
+		Timestamp: time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC),
+		ConnID:    "c1",
+		Direction: DirClient,
+		MsgType:   "Query",
+		QueryText: "SELECT 1",
+		Bytes:     20,
+		// AgentSource deliberately empty
+	}
+	if err := w.Write(ev); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	var source string
+	if err := w.db.QueryRow(`SELECT agent_source FROM audit LIMIT 1`).Scan(&source); err != nil {
+		t.Fatalf("read agent_source: %v", err)
+	}
+	if source != "anonymous" {
+		t.Errorf("agent_source = %q, want \"anonymous\"", source)
+	}
+}
+
+// TestAgentSourceRoundTrips verifies the three accepted values survive
+// a write/read cycle.
+func TestAgentSourceRoundTrips(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "proxy.db")
+	_, signer := newSigner(t)
+	w, err := Open(path, signer)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer w.Close()
+	cases := []struct {
+		source    string
+		agentID   string
+		agentName string
+	}{
+		{"declared", "agent-abc", "claude-code"},
+		{"inferred", "", "cursor"},
+		{"anonymous", "", ""},
+	}
+	for i, c := range cases {
+		ev := Event{
+			Timestamp:   time.Date(2026, 5, 15, 12, i, 0, 0, time.UTC),
+			AgentID:     c.agentID,
+			AgentName:   c.agentName,
+			ConnID:      "c-as",
+			Direction:   DirClient,
+			MsgType:     "Query",
+			QueryText:   "SELECT " + c.source,
+			Bytes:       20,
+			AgentSource: c.source,
+		}
+		if err := w.Write(ev); err != nil {
+			t.Fatalf("write %s: %v", c.source, err)
+		}
+	}
+	rows, err := w.db.Query(`SELECT agent_source FROM audit ORDER BY id`)
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	defer rows.Close()
+	var got []string
+	for rows.Next() {
+		var s string
+		if err := rows.Scan(&s); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		got = append(got, s)
+	}
+	if len(got) != len(cases) {
+		t.Fatalf("got %d rows, want %d", len(got), len(cases))
+	}
+	for i, c := range cases {
+		if got[i] != c.source {
+			t.Errorf("row %d: agent_source = %q, want %q", i, got[i], c.source)
+		}
+	}
+}
+
+// TestAgentSourceMigrationFromV01d simulates an existing v0.1.0d
+// proxy.db (audit table with decision but no agent_source) and
+// verifies Open adds the column idempotently, with existing rows
+// backfilled to 'anonymous'.
+func TestAgentSourceMigrationFromV01d(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "proxy.db")
+	// Seed a v0.1.0d-style audit table (decision exists, agent_source does not).
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("open seed: %v", err)
+	}
+	const v01dSchema = `
+		CREATE TABLE audit (
+		  id INTEGER PRIMARY KEY AUTOINCREMENT,
+		  ts TEXT NOT NULL,
+		  agent_id TEXT,
+		  agent_name TEXT,
+		  conn_id TEXT NOT NULL,
+		  direction TEXT NOT NULL,
+		  msg_type TEXT NOT NULL,
+		  query_text TEXT,
+		  bytes INTEGER NOT NULL,
+		  sig TEXT NOT NULL,
+		  decision TEXT NOT NULL DEFAULT 'allowed'
+		)
+	`
+	if _, err := db.Exec(v01dSchema); err != nil {
+		t.Fatalf("seed v01d schema: %v", err)
+	}
+	if _, err := db.Exec(
+		`INSERT INTO audit (ts, conn_id, direction, msg_type, bytes, sig, decision) VALUES (?,?,?,?,?,?,?)`,
+		"2026-05-10T12:00:00.000Z", "c-old", "client", "Query", 20, "sig-old", "allowed",
+	); err != nil {
+		t.Fatalf("seed insert: %v", err)
+	}
+	db.Close()
+
+	// Open with the new writer — migration should run.
+	_, signer := newSigner(t)
+	w, err := Open(path, signer)
+	if err != nil {
+		t.Fatalf("open after migration: %v", err)
+	}
+	defer w.Close()
+
+	// Existing row should now have agent_source='anonymous' (column default).
+	var source string
+	if err := w.db.QueryRow(`SELECT agent_source FROM audit WHERE conn_id='c-old'`).Scan(&source); err != nil {
+		t.Fatalf("read migrated agent_source: %v", err)
+	}
+	if source != "anonymous" {
+		t.Errorf("migrated row agent_source = %q, want \"anonymous\"", source)
+	}
+
+	// Second Open should be idempotent (no "duplicate column" panic).
+	w2, err := Open(path, signer)
+	if err != nil {
+		t.Fatalf("reopen: %v", err)
+	}
+	w2.Close()
+}
+
+// TestAgentSourceFreshDBHasColumn verifies a fresh Open creates the
+// column without needing the migration path (i.e. Schema's CREATE
+// TABLE statement is up to date).
+func TestAgentSourceFreshDBHasColumn(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "proxy.db")
+	_, signer := newSigner(t)
+	w, err := Open(path, signer)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer w.Close()
+
+	rows, err := w.db.Query(`PRAGMA table_info(audit)`)
+	if err != nil {
+		t.Fatalf("table_info: %v", err)
+	}
+	defer rows.Close()
+	hasColumn := false
+	for rows.Next() {
+		var (
+			cid     int
+			name    string
+			ctype   string
+			notnull int
+			dflt    sql.NullString
+			pk      int
+		)
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		if name == "agent_source" {
+			hasColumn = true
+			if notnull != 1 {
+				t.Errorf("agent_source should be NOT NULL (notnull=%d)", notnull)
+			}
+			if dflt.String != "'anonymous'" {
+				t.Errorf("agent_source default = %q, want \"'anonymous'\"", dflt.String)
+			}
+		}
+	}
+	if !hasColumn {
+		t.Errorf("agent_source column missing from fresh schema")
+	}
+
+	// Also verify the index exists.
+	var indexCount int
+	if err := w.db.QueryRow(
+		`SELECT count(*) FROM sqlite_master WHERE type='index' AND name='idx_audit_agent_source'`,
+	).Scan(&indexCount); err != nil {
+		t.Fatalf("scan index: %v", err)
+	}
+	if indexCount != 1 {
+		t.Errorf("idx_audit_agent_source index missing (count=%d)", indexCount)
+	}
+}
+
 func TestCanonicalFormDeterminism(t *testing.T) {
 	t.Parallel()
 	a := CanonicalForm("a", "c", "t", "Query", "SELECT 1")
