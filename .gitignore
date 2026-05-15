@@ -1,6 +1,11 @@
 target/
 node_modules/
 dist/
+# Source-of-truth Homebrew formula + tap-publish docs live under
+# proxy/dist/homebrew/ but the rest of dist/ is build output.
+!proxy/dist/
+!proxy/dist/homebrew/
+!proxy/dist/homebrew/**
 .DS_Store
 *.db
 *.sqlite
