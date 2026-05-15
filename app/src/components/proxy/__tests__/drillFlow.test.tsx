@@ -19,7 +19,7 @@ function mkCounter(name: string, queries = 100, deduped = 0, limited = 0): Proxy
   };
 }
 
-function mkRow(decision: string, minutesAgo: number): AuditRow {
+function mkRow(decision: AuditRow["decision"], minutesAgo: number): AuditRow {
   return {
     id: Math.floor(Math.random() * 1e6),
     ts: new Date(Date.now() - minutesAgo * 60_000).toISOString(),
