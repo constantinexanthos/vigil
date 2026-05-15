@@ -91,6 +91,63 @@ Install in `~/.claude/mcp.json`:
 
 The MCP host spawns one subprocess per session; the server exits cleanly on stdin EOF.
 
+### v0.1.0e detection (Tier-1 process introspection)
+
+`proxy/internal/processdetect` makes agent identity attach automatically to every localhost connection. When a TCP client connects to vigil-proxy, the proxy resolves the source PID, walks its parent chain, and matches the resulting process tree against a signature map to infer the harness — Claude Code, Cursor, Codex, Conductor child, VS Code, raw human — at the other end. No user opt-in, no config.
+
+Inferred identity lands on the audit row as `agent_name='cursor'` (or whichever harness was detected) with the new `agent_source='inferred'` column. Declared identity (Tier-2: `application_name=vigil:<token>`) still wins when present and lands as `agent_source='declared'`. Connections we can't introspect — non-localhost, sandboxed apps, permission-restricted — fall through to `agent_source='anonymous'` cleanly without erroring.
+
+Three tiers, in priority order:
+
+| Tier | Source | What it enables | Confidence |
+|---|---|---|---|
+| Declared | `application_name=vigil:<token>` | Cryptographic verification, policy enforcement, per-principal rollups, coalescing | Tamper-evident |
+| Inferred | Process tree introspection | Per-agent rate-limit pools, audit attribution, observability | Unsigned — spoof-resistant only because the spoofer also has to lie to the kernel |
+| Anonymous | Neither | Rate limiting, audit | Floor |
+
+Per-agent rate limiting works for inferred identities: a Cursor connection drains the `agents` pool while a Claude Code connection in the same pool still flows freely. Per-agent fan-out coalescing does NOT apply to inferred identities — coalescing requires a signed identity because cached responses can leak across the (potentially different) RLS contexts a single agent name can attach to.
+
+Supported platforms:
+
+| Platform | Status |
+|---|---|
+| macOS arm64 / amd64 | Full support via `sysctl(kern.proc.pid)` + `lsof -i` for socket→PID |
+| Linux arm64 / amd64 | Full support via `/proc/<pid>/stat` + `/proc/net/tcp` + `/proc/<pid>/fd` |
+| Windows | Stubbed (`walk_other.go`) — returns empty, builds clean. Deferred |
+
+Limitations:
+
+- **Containers.** Docker-for-Mac shims appear as localhost to the proxy but the source process lives in another network namespace; the host's process tree doesn't see it. Detection returns empty and the connection falls through to anonymous.
+- **Remote connections.** Non-loopback peers (any IP that isn't 127.x.x.x or ::1) are not introspected — there is no process at the other end of a remote TCP socket. Tier-3 anonymous applies.
+- **Sandboxed apps.** macOS apps with restrictive sandboxes may not surface in `lsof`'s output without elevated privileges. Detection returns empty; the connection still works.
+- **Process exited mid-detect.** If the client process exits between accept and the syscall, the lookup fails with ESRCH (macOS) or a missing `/proc/<pid>` (Linux). We accept the race and return empty rather than retry — caching the resolved PID by (remoteAddr, time) risks attributing a new connection to a previous owner of the ephemeral port.
+
+Verifying detection on your machine:
+
+```bash
+# Start the proxy with detection logging on.
+vigil-proxy --postgres-listen :7432 --postgres-upstream localhost:5432 --debug-detection
+
+# In another terminal, run something through it.
+psql -h localhost -p 7432 -U postgres -c 'SELECT 1'
+
+# Look at the audit log — agent_name should be 'human' or 'human-script'
+# and agent_source should be 'inferred'.
+sqlite3 ~/.vigil/proxy.db \
+  "SELECT msg_type, agent_name, agent_source FROM audit WHERE msg_type='Query' ORDER BY id DESC LIMIT 5"
+```
+
+If detection misses a harness (`agent_name` is empty for a known agent), the `--debug-detection` log will show the resolved process chain; copy it into a follow-up signature-map PR.
+
+## 100-concurrent stability
+
+QA-008 in the 2026-05-15 first-user-experience report flagged 11/100 dropped on a 100-concurrent psql burst against a v0.1.0d binary pointed at Postgres 16. The follow-up investigation in v0.1.0e:
+
+- `internal/pgproxy/concurrency_test.go` drives 100 concurrent dials through the proxy against an in-process fake upstream that has no connection cap. All 100 succeed. There is no proxy-side race at this concurrency.
+- A second test in the same file drives 100 dials through the proxy against an UPSTREAM-CAPPED fake (90 simultaneous). The proxy translates cap rejection into a clean Postgres `FATAL 08006 ErrorResponse` and the test never sees `unknown failure`.
+
+Conclusion: the 11/100 finding is Case A — Postgres's default `max_connections=100` (3 reserved for superusers ≈ 97 effective slots) saturating during the burst, since real psql connections live for the query lifetime and overlap. The proxy is not the source. Operators who need >100 simultaneous through the proxy should raise `max_connections` on the upstream Postgres or pool ahead of the proxy.
+
 ## Persistence
 
 State lives in `~/.vigil/` next to the daemon's `vigil.db` so a single backup covers everything Vigil-related:
@@ -113,6 +170,7 @@ Override with flags or env vars:
 | `--ratelimit-config <path>` | `VIGIL_RATELIMIT_CONFIG` | _(empty, use defaults)_ | Path to a YAML rate-limit config. Bad YAML is fatal — startup exits 1 rather than silently falling back. |
 | `--coalesce-ttl <duration>` | `VIGIL_COALESCE_TTL` | `250ms` | Per-entry TTL for the fan-out coalescing cache. |
 | `--mcp-stdio` | `VIGIL_MCP_STDIO` | `false` | Run as an MCP stdio server (skips HTTP/Postgres listeners; logs redirect to stderr). Mutually exclusive with the HTTP and Postgres modes. |
+| `--debug-detection` | `VIGIL_DEBUG_DETECTION` | `false` | Log every Tier-1 process-detection attempt (chain, agent, confidence) for tuning the signature map. |
 
 The Postgres proxy starts only when both `--postgres-listen` and `--postgres-upstream` are set and `--postgres-disabled` is not.
 

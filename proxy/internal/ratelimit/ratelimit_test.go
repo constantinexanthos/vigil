@@ -483,6 +483,130 @@ func TestPerAgentBurstOverride(t *testing.T) {
 	}
 }
 
+// TestClassifyPoolRouting pins the v0.1.0e bucket-key → pool mapping.
+// The strings here are the contract between pgproxy.rateLimitBucketKey
+// and ratelimit.Limiter; changing either side without updating both
+// will silently drop traffic into the wrong pool.
+func TestClassifyPoolRouting(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		key  string
+		want string
+	}{
+		{"", PoolUnauth},                            // anonymous
+		{"human:human", PoolProduction},             // Tier-1 human leaf
+		{"human:human-script", PoolProduction},      // Tier-1 ad-hoc script
+		{"inferred:cursor", PoolAgents},             // Tier-1 inferred Cursor
+		{"inferred:claude-code", PoolAgents},        // Tier-1 inferred Claude Code
+		{"inferred:codex", PoolAgents},              // Tier-1 inferred Codex
+		{"agent-base64-id", PoolAgents},             // Tier-2 declared agent
+		{"some-other-id", PoolAgents},               // anything else → agents
+	}
+	for _, tc := range cases {
+		got := classifyPool(tc.key)
+		if got != tc.want {
+			t.Errorf("classifyPool(%q) = %q, want %q", tc.key, got, tc.want)
+		}
+	}
+}
+
+// TestInferredAgentsShareAgentsPool drives the full Limiter to confirm
+// that two different inferred agents (one Cursor, one Claude Code)
+// get separate buckets but both land in the same pool — same pool
+// shape, independent token state. Cursor draining its bucket does
+// NOT block Claude Code, which is the brief's "per-agent rate
+// limiting works for INFERRED identities" acceptance test.
+func TestInferredAgentsHaveIndependentBuckets(t *testing.T) {
+	t.Parallel()
+	cfg := Config{
+		Pools: map[string]PoolConfig{
+			PoolAgents: {Burst: 2, RefillPerSec: 0},
+		},
+	}
+	clock := frozenClock{at: time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)}
+	lim := New(cfg, clock)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Drain Cursor's bucket.
+	for i := 0; i < 2; i++ {
+		d, err := lim.Acquire(ctx, "inferred:cursor", "simple_query")
+		if err != nil {
+			t.Fatalf("cursor #%d: %v", i, err)
+		}
+		if d != pgproxy.DecisionAllowed {
+			t.Fatalf("cursor #%d: want allowed, got %v", i, d)
+		}
+	}
+
+	// Claude Code is in the same pool (agents) but a separate
+	// bucket — it should still have all 2 tokens.
+	for i := 0; i < 2; i++ {
+		d, err := lim.Acquire(ctx, "inferred:claude-code", "simple_query")
+		if err != nil {
+			t.Fatalf("claude #%d: %v", i, err)
+		}
+		if d != pgproxy.DecisionAllowed {
+			t.Fatalf("claude #%d: want allowed, got %v", i, d)
+		}
+	}
+
+	// And a 3rd Cursor call should block (its bucket is empty,
+	// refill is 0).
+	cctx, ccancel := context.WithCancel(ctx)
+	done := make(chan error, 1)
+	go func() {
+		_, err := lim.Acquire(cctx, "inferred:cursor", "simple_query")
+		done <- err
+	}()
+	time.Sleep(20 * time.Millisecond)
+	ccancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("cursor 3rd Acquire: want context.Canceled, got %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("cursor 3rd Acquire did not return within 2s")
+	}
+}
+
+// TestHumanBucketsRouteToProductionPool verifies the "human:" prefix
+// lands a connection in the production pool — humans aren't throttled
+// hard. Mirrors TestPoolIsolation but exercises the new prefix
+// routing path.
+func TestHumanBucketsRouteToProductionPool(t *testing.T) {
+	t.Parallel()
+	cfg := Config{
+		Pools: map[string]PoolConfig{
+			PoolAgents:     {Burst: 1, RefillPerSec: 0},
+			PoolProduction: {Burst: 10, RefillPerSec: 0},
+		},
+	}
+	clock := frozenClock{at: time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)}
+	lim := New(cfg, clock)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Drain the agents pool with an inferred agent.
+	if _, err := lim.Acquire(ctx, "inferred:cursor", "simple_query"); err != nil {
+		t.Fatalf("cursor #1: %v", err)
+	}
+
+	// Human bucket lives in production — should still have 10 tokens.
+	for i := 0; i < 10; i++ {
+		d, err := lim.Acquire(ctx, "human:human", "simple_query")
+		if err != nil {
+			t.Fatalf("human #%d: %v", i, err)
+		}
+		if d != pgproxy.DecisionAllowed {
+			t.Fatalf("human #%d: want allowed, got %v", i, d)
+		}
+	}
+}
+
 // TestDefaultConfigShape pins the shipped defaults so a future refactor
 // can't change them silently. The numbers here are the ones quoted in
 // proxy/README.md's rate-limit table and on bevigil.ai's docs — they're

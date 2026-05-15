@@ -44,6 +44,7 @@ import (
 
 	"github.com/costaxanthos/vigil/proxy/internal/audit"
 	"github.com/costaxanthos/vigil/proxy/internal/identity"
+	"github.com/costaxanthos/vigil/proxy/internal/processdetect"
 )
 
 // Postgres wire request codes used in the startup phase. ProtocolVersion30
@@ -118,6 +119,28 @@ type Server struct {
 	// reaches upstream).
 	Coalescer Coalescer
 
+	// ProcessDetector, if non-nil, is consulted at handleConn after
+	// IdentityVerifier fails (or absents) to attach Tier-1 inferred
+	// identity from the client process tree. Implementation lives in
+	// proxy/internal/processdetect (Sub-project B, push 2026-05-15).
+	// Nil = no detection — connections without declared identity
+	// fall through to AgentSource='anonymous'.
+	//
+	// The decision tree on every accept is exactly:
+	//
+	//  1. declared identity from application_name=vigil:<token>
+	//     → agentID + agentName + agent_source='declared'
+	//  2. ProcessDetector returns non-empty identity
+	//     → agentID="" + agentName + agent_source='inferred'
+	//  3. neither
+	//     → all empty + agent_source='anonymous'
+	//
+	// Inferred identities do NOT enable coalescing (the coalescer's
+	// own `agentID != ""` guard already excludes them). They DO
+	// drive per-agent rate-limit buckets via the BucketKey
+	// computation in connState below.
+	ProcessDetector ProcessDetector
+
 	// DialUpstream is overridable for tests. If nil, defaults to a 10s
 	// TCP dial against UpstreamAddr.
 	DialUpstream func(ctx context.Context) (net.Conn, error)
@@ -186,6 +209,28 @@ func (s *Server) handleConn(ctx context.Context, clientConn net.Conn) {
 	s.Logger.Printf("pgproxy: client connected: %s (conn=%s)", clientAddr, connID)
 	defer s.Logger.Printf("pgproxy: client disconnected: %s (conn=%s)", clientAddr, connID)
 
+	// Tier-1 detection: capture the inferred identity from the
+	// client's process tree BEFORE we touch the upstream or parse
+	// startup. Running here means the lookup races with the
+	// client's StartupMessage send, but in practice the client
+	// hasn't exited yet (it's mid-handshake). If we waited until
+	// after upstream dial + startup parse, the client process
+	// could exit before we walk it; this ordering gives us the
+	// strongest detection rate.
+	//
+	// Failure here is non-fatal: the detector returns an empty
+	// identity and we fall through to the declared-or-anonymous
+	// path. inferredIdentity is stashed for attachIdentity to read
+	// after declared-identity attachment runs (declared wins).
+	var inferred processdetect.DetectedIdentity
+	if s.ProcessDetector != nil {
+		var err error
+		inferred, err = s.ProcessDetector.DetectFromConn(clientConn)
+		if err != nil {
+			s.Logger.Printf("pgproxy: process detection error (conn=%s): %v", connID, err)
+		}
+	}
+
 	upstreamConn, err := s.dialUpstream(ctx)
 	if err != nil {
 		s.Logger.Printf("pgproxy: upstream dial failed: %v", err)
@@ -195,9 +240,10 @@ func (s *Server) handleConn(ctx context.Context, clientConn net.Conn) {
 	defer upstreamConn.Close()
 
 	state := &connState{
-		connID: connID,
-		now:    s.Now,
-		writer: s.AuditWriter,
+		connID:   connID,
+		now:      s.Now,
+		writer:   s.AuditWriter,
+		inferred: inferred,
 	}
 	s.relay(ctx, clientConn, upstreamConn, state)
 }
@@ -216,6 +262,18 @@ type connState struct {
 	connID    string
 	agentID   string
 	agentName string
+
+	// agentSource is one of "declared", "inferred", "anonymous".
+	// Threaded onto every audit row for the connection. Set once at
+	// startup time (in handleConn) and never changed during the
+	// connection.
+	agentSource string
+
+	// inferred carries the result of the Tier-1 ProcessDetector
+	// lookup performed in handleConn (before startup parsing). It
+	// is consulted by attachIdentity to decide the agent_source —
+	// declared identity wins if also present.
+	inferred processdetect.DetectedIdentity
 
 	// authType tracks the most recent upstream Authentication* sub-code
 	// so the next 'p' from the client can be disambiguated for audit
@@ -252,6 +310,43 @@ type connState struct {
 
 	now    func() time.Time
 	writer audit.Writer
+}
+
+// rateLimitBucketKey returns the key used to bucket a connection's
+// frames in the RateLimiter. Resolution order:
+//
+//  1. If state.agentID is non-empty (Tier-2 declared), use it
+//     directly — declared identities get their own per-agent bucket
+//     keyed on the canonical agent ID issued by identity.Issuer.
+//  2. Else if state.agentName is one of the human-tier slugs
+//     ("human", "human-script"), use "human:<agentName>" — the
+//     RateLimiter recognises the prefix and maps it to the
+//     production pool. The brief is explicit that humans should
+//     not be throttled hard.
+//  3. Else if state.agentName is non-empty (Tier-1 inferred), use
+//     "inferred:<agentName>" — agents detected from the process tree
+//     share a bucket per harness slug ("inferred:cursor", etc.).
+//     This implements the "Cursor drains the agents pool while
+//     Claude Code still flows freely" semantic from the brief.
+//  4. Else, use "" — the existing anonymous-bucket key. The
+//     ratelimit.Limiter maps "" to the unauth pool.
+//
+// The "inferred:" / "human:" prefixes prevent collision with a
+// future declared agent_id of the same string and let the
+// ratelimit.Limiter route them to different pools without needing
+// to thread two fields through the interface signature.
+func rateLimitBucketKey(state *connState) string {
+	if state.agentID != "" {
+		return state.agentID
+	}
+	switch state.agentName {
+	case "human", "human-script":
+		return "human:" + state.agentName
+	}
+	if state.agentName != "" {
+		return "inferred:" + state.agentName
+	}
+	return ""
 }
 
 // updateTxDepth advances state.txDepth based on a simple-protocol
@@ -433,9 +528,17 @@ func (s *Server) relay(ctx context.Context, client, upstream net.Conn, state *co
 			// block until a token is available; the returned Decision
 			// threads into the audit row so the dashboard can distinguish
 			// allowed vs throttled traffic.
+			//
+			// Bucket key: declared agentID > "inferred:<agentName>" >
+			// "" (anonymous). See rateLimitBucketKey for the full
+			// resolution table. The change in v0.1.0e is that
+			// inferred identities get their own per-harness bucket
+			// instead of sharing the anonymous unauth pool — Cursor
+			// can now drain the agents pool without throttling
+			// Claude Code.
 			decision := DecisionAllowed
 			if s.RateLimiter != nil {
-				d, err := s.RateLimiter.Acquire(ctx, state.agentID, classifyRoute(fr.hdr[0]))
+				d, err := s.RateLimiter.Acquire(ctx, rateLimitBucketKey(state), classifyRoute(fr.hdr[0]))
 				if err != nil {
 					if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
 						s.Logger.Printf("pgproxy: rate-limit acquire: %v", err)
@@ -544,15 +647,16 @@ func (s *Server) auditClientFrame(state *connState, msgType byte, body []byte, b
 	}
 	name, queryText := classifyClient(msgType, state.authType, body)
 	ev := audit.Event{
-		Timestamp: state.now(),
-		AgentID:   state.agentID,
-		AgentName: state.agentName,
-		ConnID:    state.connID,
-		Direction: audit.DirClient,
-		MsgType:   name,
-		QueryText: queryText,
-		Bytes:     bytesTotal,
-		Decision:  string(decision),
+		Timestamp:   state.now(),
+		AgentID:     state.agentID,
+		AgentName:   state.agentName,
+		ConnID:      state.connID,
+		Direction:   audit.DirClient,
+		MsgType:     name,
+		QueryText:   queryText,
+		Bytes:       bytesTotal,
+		Decision:    string(decision),
+		AgentSource: state.agentSource,
 	}
 	if err := state.writer.Write(ev); err != nil {
 		s.Logger.Printf("pgproxy: audit write: %v", err)
@@ -600,13 +704,14 @@ func (s *Server) auditServerFrame(state *connState, msgType byte, body []byte, b
 		return
 	}
 	ev := audit.Event{
-		Timestamp: state.now(),
-		AgentID:   state.agentID,
-		AgentName: state.agentName,
-		ConnID:    state.connID,
-		Direction: audit.DirServer,
-		MsgType:   name,
-		Bytes:     bytesTotal,
+		Timestamp:   state.now(),
+		AgentID:     state.agentID,
+		AgentName:   state.agentName,
+		ConnID:      state.connID,
+		Direction:   audit.DirServer,
+		MsgType:     name,
+		Bytes:       bytesTotal,
+		AgentSource: state.agentSource,
 	}
 	if err := state.writer.Write(ev); err != nil {
 		s.Logger.Printf("pgproxy: audit write: %v", err)
@@ -844,28 +949,64 @@ func (s *Server) handleStartup(client, upstream net.Conn, state *connState) erro
 	}
 }
 
-// attachIdentity inspects appName for the vigil:<token> form and, on
-// successful Verify, stores the agent_id/agent_name on the connection
-// state. Verification failure is non-fatal: we leave AgentID empty so
-// audit rows have a NULL agent_id but the conversation continues.
+// attachIdentity applies the three-tier identity decision to the
+// connection state:
+//
+//  1. If appName is "vigil:<token>" and IdentityVerifier accepts it,
+//     attach declared identity (agentID + agentName) and set
+//     agentSource='declared'. This is the existing v0.1.0b path
+//     and its behaviour is unchanged — declared identity always
+//     wins.
+//  2. Else if the connection's inferred identity (resolved before
+//     startup parsing) is non-empty, attach inferred identity
+//     (agentName only, agentID left empty so coalescing's
+//     `agentID != ""` guard naturally excludes it) and set
+//     agentSource='inferred'.
+//  3. Else, leave everything empty and set agentSource='anonymous'.
+//
+// Verification failure on a present token is non-fatal: we log it
+// and fall through to the inferred branch — observability before
+// enforcement. A bad token alongside a clean inferred chain
+// produces an audited connection with the inferred name (better
+// than dropping the conn).
 func (s *Server) attachIdentity(state *connState, appName string) {
 	const prefix = "vigil:"
-	if !strings.HasPrefix(appName, prefix) {
-		return
+	declared := false
+	if strings.HasPrefix(appName, prefix) {
+		switch {
+		case s.IdentityVerifier == nil:
+			s.Logger.Printf("pgproxy: identity token present but no verifier configured (conn=%s)", state.connID)
+		default:
+			tok := strings.TrimPrefix(appName, prefix)
+			id, err := s.IdentityVerifier.Verify(tok)
+			if err != nil {
+				s.Logger.Printf("pgproxy: identity verify failed (conn=%s): %v", state.connID, err)
+			} else {
+				state.agentID = id.ID
+				state.agentName = id.AgentName
+				state.agentSource = AgentSourceDeclared
+				s.Logger.Printf("pgproxy: identity attached (declared): agent=%s name=%q (conn=%s)", id.ID, id.AgentName, state.connID)
+				declared = true
+			}
+		}
 	}
-	if s.IdentityVerifier == nil {
-		s.Logger.Printf("pgproxy: identity token present but no verifier configured (conn=%s)", state.connID)
-		return
+
+	if !declared {
+		if !state.inferred.Empty() {
+			// Inferred identities do not have a stable agent_id.
+			// We leave agentID empty so coalesce.Lookup's
+			// `agentID != ""` guard naturally excludes them; rate
+			// limiting buckets them on agentName via the BucketKey
+			// helper.
+			state.agentName = state.inferred.AgentName
+			state.agentSource = AgentSourceInferred
+			s.Logger.Printf("pgproxy: identity attached (inferred): name=%q harness=%q conf=%q chain=%v (conn=%s)",
+				state.inferred.AgentName, state.inferred.HarnessName,
+				state.inferred.Confidence, state.inferred.ProcessChain, state.connID)
+		} else {
+			state.agentSource = AgentSourceAnonymous
+		}
 	}
-	tok := strings.TrimPrefix(appName, prefix)
-	id, err := s.IdentityVerifier.Verify(tok)
-	if err != nil {
-		s.Logger.Printf("pgproxy: identity verify failed (conn=%s): %v", state.connID, err)
-		return
-	}
-	state.agentID = id.ID
-	state.agentName = id.AgentName
-	s.Logger.Printf("pgproxy: identity attached: agent=%s name=%q (conn=%s)", id.ID, id.AgentName, state.connID)
 }
 
 // scanStartupParam extracts the value of a named parameter from the

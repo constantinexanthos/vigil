@@ -34,6 +34,12 @@ import (
 // The decision column was added in the 2026-05-15 prep PR for
 // v0.1.0c (rate-limit) and v0.1.0d (coalesce). v0.1.0b databases
 // without the column are migrated idempotently in Open / FromDB.
+//
+// The agent_source column was added in v0.1.0e to distinguish
+// declared (Tier-2 signed) identity from inferred (Tier-1 process-
+// tree introspected) identity, with anonymous as the floor. The
+// distinction is operationally critical: enforcement policy can
+// require agent_source='declared' before applying a hard deny.
 const Schema = `
 CREATE TABLE IF NOT EXISTS audit (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,7 +52,8 @@ CREATE TABLE IF NOT EXISTS audit (
   query_text TEXT,
   bytes INTEGER NOT NULL,
   sig TEXT NOT NULL,
-  decision TEXT NOT NULL DEFAULT 'allowed'
+  decision TEXT NOT NULL DEFAULT 'allowed',
+  agent_source TEXT NOT NULL DEFAULT 'anonymous'
 );
 CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit(ts);
 CREATE INDEX IF NOT EXISTS idx_audit_agent ON audit(agent_id, ts);
@@ -65,6 +72,23 @@ ALTER TABLE audit ADD COLUMN decision TEXT NOT NULL DEFAULT 'allowed';
 // the column doesn't exist until migration completes.
 const idxDecision = `
 CREATE INDEX IF NOT EXISTS idx_audit_decision ON audit(decision);
+`
+
+// migrateAgentSourceColumn is the v0.1.0e additive migration. It
+// adds the agent_source column to existing audit tables (v0.1.0b,
+// v0.1.0c, v0.1.0d) with a 'anonymous' default so existing rows
+// have a sensible value — they were written before process
+// introspection existed, so "we don't know how that identity was
+// attached" is the honest answer.
+const migrateAgentSourceColumn = `
+ALTER TABLE audit ADD COLUMN agent_source TEXT NOT NULL DEFAULT 'anonymous';
+`
+
+// idxAgentSource creates the agent_source index. Lives separately
+// from Schema for the same reason as idxDecision: the column
+// doesn't exist until ALTER TABLE completes for pre-v0.1.0e DBs.
+const idxAgentSource = `
+CREATE INDEX IF NOT EXISTS idx_audit_agent_source ON audit(agent_source, ts);
 `
 
 
@@ -87,16 +111,27 @@ const (
 // a rate-limit bucket then forwarded), or "coalesced" (response
 // served from the per-agent cache, never forwarded to upstream).
 // Empty Decision is treated as "allowed" by Write.
+//
+// AgentSource records how AgentID/AgentName were attached:
+//   - "declared":  Tier-2 signed identity from application_name=vigil:<token>
+//   - "inferred":  Tier-1 unsigned identity from process-tree introspection
+//   - "anonymous": neither path attached an identity
+//
+// Empty AgentSource is treated as "anonymous" by Write. The
+// distinction matters for the future policy engine: only declared
+// identities are safe to enforce against, because inferred
+// identities can be spoofed by a process changing its name.
 type Event struct {
-	Timestamp time.Time
-	AgentID   string
-	AgentName string
-	ConnID    string
-	Direction Direction
-	MsgType   string
-	QueryText string
-	Bytes     int
-	Decision  string
+	Timestamp   time.Time
+	AgentID     string
+	AgentName   string
+	ConnID      string
+	Direction   Direction
+	MsgType     string
+	QueryText   string
+	Bytes       int
+	Decision    string
+	AgentSource string
 }
 // Signer is the minimal subset of *identity.Issuer that audit needs.
 // We don't import identity here to keep the dependency one-way (the
@@ -168,6 +203,10 @@ func Open(path string, signer Signer) (*DBWriter, error) {
 		_ = db.Close()
 		return nil, err
 	}
+	if err := migrateAgentSource(db); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
 	return &DBWriter{db: db, signer: signer, ownsDB: true}, nil
 }
 // FromDB constructs a DBWriter on an already-open *sql.DB. The schema
@@ -185,6 +224,9 @@ func FromDB(db *sql.DB, signer Signer) (*DBWriter, error) {
 		return nil, fmt.Errorf("audit: init schema: %w", err)
 	}
 	if err := migrateDecision(db); err != nil {
+		return nil, err
+	}
+	if err := migrateAgentSource(db); err != nil {
 		return nil, err
 	}
 	return &DBWriter{db: db, signer: signer, ownsDB: false}, nil
@@ -208,6 +250,28 @@ func migrateDecision(db *sql.DB) error {
 	}
 	if _, err := db.Exec(idxDecision); err != nil {
 		return fmt.Errorf("audit: create decision index: %w", err)
+	}
+	return nil
+}
+
+// migrateAgentSource adds the agent_source column to pre-v0.1.0e
+// audit tables, then ensures the agent_source index exists. Mirrors
+// migrateDecision's shape exactly — same idempotency guarantee,
+// same "duplicate column" tolerance, same separated index because
+// pre-migration the column doesn't exist.
+//
+// Existing rows are backfilled to 'anonymous' (the column default);
+// the audit packagee cannot retroactively know whether a v0.1.0d
+// row had declared or inferred identity, so "anonymous" is the
+// honest answer for them. New rows carry the correct source.
+func migrateAgentSource(db *sql.DB) error {
+	if _, err := db.Exec(migrateAgentSourceColumn); err != nil {
+		if !strings.Contains(err.Error(), "duplicate column") {
+			return fmt.Errorf("audit: add agent_source column: %w", err)
+		}
+	}
+	if _, err := db.Exec(idxAgentSource); err != nil {
+		return fmt.Errorf("audit: create agent_source index: %w", err)
 	}
 	return nil
 }
@@ -252,8 +316,8 @@ func (w *DBWriter) Write(ev Event) error {
 	canonical := CanonicalForm(ev.AgentID, ev.ConnID, ts, ev.MsgType, ev.QueryText)
 	sig := base64.RawStdEncoding.EncodeToString(w.signer.SignRaw([]byte(canonical)))
 	const q = `
-		INSERT INTO audit (ts, agent_id, agent_name, conn_id, direction, msg_type, query_text, bytes, sig, decision)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO audit (ts, agent_id, agent_name, conn_id, direction, msg_type, query_text, bytes, sig, decision, agent_source)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	var (
 		agentID   any = nil
@@ -273,6 +337,10 @@ func (w *DBWriter) Write(ev Event) error {
 	if decision == "" {
 		decision = "allowed"
 	}
+	agentSource := ev.AgentSource
+	if agentSource == "" {
+		agentSource = "anonymous"
+	}
 	_, err := w.db.Exec(q,
 		ts,
 		agentID,
@@ -284,6 +352,7 @@ func (w *DBWriter) Write(ev Event) error {
 		ev.Bytes,
 		sig,
 		decision,
+		agentSource,
 	)
 	if err != nil {
 		return fmt.Errorf("audit: write: %w", err)

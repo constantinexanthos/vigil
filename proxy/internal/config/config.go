@@ -44,6 +44,15 @@ type Config struct {
 	// JSON-RPC on stdout, so any stray HTTP log line would corrupt the
 	// wire format. The two modes are mutually exclusive by design.
 	MCPStdio bool
+
+	// DebugDetection enables verbose logging from the Tier-1 process
+	// detector (proxy/internal/processdetect). Every connection
+	// emits one line describing the resolved process chain,
+	// matched agent name, and confidence — useful for tuning the
+	// signature map against real harnesses on the operator's
+	// machine. Off by default; the detector itself runs
+	// unconditionally (when the Postgres proxy is enabled).
+	DebugDetection bool
 }
 
 func Load() (*Config, error) {
@@ -67,6 +76,8 @@ func Load() (*Config, error) {
 
 	mcpStdio := flag.Bool("mcp-stdio", envBool("VIGIL_MCP_STDIO", false), "Run as an MCP stdio server (skips HTTP/Postgres listeners; logs go to stderr).")
 
+	debugDetection := flag.Bool("debug-detection", envBool("VIGIL_DEBUG_DETECTION", false), "Log every Tier-1 process-detection attempt (chain, agent, confidence) for tuning the signature map.")
+
 	version := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
 
@@ -84,6 +95,7 @@ func Load() (*Config, error) {
 	c.RateLimitConfigPath = *rlConfig
 	c.CoalesceTTL = *coalesceTTL
 	c.MCPStdio = *mcpStdio
+	c.DebugDetection = *debugDetection
 	return c, nil
 }
 

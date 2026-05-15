@@ -30,6 +30,7 @@ import (
 	"github.com/costaxanthos/vigil/proxy/internal/identity"
 	"github.com/costaxanthos/vigil/proxy/internal/mcpserver"
 	"github.com/costaxanthos/vigil/proxy/internal/pgproxy"
+	"github.com/costaxanthos/vigil/proxy/internal/processdetect"
 	"github.com/costaxanthos/vigil/proxy/internal/ratelimit"
 )
 
@@ -155,6 +156,22 @@ func run() error {
 		}
 		rateLimiter := ratelimit.New(rlCfg, ratelimit.RealClock{})
 
+		// Tier-1 process-introspection detector. Always armed when
+		// the Postgres proxy is on; the detector itself is cheap
+		// (one socket→pid resolution + parent-walk per connection,
+		// capped at 50ms). When --debug-detection is set, each
+		// detection attempt logs the resolved chain and confidence
+		// for signature tuning.
+		var detector pgproxy.ProcessDetector
+		if cfg.DebugDetection {
+			detector = processdetect.NewWithDebugLogger(func(format string, args ...any) {
+				log.Printf("processdetect: "+format, args...)
+			})
+			log.Printf("processdetect: --debug-detection enabled; every connection logs its chain")
+		} else {
+			detector = processdetect.New()
+		}
+
 		pgSrv := &pgproxy.Server{
 			ListenAddr:       cfg.PostgresListen,
 			UpstreamAddr:     cfg.PostgresUpstream,
@@ -163,6 +180,7 @@ func run() error {
 			IdentityVerifier: iss,
 			RateLimiter:      rateLimiter,
 			Coalescer:        coalesceCache,
+			ProcessDetector:  detector,
 		}
 		log.Printf("coalesce: per-agent cache armed with %s TTL", cfg.CoalesceTTL)
 		wg.Add(1)
