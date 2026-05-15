@@ -92,13 +92,18 @@ export function MiddlePane({ session, hasCli, summary, turns, viewMode, overview
 
 function ClosedSessionEmpty({ fileCount }: { fileCount: number }) {
   return (
-    <div className="px-5 py-12 text-center">
-      <div className="text-[12.5px] text-white/55 leading-relaxed max-w-[360px] mx-auto">
+    <div className="px-4 py-8 text-center">
+      <div className="text-[12px] text-vigil-mute leading-relaxed max-w-[360px] mx-auto">
         No live summary was captured for this session.
         <br />
-        {fileCount > 0
-          ? <>Open the <span className="text-white/80 font-medium">Files</span> tab to see what changed.</>
-          : <>Nothing was changed.</>}
+        {fileCount > 0 ? (
+          <>
+            Open the <span className="text-vigil-ink">Files</span> tab to see
+            what changed.
+          </>
+        ) : (
+          <>Nothing was changed.</>
+        )}
       </div>
     </div>
   );
@@ -109,11 +114,12 @@ function NoAgentsHero() {
     <div className="h-full flex flex-col items-center justify-center text-center px-6">
       <span
         aria-hidden
-        className="w-3 h-3 rounded-full bg-white/25 mb-4 animate-pulse-alive"
+        className="w-2 h-2 rounded-full bg-vigil-mute/60 mb-3 animate-pulse-alive"
       />
-      <div className="text-title text-white/75 mb-1">No agents active</div>
-      <div className="text-sm text-white/45 leading-relaxed max-w-[280px]">
-        Vigil will light up when you start Claude Code, Cursor, or Codex in a terminal.
+      <div className="text-[14px] text-vigil-ink mb-1">No agents active</div>
+      <div className="text-[12px] text-vigil-mute leading-relaxed max-w-[280px]">
+        Vigil will light up when you start Claude Code, Cursor, or Codex in
+        a terminal.
       </div>
     </div>
   );

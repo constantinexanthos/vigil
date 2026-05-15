@@ -6,31 +6,43 @@ interface Props {
 
 const MAX_VISIBLE = 6;
 
+// MilestoneFeed renders the last assistant turns inside the summary block.
+// Matches the AuditFeed row treatment in the proxy tab — tabular hh:mm,
+// single 24px line per milestone, hover-tint.
 export function MilestoneFeed({ turns }: Props) {
   const milestones = turns
-    .filter(t => t.role === "assistant" && t.text.trim().length > 0 && t.tool_names.length === 0)
+    .filter(
+      (t) =>
+        t.role === "assistant" &&
+        t.text.trim().length > 0 &&
+        t.tool_names.length === 0,
+    )
     .slice(-MAX_VISIBLE);
 
   if (milestones.length === 0) return null;
 
   return (
-    <ul className="mt-3 pt-3 border-t border-white/5 space-y-1 list-none pl-0" role="list">
-      {milestones.map(m => {
+    <ul
+      className="mt-3 pt-3 border-t border-vigil-rule list-none"
+      role="list"
+      data-testid="milestone-feed"
+    >
+      {milestones.map((m) => {
         const d = new Date(m.timestamp);
         const hhmm = `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
         return (
           <li
             key={m.timestamp}
-            className="flex gap-2.5 text-feed text-white/75"
+            className="grid grid-cols-[50px_1fr] gap-2 items-center h-6 px-1 text-[12px] text-vigil-ink hover:bg-vigil-surface transition-colors duration-fast"
             role="listitem"
           >
             <span
               data-milestone-time
-              className="w-10 shrink-0 font-mono text-white/45 tabular-nums"
+              className="font-mono text-[11px] text-vigil-mute tabular-nums"
             >
               {hhmm}
             </span>
-            <span className="flex-1">{firstSentence(m.text)}</span>
+            <span className="truncate">{firstSentence(m.text)}</span>
           </li>
         );
       })}
@@ -38,7 +50,6 @@ export function MilestoneFeed({ turns }: Props) {
   );
 }
 
-/** Keep each milestone to one readable sentence. Clips at first period/newline. */
 function firstSentence(text: string): string {
   const trimmed = text.trim();
   const match = trimmed.match(/^[^.!?\n]{1,140}[.!?]/);

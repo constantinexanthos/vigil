@@ -1,5 +1,3 @@
-// app/src/components/SessionHeader.tsx
-import { motion } from "framer-motion";
 import { hostToken } from "../lib/host-tokens";
 import { elapsedSince, repoName } from "../lib/formatters";
 import type { SessionGroup } from "../types";
@@ -10,39 +8,40 @@ interface Props {
   session: SessionGroup;
 }
 
+// SessionHeader is the top strip of the session detail pane. Single row,
+// same height as the AuditFeed toolbar in the proxy tab (h-9). Removes the
+// framer-motion live pill in favor of an inline pulsing dot + text — same
+// visual weight as the "Live" indicator the proxy tab uses, no separate
+// rounded chip.
 export function SessionHeader({ session }: Props) {
   const token = hostToken(session.hostKind);
   const elapsed = elapsedSince(session.startTime);
 
   return (
-    <div className="px-5 py-3.5 border-b border-white/5 flex items-center justify-between gap-3">
-      <div className="min-w-0">
-        <div className="text-title text-white truncate">{session.description || "Session"}</div>
-        <div className="text-xs text-white/50 font-mono mt-0.5 truncate">
+    <div className="px-4 h-9 border-b border-vigil-rule flex items-center gap-3 min-w-0">
+      <div className="min-w-0 flex items-baseline gap-2">
+        <span className="text-[13px] text-vigil-ink truncate font-medium">
+          {session.description || "Session"}
+        </span>
+        <span className="text-[11px] text-vigil-mute font-mono truncate">
           {session.repoPath ? `${repoName(session.repoPath)} · ` : ""}
           {token.label} · {elapsed}
-        </div>
+        </span>
       </div>
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="ml-auto flex items-center gap-2 shrink-0">
         <ModelPill model={session.model} />
         {session.isLive ? (
-          <motion.div
-            className="flex items-center gap-1.5 rounded-full px-2.5 py-1"
-            style={{ background: `${token.color}1A` }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-          >
+          <span className="inline-flex items-center gap-1 text-[10px] text-vigil-accent uppercase tracking-[0.10em]">
             <span
               aria-hidden
-              className="w-1.5 h-1.5 rounded-full animate-pulse-alive"
-              style={{ background: token.color }}
+              className="w-1 h-1 rounded-full bg-vigil-accent animate-pulse-alive"
             />
-            <span className="text-xs text-white/75">Running</span>
-          </motion.div>
+            Running
+          </span>
         ) : (
-          <div className="rounded-full px-2.5 py-1 bg-white/5">
-            <span className="text-xs text-white/55">Closed · {relativeTime(session.endTime)}</span>
-          </div>
+          <span className="text-[10px] text-vigil-mute uppercase tracking-[0.10em]">
+            Closed · {relativeTime(session.endTime)}
+          </span>
         )}
       </div>
     </div>
