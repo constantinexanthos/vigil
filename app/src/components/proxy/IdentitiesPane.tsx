@@ -1,3 +1,4 @@
+import { forwardRef } from "react";
 import type { ProxyIdentity } from "../../types";
 
 interface Props {
@@ -6,76 +7,75 @@ interface Props {
   onSelect: (id: string | null) => void;
 }
 
-export function IdentitiesPane({ identities, selectedId, onSelect }: Props) {
-  return (
-    <aside
-      aria-label="Issued identities"
-      className="border-r border-white/[0.06] flex flex-col min-w-0"
-    >
-      <div className="flex items-center justify-between px-3 py-2 border-b border-white/[0.06]">
-        <h3 className="text-[9px] uppercase tracking-[0.08em] text-white/35">
-          Identities
-        </h3>
-        {selectedId && (
-          <button
-            type="button"
-            className="text-[10px] text-white/45 hover:text-white/75 transition-colors duration-fast"
-            onClick={() => onSelect(null)}
-          >
-            Clear
-          </button>
-        )}
-      </div>
-      <div className="flex-1 overflow-y-auto">
-        {identities.length === 0 ? (
-          <div className="px-3 py-4 text-[11px] text-white/40">
-            No identities issued yet.
-          </div>
-        ) : (
-          <ul className="divide-y divide-white/[0.04]">
-            {identities.map((id) => (
-              <li key={id.id}>
-                <button
-                  type="button"
-                  className={`text-left w-full px-3 py-2 transition-colors duration-fast ${
-                    selectedId === id.id
-                      ? "bg-white/5"
-                      : "hover:bg-white/[0.025]"
-                  }`}
-                  onClick={() => onSelect(id.id)}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-[12px] text-white/85 font-medium">
-                      {id.agent_name}
-                    </span>
-                    <span className="text-[9px] text-white/35 tabular-nums">
-                      {expiryLabel(id.expires_at)}
-                    </span>
-                  </div>
-                  <div className="text-[10px] text-white/45 mt-0.5 truncate">
-                    {id.principal}
-                  </div>
-                  {id.scopes.length > 0 && (
-                    <div className="flex gap-1 mt-1.5 flex-wrap">
-                      {id.scopes.map((s) => (
-                        <span
-                          key={s}
-                          className="text-[9px] uppercase tracking-wide text-white/55 bg-white/[0.05] px-1.5 py-0.5 rounded-sm"
-                        >
-                          {s}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </aside>
-  );
-}
+// IdentitiesPane is the left rail of the Proxy tab. Compact, scannable,
+// keyboard-reachable. Density target (brief acceptance #1): 12+ rows at
+// 1440×900. We hit that by collapsing each row to a single line: name +
+// principal in a row, expiry on the right. Scopes are surfaced via the
+// title attribute (and to screen readers via aria-label) — they're
+// secondary metadata the operator can hover for.
+export const IdentitiesPane = forwardRef<HTMLDivElement, Props>(
+  function IdentitiesPane({ identities, selectedId, onSelect }, listRef) {
+    return (
+      <aside aria-label="Issued identities" className="border-r border-vigil-rule flex flex-col min-w-0">
+        <div className="flex items-center justify-between px-3 h-9 border-b border-vigil-rule">
+          <h3 className="text-[10px] uppercase tracking-[0.10em] text-vigil-mute">Identities</h3>
+          {selectedId && (
+            <button
+              type="button"
+              className="text-[11px] text-vigil-mute hover:text-vigil-ink transition-colors duration-fast"
+              onClick={() => onSelect(null)}
+            >
+              Clear
+            </button>
+          )}
+        </div>
+        <div
+          ref={listRef}
+          className="flex-1 overflow-y-auto"
+          data-testid="identities-list"
+          tabIndex={-1}
+        >
+          {identities.length === 0 ? (
+            <div className="px-3 py-3 text-[12px] text-vigil-mute">
+              No identities issued yet.
+            </div>
+          ) : (
+            <ul>
+              {identities.map((id) => {
+                const isSelected = selectedId === id.id;
+                return (
+                  <li key={id.id}>
+                    <button
+                      type="button"
+                      data-testid={`identity-row-${id.id}`}
+                      aria-pressed={isSelected}
+                      aria-label={`${id.agent_name}, principal ${id.principal}, scopes ${id.scopes.join(",") || "none"}, expires ${expiryLabel(id.expires_at)}`}
+                      title={`${id.principal} · scopes: ${id.scopes.join(", ") || "—"}`}
+                      className={`text-left w-full px-3 h-9 grid grid-cols-[1fr_auto] items-center gap-2 transition-colors duration-fast border-l-2 ${
+                        isSelected
+                          ? "bg-vigil-surface border-vigil-accent text-vigil-ink"
+                          : "border-transparent hover:bg-vigil-surface text-vigil-ink"
+                      }`}
+                      onClick={() => onSelect(id.id)}
+                    >
+                      <div className="min-w-0 flex items-baseline gap-2">
+                        <span className="text-[12px] truncate">{id.agent_name}</span>
+                        <span className="text-[11px] text-vigil-mute truncate">{id.principal}</span>
+                      </div>
+                      <span className="text-[10px] text-vigil-mute tabular-nums shrink-0">
+                        {expiryLabel(id.expires_at)}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </aside>
+    );
+  },
+);
 
 function expiryLabel(iso: string): string {
   const expires = new Date(iso).getTime();

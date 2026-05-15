@@ -229,7 +229,7 @@ describe("ProxyPane", () => {
     // Detailed flash-on-delta coverage lives in counterFlash.test.tsx.
     render(<ProxyPane />);
     await waitFor(() =>
-      expect(screen.getByText(/Counters · last 24h/i)).toBeInTheDocument(),
+      expect(screen.getByText(/Per agent · last 24h/i)).toBeInTheDocument(),
     );
     expect(screen.getByText("600")).toBeInTheDocument();
     expect(screen.getByText("200")).toBeInTheDocument();
@@ -243,7 +243,7 @@ describe("ProxyPane", () => {
   // end coverage of the new wiring lives in __tests__/decisionFilter.test.tsx.
   it("renders an enabled decision filter (functional from v0.1.0c)", async () => {
     render(<ProxyPane />);
-    await waitFor(() => screen.getByText(/Counters · last 24h/i));
+    await waitFor(() => screen.getByText(/Per agent · last 24h/i));
     const selects = screen.getAllByRole("combobox");
     const decisionSelect = selects[3];
     expect(decisionSelect).not.toBeDisabled();
@@ -266,8 +266,8 @@ describe("ProxyPane", () => {
     const scroller = screen.getByTestId("audit-scroll");
     const sizing = scroller.firstElementChild as HTMLElement | null;
     expect(sizing).toBeTruthy();
-    // 1000 rows * 28px row height = 28000px.
-    expect(sizing!.style.height).toBe("28000px");
+    // 1000 rows * 24px row height = 24000px.
+    expect(sizing!.style.height).toBe("24000px");
     const items = scroller.querySelectorAll('[style*="translateY"]');
     expect(items.length).toBeLessThan(1000);
   });
